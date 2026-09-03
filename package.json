@@ -1,0 +1,25 @@
+{
+  "name": "publicyverifiablesolvencysystem",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/williamtran03/PublicyVerifiableSolvencySystem.git"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/williamtran03/PublicyVerifiableSolvencySystem/issues"
+  },
+  "homepage": "https://github.com/williamtran03/PublicyVerifiableSolvencySystem#readme",
+  "dependencies": {
+    "pyt-merkle-sum-tree": "^0.0.21"
+  }
+}
