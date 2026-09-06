@@ -1,23 +1,26 @@
-import { MerkleSumTree } from "pyt-merkle-sum-tree";
+import { readFileSync } from "node:fs";
+import { buildTree, createProof, verifyProof, keccakHash, type Entry } from "./merkleSumTree.ts";
 
-const tree = new MerkleSumTree("./prover/customers.csv");
+function parseCustomersCsv(path: string): Entry[] {
+  const content = readFileSync(path, "utf8").trim();
+  const [, ...rows] = content.split("\n");
+  return rows.map((row) => {
+    const [username, balance] = row.split(",");
+    return { username: username.trim(), balance: BigInt(balance.trim()) };
+  });
+}
 
+const entries = parseCustomersCsv("./prover/customers.csv");
+const { levels, root, entries: padded } = buildTree(entries, keccakHash);
 
-// specific customer and amount to find in the tree 
 const customerId = "customer-123";
-const amount = 12550n;
-
-const index = tree.indexOf(customerId, amount); // returns index -1 if not found otherwise returns the index of the customer in the tree
+const index = padded.findIndex((e) => e.username === customerId);
 
 if (index === -1) {
   console.log("didn't find customer");
 } else {
-  const proof = tree.createProof(index);
-
+  const proof = createProof(index, padded, levels);
   console.log("Proof:", proof);
-
-  const valid = tree.verifyProof(proof);
-
-  console.log("Proof valid:", valid);
-  console.log("Root:", tree.root);
+  console.log("Proof valid:", verifyProof(proof, keccakHash));
+  console.log("Root:", root);
 }
