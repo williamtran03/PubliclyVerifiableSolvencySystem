@@ -1,6 +1,6 @@
 import { MerkleSumTree } from "pyt-merkle-sum-tree";
 
-const tree = new MerkleSumTree("./src/customers.csv");
+const tree = new MerkleSumTree("./prover/customers.csv");
 
 
 // specific customer and amount to find in the tree 
