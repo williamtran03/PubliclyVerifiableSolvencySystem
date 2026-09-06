@@ -1,0 +1,18 @@
+# mise (local-only for now)
+.mise.toml
+
+# foundry
+out/
+cache/
+broadcast/*/31337/
+broadcast/*/dry-run/
+
+# node
+node_modules/
+
+# env / secrets
+.env
+.env.*
+
+# os
+.DS_Store
