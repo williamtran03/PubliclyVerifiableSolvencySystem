@@ -1,10 +1,11 @@
 .PHONY: build test demo
 
 build:
-	forge build
+	npm run build
 
 test:
-	forge test
+	npm run typecheck
+	npm test
 
-# grows into the full pipeline: anvil -> deploy -> build tree -> prove -> submit epoch -> assert solvent
-demo: build test
+demo:
+	npm run demo

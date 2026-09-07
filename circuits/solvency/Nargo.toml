@@ -1,0 +1,6 @@
+[package]
+name = "solvency"
+type = "bin"
+authors = []
+
+[dependencies]
