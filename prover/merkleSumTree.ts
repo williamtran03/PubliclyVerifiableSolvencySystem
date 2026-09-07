@@ -19,6 +19,26 @@ export type MerkleSumProof = {
   pathIndices: number[]; // 0: left child; 1: right child
 };
 
+export function serializeProof(proof: MerkleSumProof): string {
+  return JSON.stringify(
+    proof,
+    (_key, value) => (typeof value === "bigint" ? value.toString() : value),
+    2,
+  );
+}
+
+export function deserializeProof(json: string): MerkleSumProof {
+  const parsed = JSON.parse(json);
+  return {
+    rootHash: BigInt(parsed.rootHash),
+    rootSum: BigInt(parsed.rootSum),
+    entry: { username: parsed.entry.username, balance: BigInt(parsed.entry.balance) },
+    siblingHashes: parsed.siblingHashes.map(BigInt),
+    siblingSums: parsed.siblingSums.map(BigInt),
+    pathIndices: parsed.pathIndices,
+  };
+}
+
 function usernameToBigInt(username: string): bigint {
   const bytes = new TextEncoder().encode(username);
   if (bytes.length === 0) return 0n;

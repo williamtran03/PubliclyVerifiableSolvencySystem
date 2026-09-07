@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { buildTree, createProof, verifyProof, keccakHash, type Entry } from "./merkleSumTree.ts";
+import { buildTree, createProof, serializeProof, verifyProof, keccakHash, type Entry } from "./merkleSumTree.ts";
 
 function parseCustomersCsv(path: string): Entry[] {
   const content = readFileSync(path, "utf8").trim();
@@ -23,6 +23,8 @@ if (index === -1) {
   console.log("Proof:", proof);
   console.log("Proof valid:", verifyProof(proof, keccakHash));
   console.log("Root:", root);
+  writeFileSync(`./fixtures/proof-${customerId}.json`, serializeProof(proof));
+  console.log(`Wrote fixtures/proof-${customerId}.json`);
 }
 
 mkdirSync("./fixtures", { recursive: true });

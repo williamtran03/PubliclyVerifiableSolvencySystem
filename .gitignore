@@ -10,6 +10,8 @@ broadcast/*/dry-run/
 # node
 node_modules/
 
+fixtures/proof-*.json
+
 # env / secrets
 .env
 .env.*
