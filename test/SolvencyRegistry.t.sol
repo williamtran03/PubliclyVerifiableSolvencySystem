@@ -12,16 +12,16 @@ contract SolvencyRegistryTest is Test {
     }
 
     function test_SubmitEpoch() public {
-        registry.submitEpoch(123, 49550);
+        string memory json = vm.readFile("fixtures/epoch.json");
+        uint256 rootHash = vm.parseJsonUint(json, ".rootHash");
+        uint256 totalLiabilities = vm.parseJsonUint(json, ".totalLiabilities");
 
-        (
-            uint256 rootHash,
-            uint256 totalLiabilities,
-            uint64 timestamp
-        ) = registry.currentEpoch();
+        registry.submitEpoch(rootHash, totalLiabilities);
 
-        assertEq(rootHash, 123);
-        assertEq(totalLiabilities, 49550);
+        (uint256 storedHash, uint256 storedLiabilities, uint64 timestamp) = registry.currentEpoch();
+
+        assertEq(storedHash, rootHash);
+        assertEq(storedLiabilities, totalLiabilities);
         assertEq(timestamp, block.timestamp);
     }
 

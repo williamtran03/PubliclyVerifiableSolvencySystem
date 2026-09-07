@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { buildTree, createProof, verifyProof, keccakHash, type Entry } from "./merkleSumTree.ts";
 
 function parseCustomersCsv(path: string): Entry[] {
@@ -24,3 +24,17 @@ if (index === -1) {
   console.log("Proof valid:", verifyProof(proof, keccakHash));
   console.log("Root:", root);
 }
+
+mkdirSync("./fixtures", { recursive: true });
+writeFileSync(
+  "./fixtures/epoch.json",
+  JSON.stringify(
+    {
+      rootHash: root.hash.toString(),
+      totalLiabilities: root.sum.toString(),
+    },
+    null,
+    2,
+  ),
+);
+console.log("Wrote fixtures/epoch.json");
