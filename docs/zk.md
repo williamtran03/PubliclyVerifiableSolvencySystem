@@ -113,5 +113,11 @@ make demo          # the whole thing on a local chain
 
 `fixtures/zk-proof.json` and `contracts/HonkVerifier.sol` are committed, so
 `forge test` and CI verify a real proof without needing the circuit toolchain
-installed. A separate CI job reinstalls it and re-proves, which is what catches
-the circuit and the prover drifting apart.
+installed. A separate CI job reinstalls it, re-proves, and runs the Foundry
+tests against the fresh proof — which is what catches the circuit and the
+TypeScript prover drifting apart.
+
+Note that the proof is *not* reproducible byte for byte. ZK Honk masks the
+witness with fresh randomness on every run, so two proofs of the same statement
+differ; only the verification key and the public inputs are deterministic, and
+those are what CI diffs.

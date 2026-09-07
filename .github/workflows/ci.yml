@@ -52,8 +52,15 @@ jobs:
       - run: cd circuits/solvency && nargo test
       - run: npx tsx prover/buildTree.ts
       - run: npx tsx script/prove.ts
-      - name: The committed proof and verifier must match what we just rebuilt
-        run: git diff --exit-code fixtures/ contracts/HonkVerifier.sol
+      # The verification key and the epoch are deterministic; the proof is not,
+      # because UltraHonk masks the witness with fresh randomness every run.
+      - name: The verifier and the epoch must match what we just rebuilt
+        run: git diff --exit-code contracts/HonkVerifier.sol fixtures/epoch.json
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: 1.7.1
+      - name: The freshly generated proof must verify on-chain
+        run: forge test --match-contract ZkSolvency -vvv
 
   # The demo is the integration test: it is the only thing that exercises the
   # contract and the prover against each other on a live chain.
