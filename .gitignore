@@ -11,6 +11,7 @@ broadcast/*/dry-run/
 node_modules/
 
 fixtures/proof-*.json
+fixtures/kzg-proof-*.json
 
 # env / secrets
 .env
