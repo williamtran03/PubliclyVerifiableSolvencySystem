@@ -1,42 +1,51 @@
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { buildTree, createProof, serializeProof, verifyProof, keccakHash, type Entry } from "./merkleSumTree.ts";
+/**
+ * The custodian-side step: turn the private customer list into one public root
+ * plus one private inclusion proof per customer.
+ *
+ * Usage: npx tsx prover/buildTree.ts [customers.csv] [outDir]
+ */
+import { mkdirSync, writeFileSync } from "node:fs";
+import { readCustomersCsv } from "./csv.ts";
+import { poseidonHash } from "./hash.ts";
+import { buildTree, createProof, serializeProof, verifyProof } from "./merkleSumTree.ts";
 
-function parseCustomersCsv(path: string): Entry[] {
-  const content = readFileSync(path, "utf8").trim();
-  const [, ...rows] = content.split("\n");
-  return rows.map((row) => {
-    const [username, balance] = row.split(",");
-    return { username: username.trim(), balance: BigInt(balance.trim()) };
-  });
-}
+const csvPath = process.argv[2] ?? "./prover/customers.csv";
+const outDir = process.argv[3] ?? "./fixtures";
 
-const entries = parseCustomersCsv("./prover/customers.csv");
-const { levels, root, entries: padded } = buildTree(entries, keccakHash);
+const entries = readCustomersCsv(csvPath);
+const tree = buildTree(entries, poseidonHash);
 
-const customerId = "customer-123";
-const index = padded.findIndex((e) => e.username === customerId);
+mkdirSync(outDir, { recursive: true });
 
-if (index === -1) {
-  console.log("didn't find customer");
-} else {
-  const proof = createProof(index, padded, levels);
-  console.log("Proof:", proof);
-  console.log("Proof valid:", verifyProof(proof, keccakHash));
-  console.log("Root:", root);
-  writeFileSync(`./fixtures/proof-${customerId}.json`, serializeProof(proof));
-  console.log(`Wrote fixtures/proof-${customerId}.json`);
-}
-
-mkdirSync("./fixtures", { recursive: true });
+// Public: the only thing that ever goes on-chain.
 writeFileSync(
-  "./fixtures/epoch.json",
+  `${outDir}/epoch.json`,
   JSON.stringify(
     {
-      rootHash: root.hash.toString(),
-      totalLiabilities: root.sum.toString(),
+      rootHash: tree.root.hash.toString(),
+      totalLiabilities: tree.root.sum.toString(),
+      depth: tree.depth,
+      leafCount: tree.leaves.length,
+      customerCount: entries.length,
     },
     null,
     2,
-  ),
+  ) + "\n",
 );
-console.log("Wrote fixtures/epoch.json");
+
+// Private: each customer gets exactly their own file and nobody else's.
+let written = 0;
+for (const [index, leaf] of tree.leaves.entries()) {
+  if (leaf.username === null) continue;
+  const proof = createProof(index, tree);
+  if (!verifyProof(proof, poseidonHash)) {
+    throw new Error(`self-check failed for ${leaf.username}`);
+  }
+  writeFileSync(`${outDir}/proof-${leaf.username}.json`, serializeProof(proof) + "\n");
+  written++;
+}
+
+console.log(`customers:         ${entries.length} (padded to ${tree.leaves.length} leaves)`);
+console.log(`root hash:         ${tree.root.hash}`);
+console.log(`total liabilities: ${tree.root.sum} wei`);
+console.log(`wrote:             ${outDir}/epoch.json and ${written} proof files`);
