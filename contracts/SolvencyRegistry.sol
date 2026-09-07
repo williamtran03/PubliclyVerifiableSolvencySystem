@@ -11,6 +11,7 @@ contract SolvencyRegistry {
     address public owner;
     Epoch public currentEpoch;
     uint256 public epochCount;
+    address[] public reserves;
     event EpochSubmitted(
         uint256 indexed epochId,
         uint256 rootHash,
@@ -18,8 +19,9 @@ contract SolvencyRegistry {
         uint64 timestamp
     );
 
-    constructor() {
+    constructor(address[] memory _reserves) {
         owner = msg.sender;
+        reserves = _reserves;
     }
 
     modifier onlyOwner() {
@@ -27,10 +29,17 @@ contract SolvencyRegistry {
         _;
     }
 
+    function totalReserves() public view returns (uint256 total) {
+        for (uint256 i = 0; i < reserves.length; i++) {
+            total += reserves[i].balance;
+        }
+    }
+
     function submitEpoch(
         uint256 rootHash,
         uint256 totalLiabilities
     ) external onlyOwner {
+        require(totalReserves() >= totalLiabilities, "insolvent");
         currentEpoch = Epoch(
             rootHash,
             totalLiabilities,
