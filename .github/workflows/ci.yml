@@ -28,6 +28,33 @@ jobs:
       - run: npx tsc --noEmit
       - run: npx tsx --test prover/*.test.ts
 
+  # Reinstalls the circuit toolchain and re-proves from scratch. This is the job
+  # that catches the circuit and the TypeScript prover drifting apart: prove.ts
+  # refuses to write a fixture when the two disagree about the root.
+  circuit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Noir and Barretenberg
+        run: |
+          curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash
+          echo "$HOME/.nargo/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.nargo/bin:$PATH"
+          noirup -v 1.0.0-beta.26
+          curl -L https://raw.githubusercontent.com/AztecProtocol/aztec-packages/master/barretenberg/bbup/install | bash
+          echo "$HOME/.bb" >> "$GITHUB_PATH"
+          "$HOME/.bb/bbup" -v 6.0.0-nightly.20260902
+      - run: cd circuits/solvency && nargo test
+      - run: npx tsx prover/buildTree.ts
+      - run: npx tsx script/prove.ts
+      - name: The committed proof and verifier must match what we just rebuilt
+        run: git diff --exit-code fixtures/ contracts/HonkVerifier.sol
+
   # The demo is the integration test: it is the only thing that exercises the
   # contract and the prover against each other on a live chain.
   demo:
