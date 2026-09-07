@@ -18,3 +18,6 @@ fixtures/proof-*.json
 
 # os
 .DS_Store
+
+# noir / barretenberg build output
+circuits/**/target/
