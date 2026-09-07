@@ -1,4 +1,4 @@
-# PublicyVerifiableSolvencySystem
+# PubliclyVerifiableSolvencySystem
 
 Blockchain Challenge 2026 — Case 5: Publicly Verifiable Solvency System.
 
