@@ -1,16 +1,22 @@
 /**
  * The whole system, end to end, asserted rather than eyeballed.
  *
- *   anvil -> deploy -> attest reserves -> build tree -> submit epoch
- *         -> customer verifies inclusion -> drain a reserve -> submission rejected
+ *   anvil -> deploy -> attest reserves -> commit to liabilities
+ *         -> publish the total with its grand sum opening (verified on-chain)
+ *         -> customer verifies inclusion (on-chain, free, no wallet)
+ *         -> anyone verifies the range argument (off-chain, pinned by hash)
+ *         -> understated total rejected -> drained reserve rejected
  *
  * Usage: npx tsx script/demo.ts
  */
-import { formatEther, parseEther, getContract } from "viem";
-import { readCustomersCsv } from "../prover/csv.ts";
-import { poseidonHash } from "../prover/hash.ts";
-import { buildTree, createProof, findLeafIndex } from "../prover/merkleSumTree.ts";
+import { formatEther, getContract, keccak256, parseEther, toBytes, type Hex } from "viem";
 import { checkInclusion } from "../cli/inclusion.ts";
+import { readCustomersCsv } from "../prover/csv.ts";
+import { Fr, nthRootOfUnity } from "../prover/kzg/field.ts";
+import { buildEpoch, verifyEpoch } from "../prover/kzg/grandSum.ts";
+import { g1ToJson, g2ToPrecompileJson, rangeProofToJson } from "../prover/kzg/json.ts";
+import { verifyRange } from "../prover/kzg/range.ts";
+import { loadSrs } from "../prover/kzg/srs.ts";
 import { startAnvil } from "./lib/anvil.ts";
 import { readArtifact } from "./lib/forge.ts";
 
@@ -21,76 +27,137 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`demo failed: ${message}`);
 }
 
+async function expectRejection(promise: Promise<unknown>, what: string): Promise<void> {
+  try {
+    await promise;
+  } catch {
+    ok(what);
+    return;
+  }
+  throw new Error(`demo failed: ${what} — but it was accepted`);
+}
+
+const point = (p: ReturnType<typeof g1ToJson>) => [BigInt(p[0]), BigInt(p[1])] as const;
+
+const srs = loadSrs("fixtures/srs.json");
+const entries = readCustomersCsv("./prover/customers.csv");
+const { epoch, proofs } = buildEpoch(srs, entries);
+
 const anvil = await startAnvil();
 try {
   const owner = anvil.walletClient(0);
   const reserveWallets = [anvil.walletClient(1), anvil.walletClient(2)];
-  const { abi, bytecode } = readArtifact("SolvencyRegistry");
 
-  step(1, "Deploy the registry");
-  const deployHash = await owner.deployContract({ abi, bytecode, args: [] });
-  const { contractAddress } = await anvil.publicClient.waitForTransactionReceipt({ hash: deployHash });
-  assert(contractAddress, "no contract address in the deployment receipt");
-  const registry = getContract({ address: contractAddress, abi, client: { public: anvil.publicClient, wallet: owner } });
-  ok(`SolvencyRegistry at ${contractAddress}`);
+  step(1, "Deploy the registry with the SRS's G2 elements baked in");
+  const artifact = readArtifact("KzgSolvencyRegistry");
+  const receipt = await anvil.publicClient.waitForTransactionReceipt({
+    hash: await owner.deployContract({
+      abi: artifact.abi,
+      bytecode: artifact.bytecode,
+      args: [
+        BigInt(epoch.n),
+        nthRootOfUnity(epoch.n),
+        Fr.inv(Fr.create(BigInt(epoch.n))),
+        g2ToPrecompileJson(srs.g2).map(BigInt),
+        g2ToPrecompileJson(srs.tauG2).map(BigInt),
+      ],
+    }),
+  });
+  const address = receipt.contractAddress;
+  assert(address, "registry deployment produced no address");
+  const registry = getContract({
+    address,
+    abi: artifact.abi,
+    client: { public: anvil.publicClient, wallet: owner },
+  });
+  ok(`KzgSolvencyRegistry at ${address} (${receipt.gasUsed} gas to deploy)`);
 
   step(2, "Each reserve wallet signs for itself, then the custodian lists it");
   for (const wallet of reserveWallets) {
-    const address = wallet.account!.address;
-    const message = (await registry.read.reserveMessage([address])) as `0x${string}`;
-    const signature = await wallet.signMessage({ account: wallet.account!, message: { raw: message } });
+    const walletAddress = wallet.account.address;
+    const message = (await registry.read.reserveMessage([walletAddress])) as Hex;
+    const signature = await wallet.signMessage({ message: { raw: message } });
     await anvil.publicClient.waitForTransactionReceipt({
-      hash: await registry.write.addReserve([address, signature]),
+      hash: await registry.write.addReserve([walletAddress, signature]),
     });
-    ok(`${address} attested`);
+    ok(`${walletAddress} attested`);
   }
-
-  // A custodian holding rather more than it owes, so the honest path passes and
-  // the drained path below is a real state change rather than a rounding edge.
-  await anvil.setBalance(reserveWallets[0].account!.address, parseEther("30"));
-  await anvil.setBalance(reserveWallets[1].account!.address, parseEther("25"));
+  await anvil.setBalance(reserveWallets[0].account.address, parseEther("30"));
+  await anvil.setBalance(reserveWallets[1].account.address, parseEther("25"));
   ok(`reserves: ${formatEther((await registry.read.totalReserves()) as bigint)} ETH`);
 
-  step(3, "Build the Merkle-sum tree from the private customer list");
-  const entries = readCustomersCsv("./prover/customers.csv");
-  const tree = buildTree(entries, poseidonHash);
-  ok(`${entries.length} customers, ${tree.leaves.length} leaves, ${formatEther(tree.root.sum)} ETH owed`);
+  step(3, "Commit to the liabilities as one polynomial");
+  assert(verifyEpoch(srs, epoch).ok, "the epoch we just built does not verify locally");
+  const rangeProofFile = rangeProofToJson(epoch.rangeProof) + "\n";
+  const rangeProofHash = keccak256(toBytes(rangeProofFile));
+  ok(`${entries.length} customers over a domain of ${epoch.n}, ${formatEther(epoch.totalLiabilities)} ETH owed`);
+  ok(`range argument: ${epoch.rangeProof.bits} bit polynomials, ${rangeProofFile.length} bytes`);
 
-  step(4, "Publish the root");
-  await anvil.publicClient.waitForTransactionReceipt({
-    hash: await registry.write.submitEpoch([tree.root.hash, tree.root.sum]),
+  step(4, "Publish the total, proven by a single opening at zero");
+  const submitted = await anvil.publicClient.waitForTransactionReceipt({
+    hash: await registry.write.submitEpoch([
+      point(g1ToJson(epoch.balanceCommitment)),
+      point(g1ToJson(epoch.idCommitment)),
+      epoch.totalLiabilities,
+      point(g1ToJson(epoch.grandSumProof)),
+      rangeProofHash,
+    ]),
   });
-  const [publishedRoot] = (await registry.read.currentEpoch()) as [bigint, bigint, bigint, bigint];
-  assert(publishedRoot === tree.root.hash, "the chain stored a different root than we computed");
-  ok(`epoch #${(await registry.read.epochCount()) as bigint - 1n} published`);
+  ok(`epoch published, ${submitted.gasUsed} gas — one pairing check, no SNARK`);
 
-  step(5, "A customer checks their own balance is inside that root");
-  const proof = createProof(findLeafIndex(tree, "customer-123"), tree);
-  const result = await checkInclusion(anvil.publicClient, contractAddress, proof);
+  step(5, "A customer verifies inclusion, on-chain and for free");
+  const mine = proofs.find((proof) => proof.username === "customer-123");
+  assert(mine, "customer-123 has no proof");
+  const result = await checkInclusion(anvil.publicClient, address, mine);
   for (const check of result.checks) ok(check.name);
   assert(result.ok, "the honest inclusion proof did not verify");
 
-  step(6, "A stale proof from a superseded epoch is caught");
-  await anvil.publicClient.waitForTransactionReceipt({
-    hash: await registry.write.submitEpoch([tree.root.hash + 1n, tree.root.sum]),
-  });
-  const stale = await checkInclusion(anvil.publicClient, contractAddress, proof);
-  assert(!stale.ok, "a proof against a superseded root was accepted");
-  assert(stale.checks[0].ok, "the stale proof should still be internally consistent");
-  ok("proof is still internally valid, but no longer matches the published root");
+  step(6, "Anyone verifies that no balance is secretly negative");
+  const pinned = keccak256(toBytes(rangeProofFile));
+  const [, , , , onChainHash] = (await registry.read.currentCommitment()) as [
+    bigint, bigint, bigint, bigint, Hex,
+  ];
+  assert(pinned === onChainHash, "the chain pinned a different range proof");
+  ok("the published artifact is the one the chain committed to");
+  assert(
+    verifyRange(srs, epoch.balanceCommitment, epoch.n, epoch.rangeProof),
+    "the range argument did not verify",
+  );
+  ok("every balance is a 128-bit non-negative number");
 
-  step(7, "Drain a reserve and try to publish again");
-  await anvil.setBalance(reserveWallets[1].account!.address, 0n);
-  ok(`reserves now ${formatEther((await registry.read.totalReserves()) as bigint)} ETH against ${formatEther(tree.root.sum)} ETH owed`);
-  let rejected = false;
-  try {
-    await registry.write.submitEpoch([tree.root.hash, tree.root.sum]);
-  } catch (error) {
-    rejected = String(error).includes("Insolvent");
-    if (!rejected) throw error;
-  }
-  assert(rejected, "an insolvent epoch was accepted");
-  ok("rejected with Insolvent — an insolvent epoch cannot be published at all");
+  step(7, "The things that must not work");
+  await expectRejection(
+    registry.write.submitEpoch([
+      point(g1ToJson(epoch.balanceCommitment)),
+      point(g1ToJson(epoch.idCommitment)),
+      epoch.totalLiabilities - parseEther("10"),
+      point(g1ToJson(epoch.grandSumProof)),
+      rangeProofHash,
+    ]),
+    "10 ETH shaved off the total: rejected by the pairing check",
+  );
+  const inflated = (await registry.read.verifyInclusion([
+    BigInt(mine.index),
+    mine.id,
+    mine.balance + 1n,
+    point(g1ToJson(mine.proof)),
+  ])) as boolean;
+  assert(!inflated, "a customer inflated their own balance");
+  ok("a customer claiming a larger balance than they have: rejected");
+
+  step(8, "Drain a reserve and try to publish again");
+  await anvil.setBalance(reserveWallets[1].account.address, 0n);
+  ok(`reserves now ${formatEther((await registry.read.totalReserves()) as bigint)} ETH against ${formatEther(epoch.totalLiabilities)} ETH owed`);
+  await expectRejection(
+    registry.write.submitEpoch([
+      point(g1ToJson(epoch.balanceCommitment)),
+      point(g1ToJson(epoch.idCommitment)),
+      epoch.totalLiabilities,
+      point(g1ToJson(epoch.grandSumProof)),
+      rangeProofHash,
+    ]),
+    "a perfectly valid commitment still cannot make an insolvent epoch publishable",
+  );
 
   console.log("\nAll demo steps passed.");
 } finally {
