@@ -9,6 +9,10 @@ broadcast/*/dry-run/
 
 # node
 node_modules/
+artifacts/
+private-input.json
+customer-*.json
+local-deployment.json
 
 fixtures/proof-*.json
 

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+/// @notice Legacy baseline: accepts unproven liabilities. Use the proof-backed
+/// vault provided by this branch for the Case 5 demonstration.
 contract SolvencyRegistry {
     struct Epoch {
         uint256 rootHash;
