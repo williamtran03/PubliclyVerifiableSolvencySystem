@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { createPublicClient, http, parseAbi } from "viem";
 import { foundry } from "viem/chains";
-import { verifyProof, deserializeProof, keccakHash } from "../prover/merkleSumTree.ts";
+import { verifyProof, deserializeProof, poseidon2Hash } from "../prover/merkleSumTree.ts";
 
 const registryAddress = process.argv[2];
 const proofPath = process.argv[3] ?? "./fixtures/proof-customer-123.json";
@@ -36,7 +36,7 @@ if (proof.rootHash !== onChainRootHash || proof.rootSum !== onChainTotalLiabilit
   process.exit(1);
 }
 
-const valid = verifyProof(proof, keccakHash);
+const valid = verifyProof(proof, poseidon2Hash);
 console.log(
   valid
     ? "VALID: your balance is included in the published root."

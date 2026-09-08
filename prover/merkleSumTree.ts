@@ -39,7 +39,7 @@ export function deserializeProof(json: string): MerkleSumProof {
   };
 }
 
-function usernameToBigInt(username: string): bigint {
+export function usernameToBigInt(username: string): bigint {
   const bytes = new TextEncoder().encode(username);
   if (bytes.length === 0) return 0n;
   return BigInt("0x" + Buffer.from(bytes).toString("hex"));
@@ -61,15 +61,22 @@ function combineNodes(left: Node, right: Node, hash: HashFn): Node {
   };
 }
 
+// must match circuit/src/main.nr's fixed leaf count
+export const CIRCUIT_LEAF_CAPACITY = 8;
+
 export function buildTree(
   entries: Entry[],
   hash: HashFn,
+  capacity: number = CIRCUIT_LEAF_CAPACITY,
 ): { levels: Node[][]; root: Node; entries: Entry[] } {
-  const depth = Math.max(1, Math.ceil(Math.log2(entries.length)));
-  const size = 2 ** depth;
+  if (entries.length > capacity) {
+    throw new Error(`${entries.length} entries exceeds fixed capacity ${capacity}`);
+  }
+  const depth = Math.log2(capacity);
+  if (!Number.isInteger(depth)) throw new Error("capacity must be a power of two");
 
   const padded: Entry[] = [...entries];
-  while (padded.length < size) {
+  while (padded.length < capacity) {
     padded.push({ username: "", balance: 0n });
   }
 
@@ -130,12 +137,7 @@ export function verifyProof(proof: MerkleSumProof, hash: HashFn): boolean {
   return node.hash === proof.rootHash && node.sum === proof.rootSum;
 }
 
-import { encodePacked, keccak256 } from "viem";
+import { poseidon2Hash as poseidon2 } from "@zkpassport/poseidon2";
 
-export const keccakHash: HashFn = (values) => {
-  const packed = encodePacked(
-    values.map(() => "uint256"),
-    values,
-  );
-  return BigInt(keccak256(packed));
-};
+// must match circuit's Poseidon2::hash calls exactly
+export const poseidon2Hash: HashFn = (values) => poseidon2(values);

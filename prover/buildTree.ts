@@ -1,5 +1,13 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { buildTree, createProof, serializeProof, verifyProof, keccakHash, type Entry } from "./merkleSumTree.ts";
+import {
+  buildTree,
+  createProof,
+  serializeProof,
+  verifyProof,
+  poseidon2Hash,
+  usernameToBigInt,
+  type Entry,
+} from "./merkleSumTree.ts";
 
 function parseCustomersCsv(path: string): Entry[] {
   const content = readFileSync(path, "utf8").trim();
@@ -11,7 +19,7 @@ function parseCustomersCsv(path: string): Entry[] {
 }
 
 const entries = parseCustomersCsv("./prover/customers.csv");
-const { levels, root, entries: padded } = buildTree(entries, keccakHash);
+const { levels, root, entries: padded } = buildTree(entries, poseidon2Hash);
 
 const customerId = "customer-123";
 const index = padded.findIndex((e) => e.username === customerId);
@@ -21,7 +29,7 @@ if (index === -1) {
 } else {
   const proof = createProof(index, padded, levels);
   console.log("Proof:", proof);
-  console.log("Proof valid:", verifyProof(proof, keccakHash));
+  console.log("Proof valid:", verifyProof(proof, poseidon2Hash));
   console.log("Root:", root);
   writeFileSync(`./fixtures/proof-${customerId}.json`, serializeProof(proof));
   console.log(`Wrote fixtures/proof-${customerId}.json`);
@@ -40,3 +48,14 @@ writeFileSync(
   ),
 );
 console.log("Wrote fixtures/epoch.json");
+
+// circuit's private witness input, generated so it can't drift from customers.csv
+const usernames = padded.map((e) => usernameToBigInt(e.username).toString());
+const balances = padded.map((e) => e.balance.toString());
+const proverToml = [
+  `usernames = [${usernames.map((u) => `"${u}"`).join(", ")}]`,
+  `balances = [${balances.map((b) => `"${b}"`).join(", ")}]`,
+  "",
+].join("\n");
+writeFileSync("./circuit/Prover.toml", proverToml);
+console.log("Wrote circuit/Prover.toml");
