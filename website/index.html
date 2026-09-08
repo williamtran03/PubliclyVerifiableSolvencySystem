@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#103b35" />
+  <meta name="description" content="Read a solvency snapshot and privately check your balance inclusion. A University of Basel student project." />
+  <title>Solvency Observatory · Basel</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./app.css" />
+</head>
+<body>
+<a class="skip" href="#workspace">Skip to verification</a>
+<header class="masthead">
+  <a class="brand" href="#snapshot" aria-label="Solvency Observatory home"><span class="brand-mark">S<span>∑</span></span><span>SOLVENCY<br>OBSERVATORY</span></a>
+  <div class="masthead-note">UNIVERSITY OF BASEL<br><span>Blockchain Challenge / Student project</span></div>
+  <a class="source-link" href="https://github.com/williamtran03/PublicyVerifiableSolvencySystem/tree/website" target="_blank" rel="noreferrer">Project source ↗</a>
+</header>
+<main id="workspace">
+  <div class="page-heading"><div><p class="eyebrow">PUBLICLY VERIFIABLE SOLVENCY SYSTEM</p><h1>A closer look at the numbers.</h1></div><p class="edition">BASEL, CH<br>RESEARCH PROTOTYPE / 03</p></div>
+  <nav class="section-nav" aria-label="Workspace"><button data-view="snapshot" aria-current="page"><span>01</span> Snapshot</button><button data-view="balance"><span>02</span> Your balance</button><button data-view="method"><span>03</span> Method & team</button></nav>
+  <div class="mode-bar"><span id="mode-label">DEMONSTRATION</span><p id="mode-note">Sample ledger. No live company or deployed contract is being assessed.</p></div>
+
+  <section id="snapshot-view" class="view" aria-label="Snapshot overview">
+    <div class="overview-layout">
+      <div class="ledger-panel">
+        <div class="panel-caption"><span>01 / THE REPORTED POSITION</span><span id="snapshot-badge">EXAMPLE DATA</span></div>
+        <div class="equation"><div><span class="metric-label" id="assets-label">Example reserves</span><strong id="assets-value">60,000</strong><span class="unit">WEI · ETH</span></div><span class="relation" aria-label="compared with">≥</span><div><span class="metric-label">Committed liabilities</span><strong id="liabilities-value">49,550</strong><span class="unit">WEI · ETH</span></div></div>
+        <div class="coverage-track" role="img" aria-label="Example liabilities use about 83 percent of example reserves"><span id="coverage-fill"></span></div>
+        <div class="coverage-legend"><span id="coverage-text">Liabilities / reserves · 82.58%</span><span id="surplus-text">Difference · 10,450 wei</span></div>
+        <div class="position-note"><span class="stamp" id="position-stamp">EXAMPLE</span><div><h2 id="position-title">The example reserves cover the committed total.</h2><p id="position-detail">This demonstrates the comparison. It is not evidence about a real custodian.</p></div></div>
+        <dl class="snapshot-facts"><div><dt>Snapshot</dt><dd id="epoch-value">Demo / eight-leaf tree</dd></div><div><dt>Recorded at</dt><dd id="time-value">Illustrative data · no chain timestamp</dd></div><div><dt>Block / chain</dt><dd id="block-value">Not connected</dd></div><div><dt>Hash function</dt><dd>Poseidon2</dd></div></dl>
+        <div class="root-row"><span>MERKLE ROOT</span><code id="root-value">Loading example…</code><button class="text-button" id="copy-root" type="button">Copy</button></div>
+      </div>
+      <aside class="connect-panel">
+        <p class="eyebrow">READ FROM THE BLOCKCHAIN</p><h2>Bring your own registry.</h2><p>Use the contract address published by your custodian. No wallet connection is needed.</p>
+        <form id="connect-form">
+          <label for="rpc">RPC endpoint</label><input id="rpc" type="url" placeholder="http://127.0.0.1:8545" autocomplete="off" required />
+          <div class="form-pair"><div><label for="chain">Expected chain ID</label><input id="chain" inputmode="numeric" value="31337" required /></div><div class="field-hint">Anvil: 31337<br>Ethereum: 1</div></div>
+          <label for="registry">Registry address</label><input id="registry" placeholder="0x…" spellcheck="false" autocomplete="off" required />
+          <button class="button primary" id="connect-button" type="submit">Read snapshot <span>↗</span></button>
+        </form>
+        <p class="feedback" id="connection-feedback" role="status" aria-live="polite"></p>
+        <button class="text-button" id="use-demo" type="button">Return to the example</button>
+        <div class="margin-note"><span>READING NOTE / 01</span><p>A snapshot is a point in time. Current wallet balances can change after an epoch is submitted.</p></div>
+      </aside>
+    </div>
+    <div class="bottom-callout"><div><span class="eyebrow">THE OTHER HALF OF THE CHECK</span><h2>Was your full balance counted?</h2></div><button class="button secondary" data-go="balance">Check your inclusion <span>→</span></button></div>
+  </section>
+
+  <section id="balance-view" class="view" hidden aria-label="Customer balance verification">
+    <div class="verification-layout"><div class="verification-form"><p class="eyebrow">02 / YOUR OWN RECORDS</p><h2>Your balance. Your check.</h2><p>Check a customer proof against the selected snapshot. The file stays in this browser; its contents are never sent to the RPC endpoint.</p>
+      <div class="selected-snapshot"><span>CHECKING AGAINST</span><strong id="selected-context">Demonstration snapshot</strong></div>
+      <form id="proof-form">
+        <label class="file-label" for="proof-file"><span class="file-symbol" aria-hidden="true">＋</span><strong>Choose your proof file</strong><span>JSON from your custodian · maximum 256 KB</span><input id="proof-file" type="file" accept=".json,application/json" /></label>
+        <p id="file-feedback" class="feedback" role="status">No file selected.</p>
+        <div class="form-pair"><div><label for="username">Your customer ID</label><input id="username" autocomplete="off" placeholder="customer-123" required /></div><div><label for="balance">Expected balance in wei</label><input id="balance" inputmode="numeric" placeholder="12550" required /><small>Use your own account records.</small></div></div>
+        <button class="button primary" id="verify-button" type="submit">Verify my balance <span>→</span></button>
+      </form>
+      <button class="text-button" id="load-example" type="button">Try the example customer</button>
+    </div><div class="verification-result" id="result-panel" aria-live="polite"><p class="eyebrow">VERIFICATION RECORD</p><h2 id="result-title">Ready when you are.</h2><p id="result-description">Select a proof and enter the balance you expect. A valid path alone does not tell us whether the amount is correct.</p><ol class="check-list"><li id="check-identity"><span>01</span><div><strong>Your identity & amount</strong><p>Compared with the records you enter.</p></div></li><li id="check-path"><span>02</span><div><strong>The path to the root</strong><p>Recomputed locally with Poseidon2.</p></div></li><li id="check-snapshot"><span>03</span><div><strong>The published commitment</strong><p>Both root and liability total must match.</p></div></li></ol><p class="result-footnote">Inclusion does not establish that every other customer or off-chain obligation was disclosed.</p></div></div>
+  </section>
+
+  <section id="method-view" class="view" hidden aria-label="Method and project team">
+    <div class="method-heading"><p class="eyebrow">03 / THE METHOD</p><h2>Make the claim checkable.<br>Keep its limits visible.</h2><p>Our research prototype brings together a private customer ledger, a Merkle-sum tree, a zero-knowledge circuit and a public Ethereum contract.</p></div>
+    <div class="method-rows"><article><span>01</span><h3>Commit the ledger</h3><p>TypeScript builds a fixed eight-leaf Poseidon2 tree. Each leaf commits to a customer identifier and balance; parent nodes bind the hashes and sums below them.</p></article><article><span>02</span><h3>Prove the calculation</h3><p>The Noir circuit constrains balances to unsigned 64-bit values and calculates the root and total. The contract verifies the proof before accepting an epoch.</p></article><article><span>03</span><h3>Compare the reserves</h3><p>The registry compares ETH at its configured reserve addresses with the proven total. Address control, asset eligibility and undisclosed obligations remain separate questions.</p></article><article><span>04</span><h3>Check your inclusion</h3><p>Your proof reconstructs the path to the published root. This portal also checks your expected customer ID, expected balance and the committed liability total.</p></article></div>
+    <div class="limits"><h3>What this portal does not certify</h3><p>Complete liability disclosure, legal ownership of reserves, locked funds, future withdrawals, or the integrity of an arbitrary contract supplied by a user. The selected RPC and contract must be trusted independently. Inclusion proofs can reveal sibling subtree totals.</p></div>
+    <div class="team"><div><p class="eyebrow">BUILT IN BASEL</p><h2>Four people.<br>One verifiable question.</h2><p>University of Basel · Blockchain Challenge<br>Publicly Verifiable Solvency System</p></div><ul><li><span>01</span> William Tran</li><li><span>02</span> Sebastian Müller</li><li><span>03</span> Natalia Kalugina</li><li><span>04</span> Jessica Esomonu</li></ul></div>
+  </section>
+</main>
+<footer><span>PVSS / BASEL</span><p>A student research prototype. Evidence with a defined scope.</p><a href="https://github.com/williamtran03/PublicyVerifiableSolvencySystem/tree/website" target="_blank" rel="noreferrer">Read the implementation ↗</a></footer>
+<noscript>This verification portal needs JavaScript to calculate proofs and read the blockchain.</noscript>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
