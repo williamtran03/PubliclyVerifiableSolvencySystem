@@ -18,3 +18,7 @@ fixtures/proof-*.json
 
 # os
 .DS_Store
+
+# Private split-liability ledgers and customer openings
+merkle-output/
+*.private.json

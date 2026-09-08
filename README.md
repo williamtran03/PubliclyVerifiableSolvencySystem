@@ -19,3 +19,11 @@ make demo   # build + test
 - `test/` — Foundry tests
 - `script/` — Foundry scripts
 - `lib/` — vendored deps
+
+## Merkle-sum solution branch
+
+See [the Merkle-sum solution guide](docs/merkle-sum.md) for salted identities,
+split customer balances, full customer verification and the `MerkleSumRegistry`
+contract. This alternative computes root and liabilities on-chain from public
+partial amounts; it does not use ZK proofs. Run `npm run test:merkle` and follow
+the guide for the local demo and privacy limitations.

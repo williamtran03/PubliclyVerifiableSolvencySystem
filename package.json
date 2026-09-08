@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "scripts": {},
+  "scripts": {
+    "test:merkle": "tsx --test prover/*.test.ts",
+    "merkle": "tsx cli/merkle-sum.ts",
+    "demo:merkle": "tsx script/merkle-sum-demo.ts"
+  },
   "devDependencies": {
     "@types/node": "^26.4.1",
     "tsx": "^4.23.13",
