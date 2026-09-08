@@ -12,6 +12,10 @@ node_modules/
 
 fixtures/proof-*.json
 
+# noir circuit: build artifacts, and Prover.toml holds raw customer balances
+circuit/target/
+circuit/Prover.toml
+
 # env / secrets
 .env
 .env.*
