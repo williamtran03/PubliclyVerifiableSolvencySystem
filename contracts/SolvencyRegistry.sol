@@ -38,7 +38,7 @@ contract SolvencyRegistry {
     function submitEpoch(
         uint256 rootHash,
         uint256 totalLiabilities
-    ) external onlyOwner {
+    ) external virtual onlyOwner {
         require(totalReserves() >= totalLiabilities, "insolvent");
         currentEpoch = Epoch(
             rootHash,
