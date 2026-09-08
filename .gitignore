@@ -12,6 +12,8 @@ node_modules/
 
 fixtures/proof-*.json
 
+# fixtures/proof.bin IS committed -- public proof, read by forge test
+
 # noir circuit: build artifacts, and Prover.toml holds raw customer balances
 circuit/target/
 circuit/Prover.toml

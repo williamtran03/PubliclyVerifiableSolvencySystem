@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import {IVerifier} from "./HonkVerifier.sol";
+
 contract SolvencyRegistry {
     struct Epoch {
         uint256 rootHash;
@@ -12,6 +14,7 @@ contract SolvencyRegistry {
     Epoch public currentEpoch;
     uint256 public epochCount;
     address[] public reserves;
+    IVerifier public immutable verifier;
     event EpochSubmitted(
         uint256 indexed epochId,
         uint256 rootHash,
@@ -19,9 +22,10 @@ contract SolvencyRegistry {
         uint64 timestamp
     );
 
-    constructor(address[] memory _reserves) {
+    constructor(address[] memory _reserves, address _verifier) {
         owner = msg.sender;
         reserves = _reserves;
+        verifier = IVerifier(_verifier);
     }
 
     modifier onlyOwner() {
@@ -36,9 +40,15 @@ contract SolvencyRegistry {
     }
 
     function submitEpoch(
+        bytes calldata proof,
         uint256 rootHash,
         uint256 totalLiabilities
     ) external onlyOwner {
+        bytes32[] memory publicInputs = new bytes32[](2);
+        publicInputs[0] = bytes32(rootHash);
+        publicInputs[1] = bytes32(totalLiabilities);
+        require(verifier.verify(proof, publicInputs), "invalid proof");
+
         require(totalReserves() >= totalLiabilities, "insolvent");
         currentEpoch = Epoch(
             rootHash,
