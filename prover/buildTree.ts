@@ -37,6 +37,15 @@ if (index === -1) {
   console.log(`Wrote fixtures/proof-${customerId}.json`);
 }
 
+mkdirSync("./frontend/public/proofs", { recursive: true });
+const realUsernames = entries.map((e) => e.username);
+for (const username of realUsernames) {
+  const i = padded.findIndex((e) => e.username === username);
+  writeFileSync(`./frontend/public/proofs/${username}.json`, serializeProof(createProof(i, padded, levels)));
+}
+writeFileSync("./frontend/public/proofs/index.json", JSON.stringify(realUsernames, null, 2));
+console.log(`Wrote frontend/public/proofs/ (${realUsernames.length} customers)`);
+
 mkdirSync("./fixtures", { recursive: true });
 writeFileSync(
   "./fixtures/epoch.json",

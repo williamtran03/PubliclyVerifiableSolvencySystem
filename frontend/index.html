@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Solvency Registry — Customer Verification</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Publicly Verifiable Solvency System</h1>
+      <p class="subtitle">Read-only. No wallet needed — this only reads public chain data and checks math.</p>
+
+      <section class="card">
+        <h2>1. Connect</h2>
+        <label>RPC URL <input id="rpcUrl" value="http://127.0.0.1:8545" /></label>
+        <label>SolvencyRegistry address <input id="registryAddress" placeholder="0x..." /></label>
+        <button id="connectBtn">Read current epoch</button>
+        <div id="epochResult" class="result"></div>
+      </section>
+
+      <section class="card">
+        <h2>2. Verify a customer</h2>
+        <label
+          >Customer
+          <select id="customerSelect" disabled>
+            <option>connect first</option>
+          </select>
+        </label>
+        <button id="verifyBtn" disabled>Verify inclusion</button>
+        <div id="verifyResult" class="result"></div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

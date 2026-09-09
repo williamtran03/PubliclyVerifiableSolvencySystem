@@ -11,8 +11,10 @@ broadcast/*/dry-run/
 node_modules/
 
 fixtures/proof-*.json
+frontend/public/proofs/
 
-# fixtures/proof.bin IS committed -- public proof, read by forge test
+# frontend build output
+frontend/dist/
 
 # noir circuit: build artifacts, and Prover.toml holds raw customer balances
 circuit/target/
