@@ -26,3 +26,7 @@ circuit/Prover.toml
 
 # os
 .DS_Store
+# Private split-liability inputs and outputs
+merkle-output/
+*.private.json
+

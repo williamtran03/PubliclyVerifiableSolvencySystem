@@ -5,6 +5,7 @@ build:
 
 test:
 	forge test
+	node --import tsx --test prover/*.test.ts prover/kzg/*.test.ts prover/merkle-sum/*.test.ts
 
 demo: build
 	@npx tsx script/demo.ts
