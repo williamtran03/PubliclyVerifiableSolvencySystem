@@ -17,9 +17,7 @@ const registryAbi = parseAbi([
 console.log("==> starting anvil");
 try {
   execSync("lsof -ti:8545 | xargs kill -9", { stdio: "ignore" });
-} catch {
-  // nothing was listening, that's fine
-}
+} catch {}
 const anvil = spawn("anvil", ["--silent"]);
 process.on("exit", () => anvil.kill());
 await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -34,7 +32,6 @@ const account = privateKeyToAccount(OWNER_KEY as `0x${string}`);
 const publicClient = createPublicClient({ chain: foundry, transport: http(RPC_URL) });
 const walletClient = createWalletClient({ account, chain: foundry, transport: http(RPC_URL) });
 
-// forge auto-links HonkVerifier's split-out libraries; viem doesn't, so by hand
 async function deployLibrary(name: string): Promise<`0x${string}`> {
   const artifact = JSON.parse(readFileSync(`out/HonkVerifier.sol/${name}.json`, "utf8"));
   const hash = await walletClient.deployContract({

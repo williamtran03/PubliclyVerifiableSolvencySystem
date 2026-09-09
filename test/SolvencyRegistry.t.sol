@@ -56,7 +56,6 @@ contract SolvencyRegistryTest is Test {
         registry.submitEpoch(proof, rootHash, totalLiabilities);
     }
 
-    // verifier reverts with its own error on a bad proof, not a plain false
     function test_RevertsForInvalidProof() public {
         bytes memory garbage = new bytes(proof.length);
         vm.expectRevert();
