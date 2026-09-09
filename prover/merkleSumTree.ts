@@ -68,12 +68,12 @@ function combineNodes(left: Node, right: Node, hash: HashFn): Node {
   };
 }
 
-export const CIRCUIT_LEAF_CAPACITY = 8;
+export const LEAF_CAPACITY = 8;
 
 export function buildTree(
   entries: Entry[],
   hash: HashFn,
-  capacity: number = CIRCUIT_LEAF_CAPACITY,
+  capacity: number = LEAF_CAPACITY,
 ): { levels: Node[][]; root: Node; entries: Entry[] } {
   if (entries.length > capacity) {
     throw new Error(`${entries.length} entries exceeds fixed capacity ${capacity}`);
