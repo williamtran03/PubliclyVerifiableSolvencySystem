@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { buildTree, createProof, verifyProof, poseidon2Hash, type Entry } from "./merkleSumTree.ts";
 
 const entries: Entry[] = [
-  { username: "customer-123", balance: 12550n },
-  { username: "customer-456", balance: 5000n },
-  { username: "customer-789", balance: 32000n },
+  { username: "customer-123", balance: 12550n, salt: 111n },
+  { username: "customer-456", balance: 5000n, salt: 222n },
+  { username: "customer-789", balance: 32000n, salt: 333n },
 ];
 
 test("root sum equals the total of all balances", () => {
@@ -32,8 +32,8 @@ test("a tampered balance fails verification", () => {
 test("a non-power-of-two entry count still pads and sums correctly", () => {
   const five: Entry[] = [
     ...entries,
-    { username: "customer-A", balance: 100n },
-    { username: "customer-B", balance: 200n },
+    { username: "customer-A", balance: 100n, salt: 444n },
+    { username: "customer-B", balance: 200n, salt: 555n },
   ];
   const { root } = buildTree(five, poseidon2Hash);
   assert.equal(root.sum, 49550n + 100n + 200n);

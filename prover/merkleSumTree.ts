@@ -3,6 +3,7 @@ export type HashFn = (values: bigint[]) => bigint;
 export type Entry = {
   username: string;
   balance: bigint;
+  salt: bigint;
 };
 
 export type Node = {
@@ -32,7 +33,11 @@ export function deserializeProof(json: string): MerkleSumProof {
   return {
     rootHash: BigInt(parsed.rootHash),
     rootSum: BigInt(parsed.rootSum),
-    entry: { username: parsed.entry.username, balance: BigInt(parsed.entry.balance) },
+    entry: {
+      username: parsed.entry.username,
+      balance: BigInt(parsed.entry.balance),
+      salt: BigInt(parsed.entry.salt),
+    },
     siblingHashes: parsed.siblingHashes.map(BigInt),
     siblingSums: parsed.siblingSums.map(BigInt),
     pathIndices: parsed.pathIndices,
@@ -42,12 +47,14 @@ export function deserializeProof(json: string): MerkleSumProof {
 export function usernameToBigInt(username: string): bigint {
   const bytes = new TextEncoder().encode(username);
   if (bytes.length === 0) return 0n;
-  return BigInt("0x" + Buffer.from(bytes).toString("hex"));
+  let hex = "";
+  for (const byte of bytes) hex += byte.toString(16).padStart(2, "0");
+  return BigInt("0x" + hex);
 }
 
 function computeLeaf(entry: Entry, hash: HashFn): Node {
   return {
-    hash: hash([usernameToBigInt(entry.username), entry.balance]),
+    hash: hash([usernameToBigInt(entry.username), entry.salt, entry.balance]),
     sum: entry.balance,
   };
 }
@@ -61,7 +68,6 @@ function combineNodes(left: Node, right: Node, hash: HashFn): Node {
   };
 }
 
-// must match circuit/src/main.nr's fixed leaf count
 export const CIRCUIT_LEAF_CAPACITY = 8;
 
 export function buildTree(
@@ -77,7 +83,7 @@ export function buildTree(
 
   const padded: Entry[] = [...entries];
   while (padded.length < capacity) {
-    padded.push({ username: "", balance: 0n });
+    padded.push({ username: "", balance: 0n, salt: 0n });
   }
 
   const levels: Node[][] = [];
@@ -139,5 +145,4 @@ export function verifyProof(proof: MerkleSumProof, hash: HashFn): boolean {
 
 import { poseidon2Hash as poseidon2 } from "@zkpassport/poseidon2";
 
-// must match circuit's Poseidon2::hash calls exactly
 export const poseidon2Hash: HashFn = (values) => poseidon2(values);

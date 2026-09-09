@@ -13,8 +13,12 @@ function parseCustomersCsv(path: string): Entry[] {
   const content = readFileSync(path, "utf8").trim();
   const [, ...rows] = content.split("\n");
   return rows.map((row) => {
-    const [username, balance] = row.split(",");
-    return { username: username.trim(), balance: BigInt(balance.trim()) };
+    const [username, balance, salt] = row.split(",");
+    return {
+      username: username.trim(),
+      balance: BigInt(balance.trim()),
+      salt: BigInt(salt.trim()),
+    };
   });
 }
 
@@ -28,9 +32,7 @@ if (index === -1) {
   console.log("didn't find customer");
 } else {
   const proof = createProof(index, padded, levels);
-  console.log("Proof:", proof);
   console.log("Proof valid:", verifyProof(proof, poseidon2Hash));
-  console.log("Root:", root);
   writeFileSync(`./fixtures/proof-${customerId}.json`, serializeProof(proof));
   console.log(`Wrote fixtures/proof-${customerId}.json`);
 }
@@ -49,11 +51,12 @@ writeFileSync(
 );
 console.log("Wrote fixtures/epoch.json");
 
-// circuit's private witness input, generated so it can't drift from customers.csv
 const usernames = padded.map((e) => usernameToBigInt(e.username).toString());
+const salts = padded.map((e) => e.salt.toString());
 const balances = padded.map((e) => e.balance.toString());
 const proverToml = [
   `usernames = [${usernames.map((u) => `"${u}"`).join(", ")}]`,
+  `salts = [${salts.map((s) => `"${s}"`).join(", ")}]`,
   `balances = [${balances.map((b) => `"${b}"`).join(", ")}]`,
   "",
 ].join("\n");
