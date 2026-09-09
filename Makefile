@@ -1,4 +1,4 @@
-.PHONY: build test demo fixtures circuit-check circuit-prove circuit-verifier
+.PHONY: build test demo fixtures circuit-check circuit-prove circuit-verifier kzg-setup kzg-epoch frontend
 
 build:
 	forge build
@@ -8,6 +8,9 @@ test:
 
 demo: build
 	@npx tsx script/demo.ts
+
+frontend: fixtures
+	npx vite
 
 # writes fixtures/epoch.json + circuit/Prover.toml from customers.csv
 fixtures:
@@ -25,3 +28,12 @@ circuit-prove: circuit-check
 # regenerate contracts/HonkVerifier.sol -- only needed when the circuit changes
 circuit-verifier: circuit-prove
 	cd circuit && bb write_solidity_verifier -k target/vk/vk -o ../contracts/HonkVerifier.sol -t evm
+
+# ---- arm 2: KZG grand sum (no circuit) ------------------------------------
+# one-time setup, the counterpart to the circuit's verification key
+kzg-setup:
+	npx tsx script/kzg-setup.ts
+
+# per-epoch prover, the counterpart to circuit-prove; same customers.csv
+kzg-epoch:
+	npx tsx prover/kzg/buildEpoch.ts
