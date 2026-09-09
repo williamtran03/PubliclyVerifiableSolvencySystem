@@ -3,10 +3,12 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "paths": { "@prover/*": ["./prover/*"] },
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "noEmit": true,
     "allowImportingTsExtensions": true
-  }
+  },
+  "exclude": ["node_modules", "circuit/libs", "circuit/target", "lib", "frontend/dist"]
 }
