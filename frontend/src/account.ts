@@ -1,4 +1,4 @@
-import { anchor, retrieveProof, localResult } from "./minimumClient.ts";
+import { anchor, retrieveProof, localResult, parseUsdInput } from "./minimumClient.ts";
 import { stringify, type Bundle } from "../../prover/minimum/tree.ts";
 import { paths, treeSvg, pathLadder } from "./treeView.ts";
 import { connectionPanel, markNavigation, output, element, button, value } from "./shared.ts";
@@ -88,11 +88,11 @@ button("verifyBtn").onclick = async () => {
   element("inclusion").hidden = true;
   output("verifyResult", "Retrieving your bundle…");
   try {
-    if (!/^(0|[1-9][0-9]{0,77})$/.test(expected)) throw Error("Enter an unsigned full balance in 1e-8 USD units");
+    const expectedUnits = parseUsdInput(expected);
     const retrieved = await retrieveProof(token);
     const current = await client.current();
     output("connection", "Read at block " + current.blockNumber);
-    const result = localResult(retrieved, customer, dob, BigInt(expected), anchor(current));
+    const result = localResult(retrieved, customer, dob, expectedUnits, anchor(current));
     output("verifyResult", result);
     // An outdated epoch is reported, not drawn: its path leads to a root nobody published.
     if (result.startsWith("VALID")) {

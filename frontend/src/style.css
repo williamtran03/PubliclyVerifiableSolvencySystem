@@ -499,3 +499,14 @@ code {
   margin: 10px 0 0;
   font-size: 0.85rem;
 }
+
+.claim-status { display:flex; align-items:center; gap:9px; margin-bottom:16px; font-size:16px; }
+.claim-status span:last-child { margin-left:4px; color:var(--muted); font-size:13px; font-weight:400; }
+.claim-dot { width:10px; height:10px; border-radius:50%; background:var(--ok); }
+.claim-status.is-insolvent .claim-dot { background:var(--fail); }
+.claim-status.is-insolvent strong { color:var(--fail); }
+.claim-figures { display:flex; gap:10px; flex-wrap:wrap; }
+.claim-figure { flex:1 1 130px; padding:12px 14px; background:var(--code-bg); border-radius:8px; }
+.claim-label { display:block; color:var(--muted); font-size:12px; }
+.claim-figure strong { display:block; margin-top:3px; font-size:18px; }
+.technical-note { margin-bottom:12px; }

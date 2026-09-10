@@ -51,6 +51,10 @@ export function registryClient(rpc:string,address:Address) {
 export type PublicSnapshot=Awaited<ReturnType<ReturnType<typeof registryClient>['current']>>;
 export const anchor=(s:PublicSnapshot):Anchor=>({snapshotId:s.claim.snapshotId,rootHash:s.claim.rootHash,rootSum:s.claim.totalLiabilitiesUsd,capacity:s.capacity});
 export function usd(value:bigint):string {const sign=value<0n?'-':'';const n=value<0n?-value:value;return `${sign}$${n/100000000n}.${(n%100000000n).toString().padStart(8,'0')}`;}
+export function parseUsdInput(value:string):bigint {
+ const text=value.trim();if(!/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,8})?$/.test(text))throw Error('Enter a USD amount with at most 8 decimal places');
+ const [whole,fraction='']=text.split('.');return BigInt(whole)*100000000n+BigInt((fraction+'00000000').slice(0,8));
+}
 export function coverage(assets:bigint,liabilities:bigint):string {if(liabilities===0n)return 'No liabilities';const bps=assets*10000n/liabilities;return `${bps/100n}.${(bps%100n).toString().padStart(2,'0')}%`;}
 export function publicSummary(s:PublicSnapshot):string {
  const c=s.claim,solvent=c.totalEligibleAssetsUsd>=c.totalLiabilitiesUsd;
@@ -84,6 +88,6 @@ export function exchangeRateRows(s:PublicSnapshot):string[][] {
   const scale=10n**BigInt(r.oracleDecimals);
   const fraction=(r.rate%scale).toString().padStart(r.oracleDecimals,'0').replace(/0+$/,'');
   const price=`$${r.rate/scale}${fraction?'.'+fraction:''}`;
-  return [r.token,price,new Date(Number(r.updatedAt)*1000).toISOString().replace('T',' ').replace('.000Z',' UTC')];
+  return [r.token,price,`#${r.roundId}`,new Date(Number(r.updatedAt)*1000).toISOString().replace('T',' ').replace('.000Z',' UTC')];
  });
 }
