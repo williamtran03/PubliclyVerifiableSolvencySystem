@@ -10,9 +10,14 @@ const RESERVE_1 = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" as const;
 const RESERVE_2 = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC" as const;
 
 const registryAbi = parseAbi([
-  "function submitEpoch(bytes proof, uint256 rootHash, uint256 totalLiabilities) external",
-  "function currentEpoch() view returns (uint256 rootHash, uint256 totalLiabilities, uint64 timestamp)",
+  "function submitEpoch(bytes proof, uint256 rootHash) external",
+  "function currentEpoch() view returns (uint256 rootHash, uint256 totalReservesAtEpoch, uint64 timestamp)",
+  "function totalReserves() view returns (uint256)",
 ]);
+
+// The proof commits to this figure as a public input, so the reserves have to
+// add up to exactly it. Anvil accounts start with far more than that.
+const PROVEN_ASSETS = BigInt(process.env.ASSETS ?? "50000");
 
 console.log("==> starting anvil");
 try {
@@ -25,7 +30,7 @@ await new Promise((resolve) => setTimeout(resolve, 1000));
 console.log("==> building tree + proving circuit (prover/customers.csv -> fixtures/*)");
 execSync("make circuit-prove", { stdio: "inherit" });
 
-const { rootHash, totalLiabilities } = JSON.parse(readFileSync("fixtures/epoch.json", "utf8"));
+const { rootHash } = JSON.parse(readFileSync("fixtures/epoch.json", "utf8"));
 const proof = toHex(readFileSync("fixtures/proof.bin"));
 
 const account = privateKeyToAccount(OWNER_KEY as `0x${string}`);
@@ -90,15 +95,23 @@ const deployHash = await walletClient.deployContract({
 const { contractAddress } = await publicClient.waitForTransactionReceipt({ hash: deployHash });
 console.log(`    registry: ${contractAddress}`);
 
+console.log(`==> setting reserves to the proven assets figure (${PROVEN_ASSETS})`);
+for (const wallet of [RESERVE_1, RESERVE_2]) {
+  await publicClient.request({
+    method: "anvil_setBalance" as any,
+    params: [wallet, `0x${(PROVEN_ASSETS / 2n).toString(16)}`] as any,
+  });
+}
+
 console.log("==> submitting epoch (with ZK proof)");
 const submitHash = await walletClient.writeContract({
   address: contractAddress!,
   abi: registryAbi,
   functionName: "submitEpoch",
-  args: [proof, BigInt(rootHash), BigInt(totalLiabilities)],
+  args: [proof, BigInt(rootHash)],
 });
 await publicClient.waitForTransactionReceipt({ hash: submitHash });
-console.log("OK: epoch accepted (proof verified, reserves cover liabilities)");
+console.log("OK: epoch accepted (circuit proved liabilities <= reserves, total never published)");
 
 console.log("==> customer inclusion check");
 execSync(`npx tsx cli/verify-inclusion.ts ${contractAddress}`, { stdio: "inherit" });
@@ -119,7 +132,7 @@ try {
     address: contractAddress!,
     abi: registryAbi,
     functionName: "submitEpoch",
-    args: [proof, BigInt(rootHash), BigInt(totalLiabilities)],
+    args: [proof, BigInt(rootHash)],
   });
   console.log("FAIL: insolvent epoch was accepted");
   process.exit(1);

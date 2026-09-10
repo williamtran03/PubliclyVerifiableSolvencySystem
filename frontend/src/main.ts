@@ -3,11 +3,13 @@ import { verifyProof, deserializeProof, poseidon2Hash } from "@prover/merkleSumT
 import { deserializeSplitBundle, verifySplitBundle } from "../../prover/splitProof.ts";
 
 const registryAbi = parseAbi([
-  "function currentEpoch() view returns (uint256 rootHash, uint256 totalLiabilities, uint64 timestamp)",
+  "function currentEpoch() view returns (uint256 rootHash, uint256 totalReservesAtEpoch, uint64 timestamp)",
 ]);
 
 let onChainRootHash: bigint | null = null;
-let onChainTotalLiabilities: bigint | null = null;
+// Second field of currentEpoch(): reserves on SolvencyRegistry (the ZK arm no
+// longer publishes liabilities), published total on MerkleSumRegistry.
+let onChainEpochValue: bigint | null = null;
 
 const rpcUrlInput = document.querySelector<HTMLInputElement>("#rpcUrl")!;
 const registryAddressInput = document.querySelector<HTMLInputElement>("#registryAddress")!;
@@ -19,23 +21,23 @@ const verifyResult = document.querySelector<HTMLDivElement>("#verifyResult")!;
 
 connectBtn.addEventListener("click", async () => {
   onChainRootHash = null;
-  onChainTotalLiabilities = null;
+  onChainEpochValue = null;
   document.querySelector<HTMLDivElement>("#splitResult")!.textContent = "";
   epochResult.textContent = "reading currentEpoch()...";
   try {
     const client = createPublicClient({ transport: http(rpcUrlInput.value) });
-    const [rootHash, totalLiabilities, timestamp] = await client.readContract({
+    const [rootHash, reserves, timestamp] = await client.readContract({
       address: registryAddressInput.value as `0x${string}`,
       abi: registryAbi,
       functionName: "currentEpoch",
     });
 
     onChainRootHash = rootHash;
-    onChainTotalLiabilities = totalLiabilities;
+    onChainEpochValue = reserves;
 
     epochResult.textContent =
       `rootHash: 0x${rootHash.toString(16)}\n` +
-      `totalLiabilities: ${totalLiabilities}\n` +
+      `reserves at epoch: ${reserves}\n` +
       `timestamp: ${new Date(Number(timestamp) * 1000).toLocaleString()}`;
 
     const usernames: string[] = await fetch("/proofs/index.json").then((r) => r.json());
@@ -50,7 +52,7 @@ connectBtn.addEventListener("click", async () => {
 document.querySelector<HTMLButtonElement>("#splitVerifyBtn")!.addEventListener("click", async () => {
   const result = document.querySelector<HTMLDivElement>("#splitResult")!;
   result.textContent = "Checking locally...";
-  const root = onChainRootHash, total = onChainTotalLiabilities;
+  const root = onChainRootHash, total = onChainEpochValue;
   try {
     if (root === null || total === null) throw new Error("Read the current epoch first.");
     const file = document.querySelector<HTMLInputElement>("#splitFile")!.files?.[0];
@@ -59,14 +61,14 @@ document.querySelector<HTMLButtonElement>("#splitVerifyBtn")!.addEventListener("
     const expected = document.querySelector<HTMLInputElement>("#splitBalance")!.value.trim();
     if (!/^(0|[1-9][0-9]*)$/.test(expected) || expected.length > 80) throw new Error("Enter an unsigned balance in wei.");
     const bundle = deserializeSplitBundle(await file.text());
-    if (root !== onChainRootHash || total !== onChainTotalLiabilities) throw new Error("Snapshot changed; verify again.");
+    if (root !== onChainRootHash || total !== onChainEpochValue) throw new Error("Snapshot changed; verify again.");
     if (!verifySplitBundle(bundle, customer, BigInt(expected), root, total)) throw new Error("Bundle does not match your full balance and the selected commitment.");
     result.textContent = "VALID: all supplied parts match your expected full balance and the published root and total. This does not prove disclosure of other customers or debts.";
   } catch (error) { result.textContent = `INVALID: ${error instanceof Error ? error.message : String(error)}`; }
 });
 
 verifyBtn.addEventListener("click", async () => {
-  if (onChainRootHash === null || onChainTotalLiabilities === null) return;
+  if (onChainRootHash === null || onChainEpochValue === null) return;
 
   const username = customerSelect.value;
   verifyResult.textContent = "fetching proof + verifying locally...";
@@ -74,7 +76,7 @@ verifyBtn.addEventListener("click", async () => {
   const proofJson = await fetch(`/proofs/${username}.json`).then((r) => r.text());
   const proof = deserializeProof(proofJson);
 
-  if (proof.rootHash !== onChainRootHash || proof.rootSum !== onChainTotalLiabilities) {
+  if (proof.rootHash !== onChainRootHash) {
     verifyResult.innerHTML = `<span class="fail">MISMATCH</span>: proof is for a different epoch than what's on-chain.`;
     return;
   }

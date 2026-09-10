@@ -12,12 +12,12 @@ if (!registryAddress) {
 }
 
 const registryAbi = parseAbi([
-  "function currentEpoch() view returns (uint256 rootHash, uint256 totalLiabilities, uint64 timestamp)",
+  "function currentEpoch() view returns (uint256 rootHash, uint256 totalReservesAtEpoch, uint64 timestamp)",
 ]);
 
 const client = createPublicClient({ chain: foundry, transport: http() });
 
-const [onChainRootHash, onChainTotalLiabilities] = await client.readContract({
+const [onChainRootHash] = await client.readContract({
   address: registryAddress as `0x${string}`,
   abi: registryAbi,
   functionName: "currentEpoch",
@@ -29,7 +29,8 @@ console.log(
   `Checking ${proof.entry.username}'s balance (${proof.entry.balance}) against the on-chain root...`,
 );
 
-if (proof.rootHash !== onChainRootHash || proof.rootSum !== onChainTotalLiabilities) {
+// Only the root is published now - the liabilities total stays inside the proof.
+if (proof.rootHash !== onChainRootHash) {
   console.log(
     "MISMATCH: this proof is for a different epoch than what's currently published on-chain.",
   );

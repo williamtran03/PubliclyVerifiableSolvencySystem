@@ -63,10 +63,18 @@ console.log("Wrote fixtures/epoch.json");
 const usernames = padded.map((e) => usernameToBigInt(e.username).toString());
 const salts = padded.map((e) => e.salt.toString());
 const balances = padded.map((e) => e.balance.toString());
+// The registry proves against its own totalReserves(); ASSETS mirrors that
+// figure so a locally generated proof matches what the contract will verify.
+const totalAssets = process.env.ASSETS ?? "50000";
+if (BigInt(totalAssets) < root.sum) {
+  throw new Error(`ASSETS ${totalAssets} is below liabilities ${root.sum}: the circuit will reject this`);
+}
+
 const proverToml = [
   `usernames = [${usernames.map((u) => `"${u}"`).join(", ")}]`,
   `salts = [${salts.map((s) => `"${s}"`).join(", ")}]`,
   `balances = [${balances.map((b) => `"${b}"`).join(", ")}]`,
+  `total_assets = "${totalAssets}"`,
   "",
 ].join("\n");
 writeFileSync("./circuits/single-asset/Prover.toml", proverToml);

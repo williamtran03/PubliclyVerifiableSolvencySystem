@@ -11,7 +11,10 @@ contract SolvencyRegistryTest is Test {
     address reserve2 = address(0x2);
     bytes proof;
     uint256 rootHash;
-    uint256 totalLiabilities;
+
+    // The proof in fixtures/ was generated against this assets figure (ASSETS
+    // in prover/buildTree.ts), so the reserves here have to add up to it.
+    uint256 constant PROVEN_ASSETS = 50000;
 
     function setUp() public {
         address[] memory reserves = new address[](2);
@@ -24,46 +27,58 @@ contract SolvencyRegistryTest is Test {
 
         string memory json = vm.readFile("fixtures/epoch.json");
         rootHash = vm.parseJsonUint(json, ".rootHash");
-        totalLiabilities = vm.parseJsonUint(json, ".totalLiabilities");
         proof = vm.readFileBinary("fixtures/proof.bin");
     }
 
     function test_SubmitEpoch() public {
-        registry.submitEpoch(proof, rootHash, totalLiabilities);
+        registry.submitEpoch(proof, rootHash);
 
-        (
-            uint256 storedHash,
-            uint256 storedLiabilities,
-            uint64 timestamp
-        ) = registry.currentEpoch();
+        (uint256 storedHash, uint256 storedReserves, uint64 timestamp) = registry.currentEpoch();
 
         assertEq(storedHash, rootHash);
-        assertEq(storedLiabilities, totalLiabilities);
+        assertEq(storedReserves, PROVEN_ASSETS);
         assertEq(timestamp, block.timestamp);
+    }
+
+    /// The epoch stores the root and the reserves only - the liabilities total
+    /// never reaches the chain, which is the point of proving the inequality
+    /// inside the circuit rather than checking it here.
+    function test_DoesNotPublishLiabilities() public {
+        registry.submitEpoch(proof, rootHash);
+
+        string memory json = vm.readFile("fixtures/epoch.json");
+        uint256 actualLiabilities = vm.parseJsonUint(json, ".totalLiabilities");
+
+        (, uint256 storedReserves,) = registry.currentEpoch();
+        assertTrue(storedReserves >= actualLiabilities);
+        assertTrue(storedReserves != actualLiabilities);
     }
 
     function test_RevertsForNonOwner() public {
         vm.prank(address(0xBEEF));
         vm.expectRevert("not owner");
-        registry.submitEpoch(proof, rootHash, totalLiabilities);
+        registry.submitEpoch(proof, rootHash);
     }
 
-    function test_RevertsIfInsolvent() public {
+    /// Insolvency is now caught by the proof itself: the contract feeds its own
+    /// reserves in as a public input, so draining them makes the proof invalid
+    /// rather than tripping a separate require.
+    function test_RevertsIfReservesNoLongerMatchTheProof() public {
         vm.deal(reserve1, 100);
         vm.deal(reserve2, 100);
 
-        vm.expectRevert("insolvent");
-        registry.submitEpoch(proof, rootHash, totalLiabilities);
+        vm.expectRevert();
+        registry.submitEpoch(proof, rootHash);
     }
 
     function test_RevertsForInvalidProof() public {
         bytes memory garbage = new bytes(proof.length);
         vm.expectRevert();
-        registry.submitEpoch(garbage, rootHash, totalLiabilities);
+        registry.submitEpoch(garbage, rootHash);
     }
 
-    function test_RevertsForWrongPublicInputs() public {
+    function test_RevertsForWrongRoot() public {
         vm.expectRevert();
-        registry.submitEpoch(proof, rootHash, totalLiabilities + 1);
+        registry.submitEpoch(proof, rootHash + 1);
     }
 }
