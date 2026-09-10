@@ -69,5 +69,5 @@ const proverToml = [
   `balances = [${balances.map((b) => `"${b}"`).join(", ")}]`,
   "",
 ].join("\n");
-writeFileSync("./circuit/Prover.toml", proverToml);
-console.log("Wrote circuit/Prover.toml");
+writeFileSync("./circuits/single-asset/Prover.toml", proverToml);
+console.log("Wrote circuits/single-asset/Prover.toml");

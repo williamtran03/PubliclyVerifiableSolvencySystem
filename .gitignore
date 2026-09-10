@@ -17,10 +17,10 @@ frontend/public/proofs/
 frontend/dist/
 
 # noir circuit: build artifacts, and Prover.toml holds raw customer balances
-circuit/target/
-circuit/Prover.toml
-circuit-multiasset/target/
-circuit-multiasset/Prover.toml
+circuits/single-asset/target/
+circuits/single-asset/Prover.toml
+circuits/multi-asset/target/
+circuits/multi-asset/Prover.toml
 
 # env / secrets
 .env

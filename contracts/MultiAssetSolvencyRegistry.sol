@@ -16,7 +16,7 @@ interface IERC20Balance {
 }
 
 contract MultiAssetSolvencyRegistry {
-    // must equal NUM_ASSETS in circuit-multiasset; the verifier expects NUM_ASSETS + 2 public inputs
+    // must equal NUM_ASSETS in circuits/multi-asset; the verifier expects NUM_ASSETS + 2 public inputs
     uint256 public constant NUM_ASSETS = 3;
 
     struct Asset {

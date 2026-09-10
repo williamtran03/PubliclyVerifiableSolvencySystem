@@ -51,7 +51,7 @@ const proverToml = [
   "",
 ].join("\n");
 
-writeFileSync("./circuit-multiasset/Prover.toml", proverToml);
+writeFileSync("./circuits/multi-asset/Prover.toml", proverToml);
 
 const expectedUsd = holdings.reduce((total, h) => total + h.amount * BigInt(pricesUsd[h.assetId]), 0n);
-console.log(`Wrote circuit-multiasset/Prover.toml (${holdings.length} holdings, expect ${expectedUsd} USD)`);
+console.log(`Wrote circuits/multi-asset/Prover.toml (${holdings.length} holdings, expect ${expectedUsd} USD)`);

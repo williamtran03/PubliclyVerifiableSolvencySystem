@@ -1,7 +1,7 @@
 import { copyFileSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 
 const NUM_ASSETS = 3;
-const PROOF_DIR = "./circuit-multiasset/target/proof";
+const PROOF_DIR = "./circuits/multi-asset/target/proof";
 
 const publicInputs = readFileSync(`${PROOF_DIR}/public_inputs`);
 const words: bigint[] = [];

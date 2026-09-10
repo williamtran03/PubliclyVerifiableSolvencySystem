@@ -46,7 +46,7 @@ Use a new output directory each time. The result contains public epoch.json,
 private/Prover.toml and one private/customer-N.json bundle per customer. Never
 publish the private directory or put it in frontend/public.
 
-Copy the generated private/Prover.toml to circuit/Prover.toml and run nargo execute
+Copy the generated private/Prover.toml to circuits/single-asset/Prover.toml and run nargo execute
 followed by main's bb write_vk/prove/verify commands directly. Do NOT run
 make fixtures or make circuit-prove for these inputs: they rebuild the baseline
 CSV and overwrite the split witness. Submit the resulting proof with the matching

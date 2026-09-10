@@ -10,5 +10,5 @@
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "exclude": ["node_modules", "circuit/libs", "circuit/target", "lib", "frontend/dist"]
+  "exclude": ["node_modules", "circuits/single-asset/libs", "circuits/single-asset/target", "lib", "frontend/dist"]
 }
