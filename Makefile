@@ -1,4 +1,4 @@
-.PHONY: build test demo fixtures circuit-check circuit-prove circuit-verifier kzg-setup kzg-epoch frontend multiasset-test multiasset-fixtures multiasset-check multiasset-prove multiasset-demo multiasset-verifier
+.PHONY: build test demo demo-site fixtures circuit-check circuit-prove circuit-verifier kzg-setup kzg-epoch frontend multiasset-test multiasset-fixtures multiasset-check multiasset-prove multiasset-demo multiasset-verifier
 
 build:
 	forge build
@@ -12,6 +12,10 @@ demo: build
 
 frontend: fixtures
 	npx vite
+
+# customer-facing demo site for the multi-asset arm
+demo-site: multiasset-fixtures
+	npx vite --config vite.demo.config.ts
 
 # writes fixtures/epoch.json + circuits/single-asset/Prover.toml from customers.csv
 fixtures:

@@ -1,0 +1,115 @@
+:root {
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --ink: #16191d;
+  --muted: #6b7280;
+  --line: #e3e6ea;
+  --accent: #1f4fd8;
+  --ok: #0f7b4f;
+  --bad: #b3261e;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 18px 32px;
+  background: var(--ink);
+  color: #fff;
+}
+
+.brand { font-weight: 650; letter-spacing: -0.01em; }
+.tag { color: #9aa3ad; font-size: 13px; }
+
+main { max-width: 780px; margin: 0 auto; padding: 28px 20px 48px; }
+
+.lede { color: var(--muted); margin: 0 0 24px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 20px 22px;
+  margin-bottom: 18px;
+}
+
+h2 { font-size: 16px; margin: 0 0 14px; }
+h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 22px 0 8px; }
+
+.row { display: flex; gap: 14px; flex-wrap: wrap; }
+label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 12px; flex: 1 1 260px; }
+
+input, select {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  padding: 8px 10px;
+  font: inherit;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+button {
+  padding: 9px 16px;
+  font: inherit;
+  font-weight: 550;
+  color: #fff;
+  background: var(--accent);
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+button:disabled { background: #9aa3ad; cursor: not-allowed; }
+
+.status { margin-top: 12px; font-size: 14px; white-space: pre-wrap; }
+.status.ok { color: var(--ok); }
+.status.bad { color: var(--bad); }
+
+.verdict { font-size: 18px; font-weight: 650; margin-bottom: 16px; }
+.verdict.ok { color: var(--ok); }
+.verdict.bad { color: var(--bad); }
+
+.figures { display: flex; gap: 12px; flex-wrap: wrap; }
+.figure {
+  flex: 1 1 160px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+.figure .label { display: block; font-size: 12px; color: var(--muted); }
+.figure .value { display: block; font-size: 19px; font-weight: 600; margin-top: 2px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 7px 0; border-bottom: 1px solid var(--line); }
+th { font-size: 12px; color: var(--muted); font-weight: 550; }
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  word-break: break-all;
+  background: var(--bg);
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+
+.note { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+.holdings { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+
+footer {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 0 20px 40px;
+  font-size: 13px;
+  color: var(--muted);
+}

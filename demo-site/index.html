@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Northwind Exchange — Proof of Solvency</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="brand">Northwind Exchange</div>
+      <div class="tag">Proof of Solvency</div>
+    </header>
+
+    <main>
+      <p class="lede">
+        Every epoch we publish a zero-knowledge proof that our total customer liabilities were
+        honestly computed from real balances, and that our reserves cover them. Everything below is
+        read straight from the blockchain — this page holds no data of its own, and needs no wallet.
+      </p>
+
+      <section class="card">
+        <h2>Connection</h2>
+        <div class="row">
+          <label>RPC URL <input id="rpcUrl" value="http://127.0.0.1:8545" /></label>
+          <label>Registry address <input id="registryAddress" placeholder="0x..." /></label>
+        </div>
+        <button id="loadBtn">Load published epoch</button>
+        <div id="loadStatus" class="status"></div>
+      </section>
+
+      <section class="card" id="epochCard" hidden>
+        <h2>Published epoch</h2>
+        <div id="verdict" class="verdict"></div>
+        <div class="figures">
+          <div class="figure">
+            <span class="label">Reserves</span>
+            <span class="value" id="assetsUsd">—</span>
+          </div>
+          <div class="figure">
+            <span class="label">Liabilities</span>
+            <span class="value" id="liabilitiesUsd">—</span>
+          </div>
+          <div class="figure">
+            <span class="label">Surplus</span>
+            <span class="value" id="surplusUsd">—</span>
+          </div>
+        </div>
+        <h3>Conversion table used</h3>
+        <table id="priceTable">
+          <thead>
+            <tr><th>Asset</th><th>USD price</th><th>Oracle round</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p class="note">
+          Recorded on-chain when the epoch was published. The contract pinned these exact oracle
+          rounds, valued the reserves at them, and verified the proof against them — a proof built
+          on any other table is rejected. Anyone can refetch these rounds and recompute.
+        </p>
+        <h3>Commitment</h3>
+        <div class="mono" id="rootHash"></div>
+        <div class="note" id="timestamp"></div>
+      </section>
+
+      <section class="card" id="customerCard" hidden>
+        <h2>Verify your balance is included</h2>
+        <p class="note">
+          Pick your account, confirm the balances you believe you hold, and this page recomputes the
+          commitment from your own inclusion proof. Nothing here is taken on trust — if the numbers
+          you enter are not what the exchange committed to, the check fails.
+        </p>
+        <label>Account <select id="customerSelect"></select></label>
+        <div id="holdingInputs" class="holdings"></div>
+        <button id="verifyBtn">Verify inclusion</button>
+        <div id="verifyResult" class="status"></div>
+      </section>
+    </main>
+
+    <footer>
+      Commitment, totals and prices are public on-chain. Individual customer balances are never
+      published — the proof establishes the total without revealing who holds what.
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
