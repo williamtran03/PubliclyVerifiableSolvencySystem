@@ -1,10 +1,13 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { usernameToBigInt, LEAF_CAPACITY } from "./merkleSumTree.ts";
-
-const NUM_ASSETS = 3;
-const MAX_U64 = (1n << 64n) - 1n;
-
-type Holding = { username: string; salt: bigint; assetId: number; amount: bigint };
+import {
+  buildTree,
+  createProof,
+  serializeBundle,
+  NUM_ASSETS,
+  MAX_U64,
+  type Holding,
+} from "./multiAssetTree.ts";
 
 function parseHoldingsCsv(path: string): Holding[] {
   const [, ...rows] = readFileSync(path, "utf8").trim().split("\n");
@@ -53,5 +56,39 @@ const proverToml = [
 
 writeFileSync("./circuits/multi-asset/Prover.toml", proverToml);
 
+const prices = pricesUsd.map(BigInt);
+const { levels, root } = buildTree(padded, prices);
+
 const expectedUsd = holdings.reduce((total, h) => total + h.amount * BigInt(pricesUsd[h.assetId]), 0n);
+if (root.sum !== expectedUsd) throw new Error("TS tree total disagrees with the CSV");
 console.log(`Wrote circuits/multi-asset/Prover.toml (${holdings.length} holdings, expect ${expectedUsd} USD)`);
+
+mkdirSync("./demo-site/public/bundles", { recursive: true });
+const byCustomer = new Map<string, number[]>();
+padded.forEach((holding, index) => {
+  if (!holding.username) return;
+  byCustomer.set(holding.username, [...(byCustomer.get(holding.username) ?? []), index]);
+});
+
+for (const [username, indices] of byCustomer) {
+  writeFileSync(
+    `./demo-site/public/bundles/${username}.json`,
+    serializeBundle({
+      username,
+      prices: pricesUsd,
+      parts: indices.map((index) => createProof(index, padded, levels)),
+    }),
+  );
+}
+writeFileSync(
+  "./demo-site/public/bundles/index.json",
+  JSON.stringify(
+    [...byCustomer].map(([username, indices]) => ({
+      username,
+      holdings: indices.map((i) => ({ assetId: padded[i].assetId, amount: padded[i].amount.toString() })),
+    })),
+    null,
+    2,
+  ),
+);
+console.log(`Wrote demo-site/public/bundles/ (${byCustomer.size} customers)`);
