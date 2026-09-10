@@ -56,7 +56,7 @@ test("Anvil: deploy, approve reserves, convert liabilities, finalize, render, ve
     const setup = await localSetup(rpc),
       web = registryClient(rpc, setup.registry);
     const s = await web.current();
-    assert.equal(s.claim.totalLiabilitiesUsd, 15000000000n);
+    assert.equal(s.claim.totalLiabilitiesUsd, 24000000000n);
     assert.equal(s.claim.verifiedBy.toLowerCase(), setup.auditor.toLowerCase());
     assert.ok(checkPublicCalculation(s));
     assert.match(publicSummary(s), /^SOLVENT/);
@@ -91,7 +91,7 @@ test("Anvil: deploy, approve reserves, convert liabilities, finalize, render, ve
       /^VALID/,
     );
     const queue = await web.auditQueue();
-    assert.equal(queue.assets.length, 1);
+    assert.equal(queue.assets.length, 2);
     assert.equal(queue.liabilities.length, 1);
     for (const bundle of setup.snapshot.bundles) {
       assert.match(

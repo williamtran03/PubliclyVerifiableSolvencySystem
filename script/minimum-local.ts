@@ -15,22 +15,31 @@ export async function localSetup(rpc='http://127.0.0.1:8545') {
  const accounts=await wallet.getAddresses();if(accounts.length<3)throw Error('Three unlocked local accounts required');const [company,auditor,reserve]=accounts;
  const artifact=async(name:string)=>JSON.parse(await readFile(`out/${name}.sol/${name}.json`,'utf8')) as {abi:Abi;bytecode:{object:Hex}};
  async function deploy(name:string,args:unknown[]) {const a=await artifact(name);const hash=await wallet.deployContract({abi:a.abi,bytecode:a.bytecode.object,args,account:company,chain:null});const receipt=await client.waitForTransactionReceipt({hash});if(receipt.status!=='success'||!receipt.contractAddress)throw Error('Deployment failed');return receipt.contractAddress;}
- const feed=await deploy('MockOracle',[8]);const registry=await deploy('MinimumSolvencyRegistry',[company,auditor,16n,3600n]);
+ const feed=await deploy('MockOracle',[8]);const btcFeed=await deploy('MockOracle',[8]);const registry=await deploy('MinimumSolvencyRegistry',[company,auditor,16n,3600n]);
+ const wbtc=await deploy('MockERC20',['Wrapped Bitcoin','WBTC',8,reserve,1000n*10n**8n]);
  const oracleArtifact=await artifact('MockOracle');const now=(await client.getBlock()).timestamp;
  await receipt(await wallet.writeContract({address:feed,abi:oracleArtifact.abi,functionName:'setRound',args:[1,2000n*10n**8n,now],account:company,chain:null}));
+ await receipt(await wallet.writeContract({address:btcFeed,abi:oracleArtifact.abi,functionName:'setRound',args:[1,60000n*10n**8n,now],account:company,chain:null}));
  async function receipt(hash:Hex) {const r=await client.waitForTransactionReceipt({hash});if(r.status!=='success')throw Error(`Transaction reverted: ${hash}`);return r;}
  async function send(account:Address,functionName:string,args:unknown[]) {return receipt(await wallet.writeContract({address:registry,abi:minimumAbi as Abi,functionName,args,account,chain:null,gas:10000000n}));}
  await send(company,'addAsset',[NATIVE,reserve,feed,true]);await send(reserve,'verifyAsset',[1n,now+3600n,'0x']);await send(auditor,'approveAsset',[1n,true]);
- const block=await client.getBlock();const rate:Rate={token:NATIVE,feed,tokenDecimals:18,oracleDecimals:8,rate:2000n*10n**8n,roundId:1n,updatedAt:now};
- // Rates must be pinned on-chain before proving; pin them here so every snapshot ID is self-contained.
- async function prepare(id:Hex,raw=50000000000000000n){let pinned=await client.readContract({address:registry,abi:minimumAbi as Abi,functionName:'getRates',args:[id]}) as Rate[];if(!pinned.length){await send(company,'pinRates',[id,block.timestamp,[rate]]);pinned=await client.readContract({address:registry,abi:minimumAbi as Abi,functionName:'getRates',args:[id]}) as Rate[];}return buildSnapshot([{customerId:'demo-alice',dateOfBirth:'2000-01-01',holdings:[{token:NATIVE,rawAmount:raw}]},{customerId:'demo-bob',dateOfBirth:'1990-02-02',holdings:[{token:NATIVE,rawAmount:25000000000000000n}]}],new MockOracle(pinned),id,block.timestamp,3600n,16,2,4);}
+ await send(company,'addAsset',[wbtc,reserve,btcFeed,false]);await send(reserve,'verifyAsset',[2n,now+3600n,'0x']);await send(auditor,'approveAsset',[2n,true]);
+ const block=await client.getBlock();
+ const rate:Rate={token:NATIVE,feed,tokenDecimals:18,oracleDecimals:8,rate:2000n*10n**8n,roundId:1n,updatedAt:now};
+ const btcRate:Rate={token:wbtc,feed:btcFeed,tokenDecimals:8,oracleDecimals:8,rate:60000n*10n**8n,roundId:1n,updatedAt:now};
+ // pinRates requires the manifest sorted strictly ascending by token address.
+ const rates=[rate,btcRate].sort((a,b)=>BigInt(a.token)<BigInt(b.token)?-1:1);
+ // Rates must be pinned on-chain before proving.
+ async function prepare(id:Hex,raw=50000000000000000n){let pinned=await client.readContract({address:registry,abi:minimumAbi as Abi,functionName:'getRates',args:[id]}) as Rate[];if(!pinned.length){await send(company,'pinRates',[id,block.timestamp,rates]);pinned=await client.readContract({address:registry,abi:minimumAbi as Abi,functionName:'getRates',args:[id]}) as Rate[];}return buildSnapshot([{customerId:'demo-alice',dateOfBirth:'2000-01-01',holdings:[{token:NATIVE,rawAmount:raw},{token:wbtc,rawAmount:100000n}]},{customerId:'demo-bob',dateOfBirth:'1990-02-02',holdings:[{token:NATIVE,rawAmount:25000000000000000n},{token:wbtc,rawAmount:50000n}]}],new MockOracle(pinned),id,block.timestamp,3600n,16,2,4);}
  async function submit(snapshot:Awaited<ReturnType<typeof prepare>>) {const l=snapshot.ledger;await send(company,'addLiability',[{id:l.snapshotId,rootHash:l.rootHash,totalLiabilitiesUsd:l.rootSum,rateManifestHash:snapshot.rateManifestHash,snapshotTime:block.timestamp,snapshotBlock:block.number},l.pairs.map(p=>p.identity),l.pairs.map(p=>p.amount)]);await send(auditor,'verifyAddLiability',[l.snapshotId,true]);}
  const snapshot=await prepare(`0x${randomBytes(32).toString("hex")}`);await submit(snapshot);
- const reserveBalance=await client.getBalance({address:reserve,blockNumber:block.number});await send(company,'proposeClaim',[snapshot.ledger.snapshotId,[1n],[reserveBalance]]);
+ const reserveBalance=await client.getBalance({address:reserve,blockNumber:block.number});
+ const btcBalance=await client.readContract({address:wbtc,abi:[{type:'function',name:'balanceOf',stateMutability:'view',inputs:[{type:'address'}],outputs:[{type:'uint256'}]}],functionName:'balanceOf',args:[reserve],blockNumber:block.number}) as bigint;
+ await send(company,'proposeClaim',[snapshot.ledger.snapshotId,[1n,2n],[reserveBalance,btcBalance]]);
  // Demonstration of the auditor's historical balance check before attesting.
  if(reserveBalance!==await client.getBalance({address:reserve,blockNumber:block.number}))throw Error('Snapshot balance mismatch');
  await send(auditor,'finalizeClaim',[snapshot.ledger.snapshotId,true]);
- return {client,wallet,company,auditor,reserve,registry,feed,block,rate,snapshot,prepare,submit,send,reserveBalance};
+ return {client,wallet,company,auditor,reserve,registry,feed,btcFeed,wbtc,block,rate,btcRate,rates,snapshot,prepare,submit,send,reserveBalance,btcBalance};
 }
 export async function writeDemo(directory:string,setup:Awaited<ReturnType<typeof localSetup>>) {
  const dir=resolve(directory),project=await realpath('.');await mkdir(dir,{recursive:true,mode:0o700});const actual=await realpath(dir),rel=relative(project,actual);if(!rel.startsWith('..')&&!isAbsolute(rel))throw Error('Private output must be outside the repository');
