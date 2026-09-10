@@ -2,6 +2,8 @@ import {createWalletClient,custom,isAddress,type Address,type Hex,type EIP1193Pr
 import {registryClient,anchor,publicSummary,claimOverview,exchangeRateRows,checkPublicCalculation,retrieveProof,localResult,loadState,type PublicSnapshot} from './minimumClient.ts';
 import {minimumAbi} from './minimumAbi.ts';
 import {stringify} from '../../prover/minimum/tree.ts';
+document.querySelectorAll('section.card')[2]?.setAttribute('id','account');
+document.querySelector('details.card')?.setAttribute('id','operations');
 const input=(id:string)=>(document.getElementById(id) as HTMLInputElement).value;
 const output=(id:string,text:string)=>{document.getElementById(id)!.textContent=text;};
 const button=(id:string)=>document.getElementById(id) as HTMLButtonElement;
