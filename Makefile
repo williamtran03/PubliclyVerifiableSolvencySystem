@@ -51,6 +51,7 @@ multiasset-prove: multiasset-check
 	cd circuit-multiasset && bb write_vk -s ultra_honk -b target/circuit_multiasset.json -o target/vk --oracle_hash keccak
 	cd circuit-multiasset && bb prove -s ultra_honk -b target/circuit_multiasset.json -w target/circuit_multiasset.gz -o target/proof -k target/vk/vk --oracle_hash keccak
 	cd circuit-multiasset && bb verify -s ultra_honk -p target/proof/proof -k target/vk/vk -i target/proof/public_inputs --oracle_hash keccak
+	npx tsx script/multiasset-fixtures.ts
 
 # regenerate contracts/MultiAssetHonkVerifier.sol -- only when the circuit changes
 multiasset-verifier: multiasset-prove
