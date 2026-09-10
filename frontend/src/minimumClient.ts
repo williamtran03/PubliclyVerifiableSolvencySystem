@@ -17,8 +17,12 @@ export function registryClient(rpc:string,address:Address) {
     client.readContract({address,abi:minimumAbi,functionName:'getClaimAssets',args:[claim.snapshotId],blockNumber}),
     client.readContract({address,abi:minimumAbi,functionName:'getLiability',args:[claim.snapshotId],blockNumber})]);
    const assets=await Promise.all(observations.map(async o=>({...o,asset:await client.readContract({address,abi:minimumAbi,functionName:'getAsset',args:[o.assetId],blockNumber})})));
+   // Symbols are display only; a missing or hostile symbol() never affects verification.
+   const symbols:Record<string,string>={};
+   for(const r of rates){const key=r.token.toLowerCase();if(key===NATIVE.toLowerCase()){symbols[key]='ETH';continue;}
+    try{const symbol=await client.readContract({address:r.token,abi:parseAbi(['function symbol() view returns (string)']),functionName:'symbol',blockNumber});symbols[key]=String(symbol).slice(0,12);}catch{symbols[key]='';}}
    // All reads use one block to avoid mixing state across epochs.
-   return {claim,rates,assets,liability,capacity:Number(capacity),maxAge,chainId,address,blockNumber};
+   return {claim,rates,assets,liability,symbols,capacity:Number(capacity),maxAge,chainId,address,blockNumber};
   },
   async auditQueue() {
    const blockNumber=await client.getBlockNumber({cacheTime:0});const [count,snapshots,auditor,company]=await Promise.all([read('assetCount',blockNumber),read('snapshotCount',blockNumber),read('auditor',blockNumber),read('company',blockNumber)]);
@@ -86,12 +90,11 @@ export function claimOverview(s:PublicSnapshot):string {
 /** Native currency uses the 0xEeee… sentinel rather than a token contract. */
 export const NATIVE='0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as const;
 export function exchangeRateRows(s:PublicSnapshot):string[][] {
- const native=NATIVE.toLowerCase();
  return s.rates.map(r=>{
   const scale=10n**BigInt(r.oracleDecimals);
   const fraction=(r.rate%scale).toString().padStart(r.oracleDecimals,'0').replace(/0+$/,'');
   const price=`$${r.rate/scale}${fraction?'.'+fraction:''}`;
-  const currency=r.token.toLowerCase()===native?'ETH':`Token ${r.token}`;
+  const currency=s.symbols?.[r.token.toLowerCase()]||`Token ${r.token}`;
   return [`${currency} → USD`,price,`#${r.roundId}`,new Date(Number(r.updatedAt)*1000).toISOString().replace('T',' ').replace('.000Z',' UTC')];
  });
 }
