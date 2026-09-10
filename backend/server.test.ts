@@ -19,3 +19,5 @@ test('HTTP authentication boundary returns only the mapped private bundle and re
  assert.equal((await fetch(url+'/api/proof',{method:'POST',body:'private identity'})).status,404);
  } finally {server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));await rm(dir,{recursive:true,force:true});}
 });
+
+test('backend refuses a private store inside the public project',()=>{assert.throws(()=>proofServer(new PrototypeAuthentication([]),'.'),/outside the repository/);});

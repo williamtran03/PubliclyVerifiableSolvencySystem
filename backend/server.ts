@@ -1,6 +1,7 @@
 import {createServer, type IncomingMessage} from 'node:http';
 import {createHash, timingSafeEqual} from 'node:crypto';
 import {readFile, stat} from 'node:fs/promises';
+import {realpathSync} from 'node:fs';
 import {resolve, relative, isAbsolute} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {parse, stringify, type Bundle} from '../prover/minimum/tree.ts';
@@ -19,7 +20,9 @@ export class PrototypeAuthentication implements AuthenticationAdapter {
   }
 }
 export function proofServer(auth: AuthenticationAdapter, privateDirectory: string) {
-  const root=resolve(privateDirectory);
+  const root=realpathSync(privateDirectory);
+  const project=realpathSync(resolve(import.meta.dirname,'..')),location=relative(project,root);
+  if(!location.startsWith('..')&&!isAbsolute(location))throw Error('Private proof directory must be outside the repository');
   return createServer(async(req,res)=>{
     res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Content-Type','application/json');
     // No customer ID, file name, query parameter or request body selects a bundle.
