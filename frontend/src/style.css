@@ -61,3 +61,12 @@ button:disabled {
   color: #b00020;
   font-weight: bold;
 }
+
+.table-scroll { overflow-x: auto; margin: 1rem 0; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+caption { text-align: left; color: #555; margin-bottom: 0.5rem; }
+th, td { text-align: left; padding: 0.65rem; border-bottom: 1px solid #ddd; }
+td:first-child { font-family: monospace; overflow-wrap: anywhere; min-width: 9rem; }
+td:nth-child(2) { white-space: nowrap; font-variant-numeric: tabular-nums; }
+summary { cursor: pointer; font-weight: 600; }
+details { margin-top: 1rem; }

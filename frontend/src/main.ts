@@ -1,5 +1,5 @@
 import {createWalletClient,custom,isAddress,type Address,type Hex,type EIP1193Provider} from 'viem';
-import {registryClient,anchor,publicSummary,checkPublicCalculation,retrieveProof,localResult,loadState,type PublicSnapshot} from './minimumClient.ts';
+import {registryClient,anchor,publicSummary,claimOverview,exchangeRateRows,checkPublicCalculation,retrieveProof,localResult,loadState,type PublicSnapshot} from './minimumClient.ts';
 import {minimumAbi} from './minimumAbi.ts';
 import {stringify} from '../../prover/minimum/tree.ts';
 const input=(id:string)=>(document.getElementById(id) as HTMLInputElement).value;
@@ -7,10 +7,20 @@ const output=(id:string,text:string)=>{document.getElementById(id)!.textContent=
 const button=(id:string)=>document.getElementById(id) as HTMLButtonElement;
 const connection=()=>registryClient(input('rpcUrl'),input('registryAddress') as Address);
 let snapshot:PublicSnapshot|undefined;let generation=0;
-for(const id of ['rpcUrl','registryAddress'])document.getElementById(id)!.addEventListener('input',()=>{generation++;snapshot=undefined;button('verifyBtn').disabled=true;button('auditLedger').disabled=true;output('verifyResult','');output('epochResult','Connection changed; read the claim again.');});
+function clearClaimDetails() {
+ output('rates','');output('claimDetails','');output('reserveDetails','');output('ledgerResult','');
+ const row=document.createElement('tr');const cell=document.createElement('td');cell.colSpan=3;cell.textContent='No exchange rates loaded.';row.append(cell);document.getElementById('rates')!.append(row);
+}
+function renderRates(s:PublicSnapshot) {
+ const body=document.getElementById('rates')!;body.replaceChildren();
+ for(const values of exchangeRateRows(s)) {const row=document.createElement('tr');for(const value of values){const cell=document.createElement('td');cell.textContent=value;row.append(cell);}body.append(row);}
+ if(!s.rates.length){const row=document.createElement('tr');const cell=document.createElement('td');cell.colSpan=3;cell.textContent='No exchange rates published.';row.append(cell);body.append(row);}
+}
+
+for(const id of ['rpcUrl','registryAddress'])document.getElementById(id)!.addEventListener('input',()=>{generation++;snapshot=undefined;clearClaimDetails();button('verifyBtn').disabled=true;button('auditLedger').disabled=true;output('verifyResult','');output('epochResult','Connection changed; read the claim again.');});
 button('connectBtn').onclick=async()=>{
- const version=++generation;snapshot=undefined;button('verifyBtn').disabled=true;button('auditLedger').disabled=true;output('verifyResult','');
- await loadState(()=>connection().current(),state=>{if(version!==generation)return;if(state.status==='loading')output('connection','Reading contract…');else if(state.status==='error'){output('connection',`ERROR: ${state.error}`);output('epochResult','No claim loaded.');}else{snapshot=state.value!;output('connection','Connected. Values read at block '+snapshot.blockNumber);output('epochResult',publicSummary(snapshot));output('rates',stringify({oracleRates:snapshot.rates,reserveObservations:snapshot.assets}));button('verifyBtn').disabled=false;button('auditLedger').disabled=false;}});
+ const version=++generation;snapshot=undefined;clearClaimDetails();button('verifyBtn').disabled=true;button('auditLedger').disabled=true;output('verifyResult','');output('epochResult','Reading claim…');
+ await loadState(()=>connection().current(),state=>{if(version!==generation)return;if(state.status==='loading')output('connection','Reading contract…');else if(state.status==='error'){output('connection',`ERROR: ${state.error}`);output('epochResult','No claim loaded.');}else{snapshot=state.value!;output('connection','Connected. Values read at block '+snapshot.blockNumber);output('epochResult',claimOverview(snapshot));output('claimDetails',publicSummary(snapshot));output('reserveDetails',stringify({oracleRates:snapshot.rates,reserveObservations:snapshot.assets}));renderRates(snapshot);button('verifyBtn').disabled=false;button('auditLedger').disabled=false;}});
 };
 button('auditLedger').onclick=async()=>{try{const s=await connection().current();output('ledgerResult','Recomputing…');const ledger=await connection().ledger(s.claim.snapshotId,s.claim.rootHash,s.claim.totalLiabilitiesUsd,s.capacity);if(!checkPublicCalculation(s))throw Error('Manifest or USD arithmetic mismatch');output('ledgerResult',`VALID public ledger: ${ledger.pairs.length} real parts, ${ledger.capacity} capacity. Root, total and asset conversions match.\n${stringify(ledger)}`);}catch(e){output('ledgerResult',`ERROR: ${e instanceof Error?e.message:e}`);}};
 button('verifyBtn').onclick=async()=>{

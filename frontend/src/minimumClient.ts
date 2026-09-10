@@ -74,3 +74,16 @@ export function localResult(bundle:Bundle,customerId:string,dateOfBirth:string,b
  return `VALID: ${usd(balance)} included in epoch ${current.snapshotId}. All parts verified locally.`;
 }
 export async function loadState<T>(load:()=>Promise<T>,render:(state:{status:'loading'|'ready'|'error';value?:T;error?:string})=>void) {render({status:'loading'});try{render({status:'ready',value:await load()});}catch(error){render({status:'error',error:error instanceof Error?error.message:String(error)});}}
+
+export function claimOverview(s:PublicSnapshot):string {
+ const c=s.claim;
+ return `${c.totalEligibleAssetsUsd>=c.totalLiabilitiesUsd?'SOLVENT':'INSOLVENT'} at snapshot\nEligible assets: ${usd(c.totalEligibleAssetsUsd)}\nLiabilities: ${usd(c.totalLiabilitiesUsd)}\nSurplus / deficit: ${usd(c.totalEligibleAssetsUsd-c.totalLiabilitiesUsd)}\nCoverage: ${coverage(c.totalEligibleAssetsUsd,c.totalLiabilitiesUsd)}\nSnapshot: ${new Date(Number(c.snapshotTime)*1000).toISOString().replace('T',' ').replace('.000Z',' UTC')}`;
+}
+export function exchangeRateRows(s:PublicSnapshot):string[][] {
+ return s.rates.map(r=>{
+  const scale=10n**BigInt(r.oracleDecimals);
+  const fraction=(r.rate%scale).toString().padStart(r.oracleDecimals,'0').replace(/0+$/,'');
+  const price=`$${r.rate/scale}${fraction?'.'+fraction:''}`;
+  return [r.token,price,new Date(Number(r.updatedAt)*1000).toISOString().replace('T',' ').replace('.000Z',' UTC')];
+ });
+}
