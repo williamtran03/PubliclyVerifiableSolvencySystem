@@ -21,8 +21,7 @@
       <div class="page-head">
         <h1>Publicly verifiable solvency</h1>
         <p class="subtitle">
-          A snapshot of reserves and liabilities. Independently check the published arithmetic —
-          nothing here asks you to trust the operator.
+          A snapshot of reserves and liabilities. Independently check the published arithmetic.
         </p>
       </div>
 
@@ -46,16 +45,12 @@
           <button id="auditLedger" disabled>Recompute public ledger and USD totals</button>
           <div id="ledgerResult" class="result boxed" role="status"></div>
         </details>
-        <p class="note">
-          “Solvent” applies to the published snapshot. Rates and balances may have changed since then.
-        </p>
       </section>
 
       <section class="card" id="rates-section">
         <h2>Exchange rates</h2>
         <p>
-          USD per token at the published snapshot. Every liability and reserve figure above is
-          converted with exactly these oracle rounds.
+          Cryptocurrency values at the published snapshot, converted directly to USD. Every liability and reserve figure above is converted with exactly these oracle rounds.
         </p>
         <div class="table-scroll">
           <table>
@@ -64,8 +59,8 @@
             </caption>
             <thead>
               <tr>
-                <th scope="col">Token</th>
-                <th scope="col">USD per token</th>
+                <th scope="col">Cryptocurrency → USD</th>
+                <th scope="col">USD price</th>
                 <th scope="col">Oracle round</th>
                 <th scope="col">Rate updated (UTC)</th>
               </tr>
@@ -78,11 +73,6 @@
           </table>
         </div>
       </section>
-
-      <p class="disclaimer">
-        Inclusion does not establish completeness. Reserve ownership does not establish eligibility.
-        This prototype is not a regulatory audit or production-ready system.
-      </p>
     </main>
     <script type="module" src="/src/public.ts"></script>
   </body>

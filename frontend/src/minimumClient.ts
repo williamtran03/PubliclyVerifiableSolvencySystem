@@ -84,10 +84,12 @@ export function claimOverview(s:PublicSnapshot):string {
  return `${c.totalEligibleAssetsUsd>=c.totalLiabilitiesUsd?'SOLVENT':'INSOLVENT'} at snapshot\nEligible assets: ${usd(c.totalEligibleAssetsUsd)}\nLiabilities: ${usd(c.totalLiabilitiesUsd)}\nSurplus / deficit: ${usd(c.totalEligibleAssetsUsd-c.totalLiabilitiesUsd)}\nCoverage: ${coverage(c.totalEligibleAssetsUsd,c.totalLiabilitiesUsd)}\nSnapshot: ${new Date(Number(c.snapshotTime)*1000).toISOString().replace('T',' ').replace('.000Z',' UTC')}`;
 }
 export function exchangeRateRows(s:PublicSnapshot):string[][] {
+ const native='0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
  return s.rates.map(r=>{
   const scale=10n**BigInt(r.oracleDecimals);
   const fraction=(r.rate%scale).toString().padStart(r.oracleDecimals,'0').replace(/0+$/,'');
   const price=`$${r.rate/scale}${fraction?'.'+fraction:''}`;
-  return [r.token,price,`#${r.roundId}`,new Date(Number(r.updatedAt)*1000).toISOString().replace('T',' ').replace('.000Z',' UTC')];
+  const currency=r.token.toLowerCase()===native?'ETH':`Token ${r.token}`;
+  return [`${currency} → USD`,price,`#${r.roundId}`,new Date(Number(r.updatedAt)*1000).toISOString().replace('T',' ').replace('.000Z',' UTC')];
  });
 }
