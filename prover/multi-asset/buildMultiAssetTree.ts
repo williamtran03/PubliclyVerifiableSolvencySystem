@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { usernameToBigInt, LEAF_CAPACITY } from "./merkleSumTree.ts";
+import { usernameToBigInt, LEAF_CAPACITY } from "../merkleSumTree.ts";
 import {
   buildTree,
   createProof,
@@ -29,12 +29,12 @@ function parseHoldingsCsv(path: string): Holding[] {
   });
 }
 
-const holdings = parseHoldingsCsv("./prover/customers-multiasset.csv");
+const holdings = parseHoldingsCsv("./prover/multi-asset/customers-multiasset.csv");
 if (holdings.length > LEAF_CAPACITY) {
   throw new Error(`${holdings.length} holdings exceeds circuit capacity ${LEAF_CAPACITY}`);
 }
 
-const { pricesUsd } = JSON.parse(readFileSync("./prover/prices.json", "utf8"));
+const { pricesUsd } = JSON.parse(readFileSync("./prover/multi-asset/prices.json", "utf8"));
 if (pricesUsd.length !== NUM_ASSETS) {
   throw new Error(`expected ${NUM_ASSETS} prices, got ${pricesUsd.length}`);
 }

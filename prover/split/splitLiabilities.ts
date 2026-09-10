@@ -1,5 +1,5 @@
 import { randomBytes, randomInt } from "node:crypto";
-import { buildTree, createProof, poseidon2Hash, usernameToBigInt, LEAF_CAPACITY, type Entry } from "./merkleSumTree.ts";
+import { buildTree, createProof, poseidon2Hash, usernameToBigInt, LEAF_CAPACITY, type Entry } from "../merkleSumTree.ts";
 import { FIELD, MAX_BALANCE, splitSalt, type Identity, type SplitBundle } from "./splitProof.ts";
 import type { Hex } from "viem";
 

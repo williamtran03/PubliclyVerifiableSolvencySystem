@@ -5,7 +5,7 @@ build:
 
 test:
 	forge test
-	node --import tsx --test prover/*.test.ts prover/kzg/*.test.ts prover/keccak/*.test.ts
+	node --import tsx --test prover/*.test.ts prover/kzg/*.test.ts prover/keccak/*.test.ts prover/multi-asset/*.test.ts prover/split/*.test.ts
 
 demo: build
 	@npx tsx script/demo.ts
@@ -48,13 +48,13 @@ kzg-epoch:
 multiasset-test:
 	cd circuits/multi-asset && nargo test
 
-# refresh prover/prices.json from a deployed registry: make multiasset-prices REGISTRY=0x...
+# refresh prover/multi-asset/prices.json from a deployed registry: make multiasset-prices REGISTRY=0x...
 multiasset-prices:
-	npx tsx prover/fetchPrices.ts $(REGISTRY)
+	npx tsx prover/multi-asset/fetchPrices.ts $(REGISTRY)
 
 # writes circuits/multi-asset/Prover.toml from customers-multiasset.csv + prices.json
 multiasset-fixtures:
-	npx tsx prover/buildMultiAssetTree.ts
+	npx tsx prover/multi-asset/buildMultiAssetTree.ts
 
 multiasset-check: multiasset-fixtures
 	cd circuits/multi-asset && nargo execute

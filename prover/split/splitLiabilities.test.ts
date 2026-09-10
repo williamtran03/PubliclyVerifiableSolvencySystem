@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildSplitLiabilities } from "./splitLiabilities.ts";
 import { deserializeSplitBundle, verifySplitBundle, MAX_BALANCE } from "./splitProof.ts";
-import { poseidon2Hash, verifyProof } from "./merkleSumTree.ts";
+import { poseidon2Hash, verifyProof } from "../merkleSumTree.ts";
 const id = `0x${"01".repeat(32)}` as const;
 const customers = [{ customerId: "alice", name: "Alice Example", dateOfBirth: "2000-01-01", amounts: [40n, 60n] }, { customerId: "bob", name: "Bob Example", dateOfBirth: "2001-01-01", amounts: [20n] }];
 const fixture = () => buildSplitLiabilities(customers, id);

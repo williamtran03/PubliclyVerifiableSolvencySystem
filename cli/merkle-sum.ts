@@ -3,8 +3,8 @@ import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { createPublicClient, http, parseAbi, isAddress, type Hex } from "viem";
 import { buildSplitLiabilities, verifyCustomer, verifyPublicLedger, type Customer, type CustomerBundle, type PublicLedger } from "../prover/keccak/splitLiabilities.ts";
-import { buildSplitLiabilities as buildZkSplit } from "../prover/splitLiabilities.ts";
-import { deserializeSplitBundle, verifySplitBundle } from "../prover/splitProof.ts";
+import { buildSplitLiabilities as buildZkSplit } from "../prover/split/splitLiabilities.ts";
+import { deserializeSplitBundle, verifySplitBundle } from "../prover/split/splitProof.ts";
 
 const bigintKeys = new Set(["balance", "identityHash", "rootHash", "rootSum", "totalLiabilities"]);
 export function parseArtifact(text: string): any {

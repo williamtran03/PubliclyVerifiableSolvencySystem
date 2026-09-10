@@ -1,5 +1,5 @@
 import { encodeAbiParameters, keccak256, type Hex } from "viem";
-import { deserializeProof, verifyProof, poseidon2Hash, type MerkleSumProof } from "./merkleSumTree.ts";
+import { deserializeProof, verifyProof, poseidon2Hash, type MerkleSumProof } from "../merkleSumTree.ts";
 
 export const FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 export const MAX_BALANCE = (1n << 64n) - 1n;

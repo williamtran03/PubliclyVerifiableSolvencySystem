@@ -1,4 +1,4 @@
-import { poseidon2Hash, usernameToBigInt, LEAF_CAPACITY } from "./merkleSumTree.ts";
+import { poseidon2Hash, usernameToBigInt, LEAF_CAPACITY } from "../merkleSumTree.ts";
 
 export const NUM_ASSETS = 3;
 export const MAX_U64 = (1n << 64n) - 1n;

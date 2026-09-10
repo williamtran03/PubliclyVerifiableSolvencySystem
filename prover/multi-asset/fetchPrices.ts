@@ -7,7 +7,7 @@ const registry = process.argv[2];
 const rpcUrl = process.argv[3] ?? "http://127.0.0.1:8545";
 
 if (!/^0x[0-9a-fA-F]{40}$/.test(registry ?? "")) {
-  console.error("Usage: npx tsx prover/fetchPrices.ts <registry address> [rpc url]");
+  console.error("Usage: npx tsx prover/multi-asset/fetchPrices.ts <registry address> [rpc url]");
   process.exit(1);
 }
 
@@ -23,7 +23,7 @@ const [prices, roundIds] = await client.readContract({
 // Read via the registry, not the feeds directly, so the prover cannot normalise
 // or round differently than the contract will.
 writeFileSync(
-  "./prover/prices.json",
+  "./prover/multi-asset/prices.json",
   JSON.stringify(
     {
       assets: ASSETS,
@@ -37,7 +37,7 @@ writeFileSync(
   ) + "\n",
 );
 
-console.log(`Wrote prover/prices.json from ${registry}`);
+console.log(`Wrote prover/multi-asset/prices.json from ${registry}`);
 for (const [i, asset] of ASSETS.entries()) {
   console.log(`  ${asset}: $${prices[i]} (round ${roundIds[i]})`);
 }

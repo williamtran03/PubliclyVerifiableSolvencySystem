@@ -1,6 +1,6 @@
 import { createPublicClient, http, parseAbi } from "viem";
 import { verifyProof, deserializeProof, poseidon2Hash } from "@prover/merkleSumTree.ts";
-import { deserializeSplitBundle, verifySplitBundle } from "../../prover/splitProof.ts";
+import { deserializeSplitBundle, verifySplitBundle } from "../../prover/split/splitProof.ts";
 
 const registryAbi = parseAbi([
   "function currentEpoch() view returns (uint256 rootHash, uint256 totalReservesAtEpoch, uint64 timestamp)",
