@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>My account — publicly verifiable solvency</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/">Solvency<span>Registry</span></a>
+      <nav>
+        <a href="/">Solvency</a>
+        <a href="/account.html">My account</a>
+        <a href="/auditor.html">Auditor</a>
+        <a href="/operations.html">Operations</a>
+      </nav>
+    </header>
+
+    <main>
+      <section id="loginView">
+        <div class="page-head">
+          <h1>Sign in</h1>
+          <p class="subtitle">
+            Confirm your balance is included in the published liability commitment. The check runs
+            entirely in your browser.
+          </p>
+        </div>
+        <section class="card narrow">
+          <h2>Customer sign in</h2>
+          <label>Password<input id="password" type="password" autocomplete="current-password" /></label>
+          <button id="signIn">Sign in</button>
+          <div id="loginResult" class="result" role="status"></div>
+          <p class="note demo-note">
+            <strong>Demo front door.</strong> This password only reveals this page. It is not the
+            security boundary: your proof is still released solely against the expiring access token
+            checked by the backend, and the browser still verifies inclusion locally.
+          </p>
+        </section>
+      </section>
+
+      <section id="accountView" hidden>
+        <div class="page-head">
+          <h1>My account</h1>
+          <p class="subtitle">
+            Retrieve your private bundle, then verify every part against the root the registry
+            published on chain.
+          </p>
+        </div>
+
+        <section class="card">
+          <h2>Connect to the registry</h2>
+          <div class="row">
+            <label>RPC URL<input id="rpcUrl" /></label>
+            <label>Contract address<input id="registryAddress" placeholder="0x…" /></label>
+          </div>
+          <div id="connection" class="result" role="status"></div>
+        </section>
+
+        <section class="card">
+          <h2>Verify my full balance</h2>
+          <p>
+            Supply the identity and balance you know from your own records. If the operator omitted
+            or altered anything, verification fails.
+          </p>
+          <label>Access token<input id="accessToken" type="password" autocomplete="off" /></label>
+          <div class="row">
+            <label>Your customer ID<input id="customerId" autocomplete="off" /></label>
+            <label>Your date of birth<input id="dateOfBirth" type="date" /></label>
+          </div>
+          <label
+            >Full USD balance in 1e-8 USD units<input
+              id="fullBalance"
+              inputmode="numeric"
+              placeholder="10000000000 = 100 USD"
+          /></label>
+          <button id="verifyBtn">Retrieve my proof and verify locally</button>
+          <div id="verifyResult" class="result boxed" role="status"></div>
+        </section>
+
+        <section class="card" id="inclusion" hidden>
+          <h2>How your inclusion was proven</h2>
+          <p>
+            Your balance is split into random parts held at separate positions. Each part is hashed
+            with its neighbour, level by level, until it reaches the single root the registry
+            published. Your positions and their path are highlighted.
+          </p>
+          <div id="treeFigure" class="tree-figure"></div>
+          <div class="legend">
+            <span><i class="swatch mine"></i>your pair</span>
+            <span><i class="swatch on"></i>path to the root</span>
+            <span><i class="swatch sibling"></i>sibling supplied in your proof</span>
+            <span><i class="swatch other"></i>other customers and padding</span>
+          </div>
+          <details>
+            <summary>Step-by-step hashing for every part</summary>
+            <div id="ladders"></div>
+          </details>
+          <div class="actions">
+            <button id="downloadBundle">Download my proof bundle (JSON)</button>
+            <button id="signOut" class="secondary">Sign out</button>
+          </div>
+          <p class="note">
+            The bundle contains your salts and nonces. Keep it private; anyone holding it learns your
+            positions and amounts.
+          </p>
+        </section>
+      </section>
+
+      <p class="disclaimer">
+        Inclusion does not establish completeness: it proves your balance is inside the published
+        total, not that the operator disclosed every liability.
+      </p>
+    </main>
+    <script type="module" src="/src/account.ts"></script>
+  </body>
+</html>

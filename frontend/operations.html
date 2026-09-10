@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Operations — publicly verifiable solvency</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/">Solvency<span>Registry</span></a>
+      <nav>
+        <a href="/">Solvency</a>
+        <a href="/account.html">My account</a>
+        <a href="/auditor.html">Auditor</a>
+        <a href="/operations.html">Operations</a>
+      </nav>
+    </header>
+
+    <main>
+      <div class="page-head">
+        <h1>Operations</h1>
+        <p class="subtitle">
+          The company's view of the registry: roles, registered reserve assets and every liability
+          snapshot with its current state.
+        </p>
+      </div>
+
+      <section class="card">
+        <h2>Connect to the registry</h2>
+        <div class="row">
+          <label>RPC URL<input id="rpcUrl" /></label>
+          <label>Contract address<input id="registryAddress" placeholder="0x…" /></label>
+        </div>
+        <button id="loadState">Read registry state</button>
+        <div id="roles" class="result" role="status"></div>
+      </section>
+
+      <section class="card">
+        <h2>Reserve assets</h2>
+        <div class="table-scroll">
+          <table>
+            <caption>
+              Registered assets, ownership attestations and eligibility
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">ID</th>
+                <th scope="col">Token</th>
+                <th scope="col">Reserve</th>
+                <th scope="col">Ownership</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody id="assets">
+              <tr>
+                <td colspan="5">Read the registry state to load assets.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Liability snapshots</h2>
+        <div class="table-scroll">
+          <table>
+            <caption>
+              Every submitted snapshot, newest last
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Snapshot</th>
+                <th scope="col">Liabilities</th>
+                <th scope="col">Block</th>
+                <th scope="col">Status</th>
+                <th scope="col">Claim</th>
+              </tr>
+            </thead>
+            <tbody id="snapshots">
+              <tr>
+                <td colspan="5">Read the registry state to load snapshots.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Company actions</h2>
+        <p>
+          Company writes are deliberately not exposed in the browser: they carry private customer
+          data and belong on an operator machine. Prepare a snapshot privately, then submit it with
+          the generated ABI.
+        </p>
+        <pre class="code">npm run minimum -- build /path/source.private.json /path/snapshot
+npm run minimum -- audit /path/snapshot/ledger.json
+npm run minimum -- audit-private /path/independent.private.json /path/snapshot</pre>
+        <p class="note">
+          Only <code>ledger.json</code>, <code>rates.json</code> and <code>submission.json</code> are
+          public. Never copy <code>private/</code> into this project or the frontend public folder.
+        </p>
+      </section>
+
+      <p class="disclaimer">
+        Company and auditor roles are immutable in this prototype and cannot be rotated.
+      </p>
+    </main>
+    <script type="module" src="/src/operations.ts"></script>
+  </body>
+</html>

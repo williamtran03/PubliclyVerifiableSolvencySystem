@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Auditor — publicly verifiable solvency</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/">Solvency<span>Registry</span></a>
+      <nav>
+        <a href="/">Solvency</a>
+        <a href="/account.html">My account</a>
+        <a href="/auditor.html">Auditor</a>
+        <a href="/operations.html">Operations</a>
+      </nav>
+    </header>
+
+    <main>
+      <div class="page-head">
+        <h1>Auditor workspace</h1>
+        <p class="subtitle">
+          Inspect pending proposals, reserve control, eligibility, rate rounds and removals. Approval
+          is an attestation of checks you performed, not a proof the contract can make for you.
+        </p>
+      </div>
+
+      <section class="card">
+        <h2>Connect to the registry</h2>
+        <div class="row">
+          <label>RPC URL<input id="rpcUrl" /></label>
+          <label>Contract address<input id="registryAddress" placeholder="0x…" /></label>
+        </div>
+        <button id="refreshAudit">Read auditor queue</button>
+        <div id="auditQueue" class="result boxed"></div>
+      </section>
+
+      <section class="card">
+        <h2>Sign a decision</h2>
+        <p>
+          Before approving, reconcile all private liabilities against independent records and query
+          historical reserve balances at the snapshot block. Finalization is blocked in this UI until
+          the historical balance, timestamp, freshness and eligibility checks pass.
+        </p>
+        <label
+          >Action<select id="auditAction">
+            <option value="approveAsset">Asset eligibility</option>
+            <option value="verifyRemoveAsset">Asset removal</option>
+            <option value="verifyAddLiability">Liability snapshot</option>
+            <option value="verifyRemoveLiability">Liability retirement</option>
+            <option value="finalizeClaim">Solvency claim</option>
+          </select></label
+        >
+        <div class="row">
+          <label>Asset ID or snapshot ID<input id="actionId" /></label>
+          <label
+            >Decision<select id="decision">
+              <option value="false">Reject</option>
+              <option value="true">Approve after independent audit</option>
+            </select></label
+          >
+        </div>
+        <button id="auditorSubmit">Sign auditor decision with wallet</button>
+        <div id="auditResult" class="result boxed" role="status"></div>
+      </section>
+
+      <p class="disclaimer">
+        Auditor approval is an attestation, not a mathematical proof of undisclosed debts. Anyone
+        holding the auditor key can call the contract directly; that key is a trust boundary.
+      </p>
+    </main>
+    <script type="module" src="/src/auditor.ts"></script>
+  </body>
+</html>
