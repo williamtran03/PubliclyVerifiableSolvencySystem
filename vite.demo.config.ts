@@ -13,6 +13,7 @@ export default defineConfig({
       input: {
         index: resolve(import.meta.dirname, "demo-site/index.html"),
         account: resolve(import.meta.dirname, "demo-site/account.html"),
+        operator: resolve(import.meta.dirname, "demo-site/operator.html"),
       },
     },
   },

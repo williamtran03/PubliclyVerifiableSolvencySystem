@@ -81,3 +81,25 @@ for (const [username, indices] of byCustomer) {
   );
 }
 console.log(`Wrote demo-site/public/bundles/ (${byCustomer.size} customers)`);
+
+mkdirSync("./demo-site/public/operator", { recursive: true });
+writeFileSync(
+  "./demo-site/public/operator/ledger.json",
+  JSON.stringify(
+    {
+      prices: pricesUsd,
+      rootHash: root.hash.toString(),
+      totalUsd: root.sum.toString(),
+      capacity: LEAF_CAPACITY,
+      rows: holdings.map((h) => ({
+        username: h.username,
+        assetId: h.assetId,
+        amount: h.amount.toString(),
+        valueUsd: (h.amount * BigInt(pricesUsd[h.assetId])).toString(),
+      })),
+    },
+    null,
+    2,
+  ) + "\n",
+);
+console.log("Wrote demo-site/public/operator/ledger.json");

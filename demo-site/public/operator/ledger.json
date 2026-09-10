@@ -1,0 +1,30 @@
+{
+  "prices": [
+    "60000",
+    "3000",
+    "1"
+  ],
+  "rootHash": "3666696353098870362922907573537152047226998286174952904883498976766350711549",
+  "totalUsd": "155000",
+  "capacity": 8,
+  "rows": [
+    {
+      "username": "customer-123",
+      "assetId": 0,
+      "amount": "2",
+      "valueUsd": "120000"
+    },
+    {
+      "username": "customer-456",
+      "assetId": 1,
+      "amount": "10",
+      "valueUsd": "30000"
+    },
+    {
+      "username": "customer-789",
+      "assetId": 2,
+      "amount": "5000",
+      "valueUsd": "5000"
+    }
+  ]
+}
