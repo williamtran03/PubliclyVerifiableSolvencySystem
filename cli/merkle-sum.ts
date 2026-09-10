@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { createPublicClient, http, parseAbi, isAddress, type Hex } from "viem";
-import { buildSplitLiabilities, verifyCustomer, verifyPublicLedger, type Customer, type CustomerBundle, type PublicLedger } from "../prover/merkle-sum/splitLiabilities.ts";
+import { buildSplitLiabilities, verifyCustomer, verifyPublicLedger, type Customer, type CustomerBundle, type PublicLedger } from "../prover/keccak/splitLiabilities.ts";
 import { buildSplitLiabilities as buildZkSplit } from "../prover/splitLiabilities.ts";
 import { deserializeSplitBundle, verifySplitBundle } from "../prover/splitProof.ts";
 

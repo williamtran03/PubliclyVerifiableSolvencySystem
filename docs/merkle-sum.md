@@ -12,7 +12,7 @@ circuit or verification key. A new ledger still needs a new proof.
 | ZK-compatible split balances | Poseidon2 / eight parts total | SolvencyRegistry | Root and total public; witness and parts private |
 | Public Merkle-sum alternative | Keccak / 256 parts maximum | MerkleSumRegistry | Commitments and partial amounts public |
 
-The public alternative lives under prover/merkle-sum/. Its contract is independent
+The public alternative lives under prover/keccak/. Its contract is independent
 of the Honk registry, so neither the new constructor nor submitEpoch can bypass
 the existing ZK check. It computes root and total itself and rejects zero/duplicate
 reserve addresses, repeated snapshot IDs, overflow and unverified submissions.

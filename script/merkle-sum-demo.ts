@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
-import { buildSplitLiabilities, verifyCustomer } from "../prover/merkle-sum/splitLiabilities.ts";
+import { buildSplitLiabilities, verifyCustomer } from "../prover/keccak/splitLiabilities.ts";
 const transport = http("http://127.0.0.1:8545");
 const publicClient = createPublicClient({ chain: foundry, transport });
 assert.equal(await publicClient.getChainId(), 31337, "local Anvil only");
