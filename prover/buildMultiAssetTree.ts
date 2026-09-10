@@ -80,15 +80,4 @@ for (const [username, indices] of byCustomer) {
     }),
   );
 }
-writeFileSync(
-  "./demo-site/public/bundles/index.json",
-  JSON.stringify(
-    [...byCustomer].map(([username, indices]) => ({
-      username,
-      holdings: indices.map((i) => ({ assetId: padded[i].assetId, amount: padded[i].amount.toString() })),
-    })),
-    null,
-    2,
-  ),
-);
 console.log(`Wrote demo-site/public/bundles/ (${byCustomer.size} customers)`);
