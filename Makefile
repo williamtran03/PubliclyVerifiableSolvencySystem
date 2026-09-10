@@ -1,4 +1,4 @@
-.PHONY: build test demo fixtures circuit-check circuit-prove circuit-verifier kzg-setup kzg-epoch frontend
+.PHONY: build test demo fixtures circuit-check circuit-prove circuit-verifier kzg-setup kzg-epoch frontend multiasset-test multiasset-check multiasset-prove multiasset-verifier
 
 build:
 	forge build
@@ -38,3 +38,20 @@ kzg-setup:
 # per-epoch prover, the counterpart to circuit-prove; same customers.csv
 kzg-epoch:
 	npx tsx prover/kzg/buildEpoch.ts
+
+# ---- arm 3: multi-asset circuit, prices as public inputs -------------------
+# publicInputs = [price0, price1, price2, rootHash, totalLiabilitiesUsd]
+multiasset-test:
+	cd circuit-multiasset && nargo test
+
+multiasset-check:
+	cd circuit-multiasset && nargo execute
+
+multiasset-prove: multiasset-check
+	cd circuit-multiasset && bb write_vk -s ultra_honk -b target/circuit_multiasset.json -o target/vk --oracle_hash keccak
+	cd circuit-multiasset && bb prove -s ultra_honk -b target/circuit_multiasset.json -w target/circuit_multiasset.gz -o target/proof -k target/vk/vk --oracle_hash keccak
+	cd circuit-multiasset && bb verify -s ultra_honk -p target/proof/proof -k target/vk/vk -i target/proof/public_inputs --oracle_hash keccak
+
+# regenerate contracts/MultiAssetHonkVerifier.sol -- only when the circuit changes
+multiasset-verifier: multiasset-prove
+	cd circuit-multiasset && bb write_solidity_verifier -k target/vk/vk -o ../contracts/MultiAssetHonkVerifier.sol -t evm
