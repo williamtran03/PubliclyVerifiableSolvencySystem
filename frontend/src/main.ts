@@ -1,6 +1,5 @@
 import { createPublicClient, http, parseAbi } from "viem";
 import { verifyProof, deserializeProof, poseidon2Hash } from "@prover/merkleSumTree.ts";
-import { deserializeSplitBundle, verifySplitBundle } from "../../prover/split/splitProof.ts";
 
 const registryAbi = parseAbi([
   "function currentEpoch() view returns (uint256 rootHash, uint256 totalReservesAtEpoch, uint64 timestamp)",
@@ -22,7 +21,6 @@ const verifyResult = document.querySelector<HTMLDivElement>("#verifyResult")!;
 connectBtn.addEventListener("click", async () => {
   onChainRootHash = null;
   onChainEpochValue = null;
-  document.querySelector<HTMLDivElement>("#splitResult")!.textContent = "";
   epochResult.textContent = "reading currentEpoch()...";
   try {
     const client = createPublicClient({ transport: http(rpcUrlInput.value) });
@@ -47,24 +45,6 @@ connectBtn.addEventListener("click", async () => {
   } catch (err) {
     epochResult.textContent = `ERROR: ${err instanceof Error ? err.message : String(err)}`;
   }
-});
-
-document.querySelector<HTMLButtonElement>("#splitVerifyBtn")!.addEventListener("click", async () => {
-  const result = document.querySelector<HTMLDivElement>("#splitResult")!;
-  result.textContent = "Checking locally...";
-  const root = onChainRootHash, total = onChainEpochValue;
-  try {
-    if (root === null || total === null) throw new Error("Read the current epoch first.");
-    const file = document.querySelector<HTMLInputElement>("#splitFile")!.files?.[0];
-    if (!file || file.size > 262144) throw new Error("Select a bundle of at most 256 KB.");
-    const customer = document.querySelector<HTMLInputElement>("#splitCustomer")!.value.trim();
-    const expected = document.querySelector<HTMLInputElement>("#splitBalance")!.value.trim();
-    if (!/^(0|[1-9][0-9]*)$/.test(expected) || expected.length > 80) throw new Error("Enter an unsigned balance in wei.");
-    const bundle = deserializeSplitBundle(await file.text());
-    if (root !== onChainRootHash || total !== onChainEpochValue) throw new Error("Snapshot changed; verify again.");
-    if (!verifySplitBundle(bundle, customer, BigInt(expected), root, total)) throw new Error("Bundle does not match your full balance and the selected commitment.");
-    result.textContent = "VALID: all supplied parts match your expected full balance and the published root and total. This does not prove disclosure of other customers or debts.";
-  } catch (error) { result.textContent = `INVALID: ${error instanceof Error ? error.message : String(error)}`; }
 });
 
 verifyBtn.addEventListener("click", async () => {

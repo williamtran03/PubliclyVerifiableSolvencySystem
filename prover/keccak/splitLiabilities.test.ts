@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildSplitLiabilities, verifyCustomer, verifyPublicLedger } from "./splitLiabilities.ts";
-import { buildTree, keccakHash, verifyProof, serializeProof, deserializeProof } from "./merkleSumTree.ts";
+import { buildTree, keccakHash, verifyProof, serializeProof, deserializeProof } from "./publicLedgerTree.ts";
 const snapshot = `0x${"01".repeat(32)}` as const;
 const customers = [
   { customerId: "alice", name: "Alice Example", dateOfBirth: "2000-01-01", amounts: [40n, 60n] },

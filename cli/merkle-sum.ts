@@ -3,8 +3,6 @@ import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { createPublicClient, http, parseAbi, isAddress, type Hex } from "viem";
 import { buildSplitLiabilities, verifyCustomer, verifyPublicLedger, type Customer, type CustomerBundle, type PublicLedger } from "../prover/keccak/splitLiabilities.ts";
-import { buildSplitLiabilities as buildZkSplit } from "../prover/split/splitLiabilities.ts";
-import { deserializeSplitBundle, verifySplitBundle } from "../prover/split/splitProof.ts";
 
 const bigintKeys = new Set(["balance", "identityHash", "rootHash", "rootSum", "totalLiabilities"]);
 export function parseArtifact(text: string): any {
@@ -21,7 +19,7 @@ const abi = parseAbi([
 ]);
 async function main() {
   const [command, ...args] = process.argv.slice(2);
-  if (command === "build" || command === "build-zk") {
+  if (command === "build") {
     const [input, output] = args;
     if (!input || !output) throw new Error("build <private customers.json> <new output directory>");
     const raw = JSON.parse(readFileSync(input, "utf8"));
@@ -33,16 +31,6 @@ async function main() {
       }) };
     });
     const snapshotId = `0x${randomBytes(32).toString("hex")}` as Hex;
-    if (command === "build-zk") {
-      const { epoch, bundles, proverToml } = buildZkSplit(customers, snapshotId);
-      mkdirSync(output, { mode: 0o700 });
-      mkdirSync(resolve(output, "private"), { mode: 0o700 });
-      writeFileSync(resolve(output, "epoch.json"), json(epoch), { mode: 0o600 });
-      writeFileSync(resolve(output, "private", "Prover.toml"), proverToml, { mode: 0o600 });
-      bundles.forEach((b, i) => writeFileSync(resolve(output, "private", `customer-${i}.json`), json(b), { mode: 0o600 }));
-      console.log(`Built ${bundles.length} private Poseidon2 bundles for the existing Noir circuit. Total: ${epoch.totalLiabilities} wei.`);
-      return;
-    }
     const { ledger, bundles } = buildSplitLiabilities(customers, snapshotId);
     if (ledger.entries.length > 256) throw new Error("contract prototype supports at most 256 parts");
     // Fail if directory exists, so a rebuild cannot silently replace customer openings.
@@ -56,23 +44,17 @@ async function main() {
     const ledger: PublicLedger = parseArtifact(readFileSync(path, "utf8"));
     if (!verifyPublicLedger(ledger)) throw new Error("invalid public ledger");
     console.log("VALID: published entries produce the claimed root and total. Completeness and assets are separate checks.");
-  } else if (command === "verify" || command === "verify-zk") {
+  } else if (command === "verify") {
     const [address, rpc, path, expectedBalance, expectedCustomerId] = args;
     if (!isAddress(address ?? "") || !rpc || !path || !expectedBalance || !expectedCustomerId) throw new Error("verify <registry> <RPC URL> <private bundle.json> <expected balance in wei> <customer ID>");
     const client = createPublicClient({ transport: http(rpc) });
     // Pin both reads to a single block to avoid mixing two epochs.
     const blockNumber = await client.getBlockNumber();
     const [rootHash, totalLiabilities] = await client.readContract({ address: address as Hex, abi, functionName: "currentEpoch", blockNumber });
-    if (command === "verify-zk") {
-      const bundle = deserializeSplitBundle(readFileSync(path, "utf8"));
-      if (!verifySplitBundle(bundle, expectedCustomerId, BigInt(expectedBalance), rootHash, totalLiabilities)) throw new Error("split customer verification failed");
-      console.log("VALID: all supplied parts sum to your expected full balance and match the on-chain commitment.");
-      return;
-    }
     const snapshotId = await client.readContract({ address: address as Hex, abi, functionName: "currentSnapshotId", blockNumber });
     const bundle: CustomerBundle = parseArtifact(readFileSync(path, "utf8"));
     if (bundle.customerId !== expectedCustomerId || !verifyCustomer(bundle, BigInt(expectedBalance), { rootHash, totalLiabilities, snapshotId })) throw new Error("customer verification failed");
     console.log("VALID: your expected full balance is included in the on-chain snapshot. This is not a guarantee of undisclosed debts or current reserves.");
-  } else throw new Error("Commands: build, audit, verify, build-zk, verify-zk (see docs/merkle-sum.md)");
+  } else throw new Error("Commands: build, audit, verify (see docs/merkle-sum.md)");
 }
 main().catch(error => { console.error(error.message); process.exitCode = 1; });

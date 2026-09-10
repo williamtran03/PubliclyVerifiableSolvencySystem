@@ -1,6 +1,6 @@
 import { randomBytes, randomInt } from "node:crypto";
 import { encodeAbiParameters, keccak256, type Hex } from "viem";
-import { buildTree, createProof, verifyProof, keccakHash, checkUint, type Entry, type MerkleSumProof } from "./merkleSumTree.ts";
+import { buildTree, createProof, verifyProof, keccakHash, checkUint, type Entry, type MerkleSumProof } from "./publicLedgerTree.ts";
 
 export type Customer = { customerId: string; name: string; dateOfBirth: string; amounts: bigint[] };
 export type Opening = { salt: Hex; partIndex: number; proof: MerkleSumProof };

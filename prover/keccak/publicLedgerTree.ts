@@ -1,3 +1,7 @@
+// Keccak merkle-sum tree for the published-ledger arm. Keccak because
+// MerkleSumRegistry.sol rebuilds this tree on-chain, where keccak256 is a
+// native opcode and Poseidon2 would be prohibitively expensive. Sizes itself
+// to the ledger rather than a fixed capacity, since no circuit constrains it.
 export type HashFn = (values: bigint[]) => bigint;
 
 export type Entry = {

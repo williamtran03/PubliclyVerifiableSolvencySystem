@@ -1,3 +1,6 @@
+// Poseidon2 merkle-sum tree: the shared core for every arm that is proved in
+// a circuit. Pads to a fixed LEAF_CAPACITY because a circuit's array sizes are
+// compile-time constants.
 export type HashFn = (values: bigint[]) => bigint;
 
 export type Entry = {

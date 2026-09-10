@@ -5,7 +5,7 @@ build:
 
 test:
 	forge test
-	node --import tsx --test prover/*.test.ts prover/kzg/*.test.ts prover/keccak/*.test.ts prover/multi-asset/*.test.ts prover/split/*.test.ts
+	node --import tsx --test prover/*.test.ts prover/kzg/*.test.ts prover/keccak/*.test.ts prover/multi-asset/*.test.ts
 
 demo: build
 	@npx tsx script/demo.ts
