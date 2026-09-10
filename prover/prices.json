@@ -1,0 +1,4 @@
+{
+  "assets": ["BTC", "ETH", "USDC"],
+  "pricesUsd": ["60000", "3000", "1"]
+}

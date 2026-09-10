@@ -20,6 +20,7 @@ frontend/dist/
 circuit/target/
 circuit/Prover.toml
 circuit-multiasset/target/
+circuit-multiasset/Prover.toml
 
 # env / secrets
 .env

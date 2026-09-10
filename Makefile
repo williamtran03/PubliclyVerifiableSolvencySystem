@@ -1,4 +1,4 @@
-.PHONY: build test demo fixtures circuit-check circuit-prove circuit-verifier kzg-setup kzg-epoch frontend multiasset-test multiasset-check multiasset-prove multiasset-verifier
+.PHONY: build test demo fixtures circuit-check circuit-prove circuit-verifier kzg-setup kzg-epoch frontend multiasset-test multiasset-fixtures multiasset-check multiasset-prove multiasset-verifier
 
 build:
 	forge build
@@ -44,7 +44,11 @@ kzg-epoch:
 multiasset-test:
 	cd circuit-multiasset && nargo test
 
-multiasset-check:
+# writes circuit-multiasset/Prover.toml from customers-multiasset.csv + prices.json
+multiasset-fixtures:
+	npx tsx prover/buildMultiAssetTree.ts
+
+multiasset-check: multiasset-fixtures
 	cd circuit-multiasset && nargo execute
 
 multiasset-prove: multiasset-check
