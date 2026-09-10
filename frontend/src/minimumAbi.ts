@@ -136,6 +136,61 @@ export const minimumAbi = [
         "name": "amounts",
         "type": "uint256[]",
         "internalType": "uint256[]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "addLiability",
+    "inputs": [
+      {
+        "name": "input",
+        "type": "tuple",
+        "internalType": "struct MinimumSolvencyRegistry.SnapshotInput",
+        "components": [
+          {
+            "name": "id",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "rootHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "totalLiabilitiesUsd",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "rateManifestHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "snapshotTime",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "snapshotBlock",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "identities",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      },
+      {
+        "name": "amounts",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
       },
       {
         "name": "rates",
@@ -813,6 +868,85 @@ export const minimumAbi = [
   },
   {
     "type": "function",
+    "name": "pinRates",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "snapshotTime",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "rates",
+        "type": "tuple[]",
+        "internalType": "struct SnapshotOracle.Rate[]",
+        "components": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "feed",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "tokenDecimals",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "oracleDecimals",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "rate",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "roundId",
+            "type": "uint80",
+            "internalType": "uint80"
+          },
+          {
+            "name": "updatedAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "pinnedRateSnapshotTime",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "proposeClaim",
     "inputs": [
       {
@@ -1265,6 +1399,31 @@ export const minimumAbi = [
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RatesPinned",
+    "inputs": [
+      {
+        "name": "snapshotId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "snapshotTime",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "rateManifestHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
       }
     ],
     "anonymous": false

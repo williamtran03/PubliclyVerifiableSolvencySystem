@@ -56,6 +56,7 @@ contract MinimumSolvencyRegistry is AuditedAssets {
     }
     mapping(bytes32 => Liability) private liabilities;
     mapping(bytes32 => SnapshotOracle.Rate[]) private manifests;
+    mapping(bytes32 => uint256) public pinnedRateSnapshotTime;
     mapping(bytes32 => ClaimProposal) private proposals;
     mapping(bytes32 => Claim) private claims;
     mapping(bytes32 => Observation[]) private observations;
@@ -69,6 +70,7 @@ contract MinimumSolvencyRegistry is AuditedAssets {
         uint256 snapshotTime,
         uint256 snapshotBlock
     );
+    event RatesPinned(bytes32 indexed snapshotId, uint256 snapshotTime, bytes32 rateManifestHash);
     event PublicLedger(bytes32 indexed snapshotId, bytes32[] identities, uint256[] amounts, uint256 capacity);
     event LiabilityVerified(bytes32 indexed snapshotId, bool approved, address auditor);
     event LiabilityRemovalRequested(bytes32 indexed snapshotId);
@@ -107,6 +109,32 @@ contract MinimumSolvencyRegistry is AuditedAssets {
         uint256 snapshotBlock;
     }
 
+    /// @notice Pin and validate the exact oracle rounds that the off-chain prover must use.
+    function pinRates(bytes32 id, uint256 snapshotTime, SnapshotOracle.Rate[] calldata rates) external onlyCompany {
+        if (id == bytes32(0) || pinnedRateSnapshotTime[id] != 0 || snapshotTime == 0
+            || snapshotTime > block.timestamp || block.timestamp - snapshotTime > maxOracleAge
+            || rates.length == 0 || rates.length > 32) revert InvalidInput();
+        address previous;
+        for (uint256 i; i < rates.length; i++) {
+            if (rates[i].token <= previous) revert InvalidInput();
+            previous = rates[i].token;
+            SnapshotOracle.validate(rates[i], snapshotTime, maxOracleAge);
+            manifests[id].push(rates[i]);
+        }
+        pinnedRateSnapshotTime[id] = snapshotTime;
+        emit RatesPinned(id, snapshotTime, keccak256(abi.encode(keccak256("solvency.minimum.v1.rates"), id, rates)));
+    }
+
+    /// @notice Submit a liability root using rates previously pinned on-chain.
+    function addLiability(
+        SnapshotInput calldata input,
+        bytes32[] calldata identities,
+        uint256[] calldata amounts
+    ) external onlyCompany {
+        if (manifests[input.id].length == 0 || pinnedRateSnapshotTime[input.id] != input.snapshotTime) revert InvalidInput();
+        _addLiability(input, identities, amounts);
+    }
+
     function addLiability(
         SnapshotInput calldata input,
         bytes32[] calldata identities,
@@ -119,19 +147,38 @@ contract MinimumSolvencyRegistry is AuditedAssets {
                 || input.snapshotBlock >= block.number || block.number - input.snapshotBlock > 256 || rates.length == 0
                 || rates.length > 32
         ) revert InvalidInput();
-        (bytes32 computed, uint256 sum) = MinimumTree.root(input.id, capacity, identities, amounts);
-        if (
-            input.rootHash != computed || input.totalLiabilitiesUsd != sum
-                || input.rateManifestHash
-                    != keccak256(abi.encode(keccak256("solvency.minimum.v1.rates"), input.id, rates))
-        ) revert InvalidInput();
+        _pinRates(input.id, input.snapshotTime, rates);
+        _addLiability(input, identities, amounts);
+    }
+
+    function _pinRates(bytes32 id, uint256 snapshotTime, SnapshotOracle.Rate[] calldata rates) private {
+        if (pinnedRateSnapshotTime[id] != 0) revert InvalidInput();
         address previous;
         for (uint256 i; i < rates.length; i++) {
             if (rates[i].token <= previous) revert InvalidInput();
             previous = rates[i].token;
-            SnapshotOracle.validate(rates[i], input.snapshotTime, maxOracleAge);
-            manifests[input.id].push(rates[i]);
+            SnapshotOracle.validate(rates[i], snapshotTime, maxOracleAge);
+            manifests[id].push(rates[i]);
         }
+        pinnedRateSnapshotTime[id] = snapshotTime;
+    }
+
+    function _addLiability(
+        SnapshotInput calldata input,
+        bytes32[] calldata identities,
+        uint256[] calldata amounts
+    ) private {
+        if (input.id == bytes32(0) || liabilities[input.id].status != Status.None
+            || pinnedRateSnapshotTime[input.id] != input.snapshotTime || input.snapshotTime == 0
+            || input.snapshotTime > block.timestamp || block.timestamp - input.snapshotTime > maxOracleAge
+            || input.snapshotBlock >= block.number || block.number - input.snapshotBlock > 256) revert InvalidInput();
+        (bytes32 computed, uint256 sum) = MinimumTree.root(input.id, capacity, identities, amounts);
+        SnapshotOracle.Rate[] storage rates = manifests[input.id];
+        if (
+            input.rootHash != computed || input.totalLiabilitiesUsd != sum
+                || input.rateManifestHash
+                != keccak256(abi.encode(keccak256("solvency.minimum.v1.rates"), input.id, rates))
+        ) revert InvalidInput();
         Liability storage l = liabilities[input.id];
         l.rootHash = computed;
         l.rootSum = sum;
