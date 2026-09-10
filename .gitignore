@@ -10,15 +10,8 @@ broadcast/*/dry-run/
 # node
 node_modules/
 
-fixtures/proof-*.json
-frontend/public/proofs/
-
 # frontend build output
 frontend/dist/
-
-# noir circuit: build artifacts, and Prover.toml holds raw customer balances
-circuit/target/
-circuit/Prover.toml
 
 # env / secrets
 .env
@@ -27,6 +20,5 @@ circuit/Prover.toml
 # os
 .DS_Store
 # Private split-liability inputs and outputs
-merkle-output/
 *.private.json
 

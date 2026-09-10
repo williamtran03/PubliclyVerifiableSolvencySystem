@@ -3,11 +3,6 @@ import { resolve } from "node:path";
 
 export default defineConfig({
   root: "frontend",
-  resolve: {
-    alias: {
-      "@prover": resolve(import.meta.dirname, "prover"),
-    },
-  },
   server: {
     host: "127.0.0.1",
     proxy: { "/api": "http://127.0.0.1:8787" },

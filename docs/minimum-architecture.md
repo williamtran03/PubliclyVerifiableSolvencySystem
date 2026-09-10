@@ -1,10 +1,9 @@
 # Minimum publicly verifiable solvency prototype
 
 The claim is **eligible verified assets in USD >= verified total liabilities in
-USD**. `MinimumSolvencyRegistry` is a separate audited registry; the earlier
-Honk/Poseidon2, KZG and public Keccak contracts and CLI implementations remain.
-The frontend now targets the minimum registry. Old proof formats remain available
-through their original CLI commands, not through this frontend.
+USD**. `MinimumSolvencyRegistry` is the audited registry used by the frontend,
+operator CLI and local deployment workflow. This branch contains only this
+solution; earlier implementations remain in Git history and on other branches.
 
 ## Components and data flow
 
@@ -238,8 +237,8 @@ Auditor approval is an attestation, **not a mathematical proof of undisclosed de
 
 Validated toolchain: Node 26.8.1, npm 12.0.2, TypeScript 7.0.2, Vite 8.2.2,
 Solidity 0.8.28, viem 2.56.3 and Foundry 1.8.1. Use a modern Node
-release supporting `--test-isolation=none`. Existing dependencies/lockfile are
-retained. Install them with `npm ci`; install Foundry separately if absent.
+release supporting `--test-isolation=none`. Dependencies are recorded in the
+lockfile. Install them with `npm ci`; install Foundry separately if absent.
 The Solidity optimizer is enabled; deployed registry bytecode is 16,688 bytes,
 below the 24,576-byte EVM code-size limit.
 
@@ -348,7 +347,7 @@ to listen on localhost. The test deploys mocks and the registry, finalizes a cla
 recomputes the public ledger through the frontend client, generates private demo
 credentials, retrieves a proof over the authenticated backend, and rejects
 modified proofs, insolvency and stale rates. The temporary node/files are cleaned
-up. `npm run test:prover` also retains the original Poseidon2/KZG/Merkle tests.
+up. `npm run test:prover` runs the minimum Merkle-sum, oracle, pipeline and CLI tests.
 
 Frontend tests exercise rendering, loading/error states, the authentication
 boundary, local proofs, wrong identity/balance, tampering and outdated epochs.
@@ -360,17 +359,17 @@ The production Vite build is checked; visual browser testing is not claimed.
 
 | Command | Result |
 | --- | --- |
-| `npm test` | 90 unit/backend/frontend tests + 1 Anvil integration test passed; 0 failed |
-| `npm run test:prover` | 79 passed; 0 failed (subset of the 90 above) |
+| `npm test` | 57 unit/backend/frontend tests + 1 Anvil integration test passed; 0 failed |
+| `npm run test:prover` | 46 passed; 0 failed (subset of the 57 above) |
 | `npx tsc --noEmit` | Passed |
 | `npx vite build` | Passed |
 | `forge fmt --check` | Passed |
 | `forge build` | Passed; non-fatal style/lint diagnostics remain |
-| `forge test` | 45 passed; 0 failed; 5 fuzz tests with 256 runs each |
+| `forge test` | 32 passed; 0 failed; 5 fuzz tests with 256 runs each |
 | `git diff --check` | Passed |
 
 Counts are individual Node tests (`--test-isolation=none`), not test-file counts.
-There are 136 distinct tests across the full Node/integration/Foundry runs; the
+There are 90 distinct tests across the full Node/integration/Foundry runs; the
 separate prover command repeats a subset. No tests were skipped.
 
 ## Security assumptions and limitations

@@ -4,11 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:prover": "node --import tsx --test --test-isolation=none prover/*.test.ts prover/kzg/*.test.ts prover/merkle-sum/*.test.ts prover/minimum/*.test.ts",
-    "merkle": "node --import tsx cli/merkle-sum.ts",
-    "demo:merkle": "node --import tsx script/merkle-sum-demo.ts",
+    "test:prover": "node --import tsx --test --test-isolation=none prover/minimum/*.test.ts",
     "test": "npm run test:unit && npm run test:integration",
-    "test:unit": "node --import tsx --test --test-isolation=none prover/*.test.ts prover/kzg/*.test.ts prover/merkle-sum/*.test.ts prover/minimum/*.test.ts backend/*.test.ts frontend/src/*.test.ts",
+    "test:unit": "node --import tsx --test --test-isolation=none prover/minimum/*.test.ts backend/*.test.ts frontend/src/*.test.ts",
     "test:integration": "node --import tsx --test --test-isolation=none integration/*.test.ts",
     "minimum": "node --import tsx cli/minimum.ts",
     "backend": "node --import tsx backend/server.ts",
@@ -22,9 +20,5 @@
     "typescript": "^7.0.2",
     "viem": "^2.56.3",
     "vite": "^8.2.2"
-  },
-  "dependencies": {
-    "@noble/curves": "^1.9.1",
-    "@zkpassport/poseidon2": "^0.6.2"
   }
 }
