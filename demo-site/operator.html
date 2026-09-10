@@ -17,6 +17,24 @@
     </header>
 
     <main>
+      <section id="loginView">
+        <div class="page-head">
+          <h1>Staff sign in</h1>
+          <p>This console shows unpublished customer data. Sign in to continue.</p>
+        </div>
+        <div class="card narrow">
+          <label>Passcode <input id="passcode" type="password" autocomplete="off" /></label>
+          <button id="signInBtn">Sign in</button>
+          <p class="note" id="loginStatus"></p>
+        </div>
+        <p class="note narrow">
+          Demonstration only: the check runs in the browser, so it keeps the ledger off the landing
+          page but is not access control. A live deployment would authenticate server-side and never
+          ship this data to an unauthenticated client.
+        </p>
+      </section>
+
+      <section id="consoleView" hidden>
       <div class="page-head">
         <h1>Operations console</h1>
         <p>
@@ -91,6 +109,9 @@
             <span>Submit on-chain. The contract re-reads the pinned rounds, verifies the proof against them, values the reserves and rejects the epoch unless they cover the liabilities.</span>
           </li>
         </ol>
+      </section>
+
+      <button id="signOutBtn" class="link">Sign out</button>
       </section>
     </main>
 

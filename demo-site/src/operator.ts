@@ -1,5 +1,8 @@
 import { $, ASSET_NAMES, loadSettings, readEpoch, usd } from "./chain.ts";
 
+const PASSCODE = "northwind-ops";
+const SESSION_KEY = "northwind.operator";
+
 type Ledger = {
   prices: string[];
   rootHash: string;
@@ -68,4 +71,45 @@ async function load() {
   }
 }
 
-load();
+function signIn(passcode: string) {
+  const status = $<HTMLParagraphElement>("#loginStatus");
+  if (passcode !== PASSCODE) {
+    status.className = "note bad";
+    status.textContent = "Incorrect passcode.";
+    return;
+  }
+  try {
+    sessionStorage.setItem(SESSION_KEY, "1");
+  } catch {
+    /* private browsing */
+  }
+  status.textContent = "";
+  $("#loginView").hidden = true;
+  $("#consoleView").hidden = false;
+  load();
+}
+
+$<HTMLButtonElement>("#signInBtn").addEventListener("click", () =>
+  signIn($<HTMLInputElement>("#passcode").value),
+);
+
+$<HTMLInputElement>("#passcode").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") $<HTMLButtonElement>("#signInBtn").click();
+});
+
+$<HTMLButtonElement>("#signOutBtn").addEventListener("click", () => {
+  try {
+    sessionStorage.removeItem(SESSION_KEY);
+  } catch {
+    /* private browsing */
+  }
+  $("#consoleView").hidden = true;
+  $("#loginView").hidden = false;
+  $<HTMLInputElement>("#passcode").value = "";
+});
+
+try {
+  if (sessionStorage.getItem(SESSION_KEY)) signIn(PASSCODE);
+} catch {
+  /* private browsing */
+}
