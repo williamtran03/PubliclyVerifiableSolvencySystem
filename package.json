@@ -4,9 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:prover": "node --import tsx --test prover/*.test.ts prover/kzg/*.test.ts prover/merkle-sum/*.test.ts",
+    "test:prover": "node --import tsx --test --test-isolation=none prover/*.test.ts prover/kzg/*.test.ts prover/merkle-sum/*.test.ts prover/minimum/*.test.ts",
     "merkle": "node --import tsx cli/merkle-sum.ts",
-    "demo:merkle": "node --import tsx script/merkle-sum-demo.ts"
+    "demo:merkle": "node --import tsx script/merkle-sum-demo.ts",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "node --import tsx --test --test-isolation=none prover/*.test.ts prover/kzg/*.test.ts prover/merkle-sum/*.test.ts prover/minimum/*.test.ts backend/*.test.ts frontend/src/*.test.ts",
+    "test:integration": "node --import tsx --test --test-isolation=none integration/*.test.ts",
+    "minimum": "node --import tsx cli/minimum.ts",
+    "backend": "node --import tsx backend/server.ts",
+    "dev": "vite",
+    "demo:minimum": "node --import tsx script/minimum-local.ts",
+    "abi": "node --import tsx script/minimum-abi.ts"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",

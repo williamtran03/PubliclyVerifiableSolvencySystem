@@ -1,4 +1,4 @@
-import {createPublicClient,http,isAddress,type Address,type Hex} from 'viem';
+import {createPublicClient,http,isAddress,parseAbi,type Address,type Hex} from 'viem';
 import {minimumAbi} from './minimumAbi.ts';
 import {audit,parse,verify,type Bundle,type Ledger,type Anchor} from '../../prover/minimum/tree.ts';
 import {manifestHash,toUsd,type Rate} from '../../prover/minimum/oracle.ts';
@@ -23,7 +23,23 @@ export function registryClient(rpc:string,address:Address) {
   async auditQueue() {
    const blockNumber=await client.getBlockNumber({cacheTime:0});const [count,snapshots,auditor,company]=await Promise.all([read('assetCount',blockNumber),read('snapshotCount',blockNumber),read('auditor',blockNumber),read('company',blockNumber)]);
    const assets=[];for(let id=1n;id<=count;id++)assets.push({id,...await client.readContract({address,abi:minimumAbi,functionName:'getAsset',args:[id],blockNumber})});
-   const liabilities=[];for(let i=0n;i<snapshots;i++){const id=await client.readContract({address,abi:minimumAbi,functionName:'snapshotIds',args:[i],blockNumber});const [liability,rates,proposal]=await Promise.all([client.readContract({address,abi:minimumAbi,functionName:'getLiability',args:[id],blockNumber}),client.readContract({address,abi:minimumAbi,functionName:'getRates',args:[id],blockNumber}),client.readContract({address,abi:minimumAbi,functionName:'getClaimProposal',args:[id],blockNumber})]);liabilities.push({id,liability,rates,proposal});}
+   const liabilities=[];for(let i=0n;i<snapshots;i++){const id=await client.readContract({address,abi:minimumAbi,functionName:'snapshotIds',args:[i],blockNumber});const [liability,rates,proposal]=await Promise.all([client.readContract({address,abi:minimumAbi,functionName:'getLiability',args:[id],blockNumber}),client.readContract({address,abi:minimumAbi,functionName:'getRates',args:[id],blockNumber}),client.readContract({address,abi:minimumAbi,functionName:'getClaimProposal',args:[id],blockNumber})]);
+    let review:unknown;
+    try {
+      const historicalBlock=await client.getBlock({blockNumber:liability.snapshotBlock});let total=0n;const reserveChecks=[];
+      for(let j=0;j<proposal.assetIds.length;j++) {
+        const asset=assets.find(a=>a.id===proposal.assetIds[j]);if(!asset)throw Error('Unknown reserve');
+        const rate=rates.find(r=>r.token.toLowerCase()===asset.token.toLowerCase() && r.feed.toLowerCase()===asset.feed.toLowerCase());if(!rate)throw Error('Missing reserve rate');
+        const actual=asset.nativeAsset?await client.getBalance({address:asset.reserve,blockNumber:liability.snapshotBlock}):await client.readContract({address:asset.token,abi:parseAbi(['function balanceOf(address) view returns (uint256)']),functionName:'balanceOf',args:[asset.reserve],blockNumber:liability.snapshotBlock});
+        const value=toUsd(proposal.rawAmounts[j],{...rate},liability.snapshotTime,await read('maxOracleAge',blockNumber),'down');total+=value;
+        reserveChecks.push({assetId:asset.id,proposedRaw:proposal.rawAmounts[j],historicalRaw:actual,matches:actual===proposal.rawAmounts[j],eligible:asset.status===2&&asset.ownershipVerified&&!asset.removalPending,usd:value});
+      }
+      const now=(await client.getBlock({blockNumber})).timestamp,maxAge=await read('maxOracleAge',blockNumber);
+      const fresh=rates.every(r=>r.updatedAt<=now&&now-r.updatedAt<=maxAge);
+      review={snapshotBlockTimestamp:historicalBlock.timestamp,timestampMatches:historicalBlock.timestamp===liability.snapshotTime,oracleFreshNow:fresh,totalEligibleAssetsUsd:total,totalLiabilitiesUsd:liability.rootSum,surplusOrDeficit:total-liability.rootSum,reserveChecks,
+       readyForReserveAttestation:proposal.exists&&!proposal.decided&&liability.status===2&&!liability.removalPending&&historicalBlock.timestamp===liability.snapshotTime&&fresh&&total>=liability.rootSum&&reserveChecks.every(r=>r.matches&&r.eligible)};
+    }catch(error){review={error:error instanceof Error?error.message:String(error),readyForReserveAttestation:false};}
+    liabilities.push({id,liability,rates,proposal,review});}
    return {assets,liabilities,auditor,company};
   },
   async ledger(snapshot:Hex,rootHash:Hex,rootSum:bigint,capacity:number):Promise<Ledger> {
