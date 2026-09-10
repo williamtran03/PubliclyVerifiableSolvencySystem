@@ -1,4 +1,19 @@
 {
-  "assets": ["BTC", "ETH", "USDC"],
-  "pricesUsd": ["60000", "3000", "1"]
+  "assets": [
+    "BTC",
+    "ETH",
+    "USDC"
+  ],
+  "pricesUsd": [
+    "60000",
+    "3000",
+    "1"
+  ],
+  "roundIds": [
+    "1",
+    "1",
+    "1"
+  ],
+  "registry": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+  "fetchedAt": "2026-09-10T12:44:01.028Z"
 }

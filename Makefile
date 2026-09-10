@@ -1,4 +1,4 @@
-.PHONY: build test demo demo-site fixtures circuit-check circuit-prove circuit-verifier kzg-setup kzg-epoch frontend multiasset-test multiasset-fixtures multiasset-check multiasset-prove multiasset-demo multiasset-verifier
+.PHONY: build test demo demo-site fixtures circuit-check circuit-prove circuit-verifier kzg-setup kzg-epoch frontend multiasset-test multiasset-prices multiasset-fixtures multiasset-check multiasset-prove multiasset-demo multiasset-verifier
 
 build:
 	forge build
@@ -47,6 +47,10 @@ kzg-epoch:
 # publicInputs = [price0, price1, price2, rootHash, totalLiabilitiesUsd]
 multiasset-test:
 	cd circuits/multi-asset && nargo test
+
+# refresh prover/prices.json from a deployed registry: make multiasset-prices REGISTRY=0x...
+multiasset-prices:
+	npx tsx prover/fetchPrices.ts $(REGISTRY)
 
 # writes circuits/multi-asset/Prover.toml from customers-multiasset.csv + prices.json
 multiasset-fixtures:
