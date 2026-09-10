@@ -1,4 +1,4 @@
-import { publicSummary, claimOverview, exchangeRateRows, checkPublicCalculation, type PublicSnapshot } from "./minimumClient.ts";
+import { publicSummary, exchangeRateRows, checkPublicCalculation, usd, coverage, type PublicSnapshot } from "./minimumClient.ts";
 import { stringify } from "../../prover/minimum/tree.ts";
 import { connectionPanel, markNavigation, output, element, button, loadState } from "./shared.ts";
 
@@ -13,13 +13,54 @@ const connection = connectionPanel(() => {
 let snapshot: PublicSnapshot | undefined;
 let generation = 0;
 
+const claimValue = (label: string, text: string) => {
+  const box = document.createElement("div");
+  box.className = "claim-figure";
+  const name = document.createElement("span");
+  name.className = "claim-label";
+  name.textContent = label;
+  const figure = document.createElement("strong");
+  figure.textContent = text;
+  box.append(name, figure);
+  return box;
+};
+
+/** The headline verdict reads as figures, not as a wall of monospace. */
+function renderClaim(s: PublicSnapshot) {
+  const c = s.claim,
+    solvent = c.totalEligibleAssetsUsd >= c.totalLiabilitiesUsd,
+    root = element("epochResult");
+  root.replaceChildren();
+  root.classList.remove("boxed", "ok", "fail");
+  const status = document.createElement("div");
+  status.className = `claim-status ${solvent ? "is-solvent" : "is-insolvent"}`;
+  const dot = document.createElement("span");
+  dot.className = "claim-dot";
+  const title = document.createElement("strong");
+  title.textContent = solvent ? "SOLVENT" : "INSOLVENT";
+  const when = document.createElement("span");
+  when.textContent = `Published snapshot · ${new Date(Number(c.snapshotTime) * 1000).toLocaleString()}`;
+  status.append(dot, title, when);
+  const figures = document.createElement("div");
+  figures.className = "claim-figures";
+  figures.append(
+    claimValue("Eligible assets", usd(c.totalEligibleAssetsUsd)),
+    claimValue("Liabilities", usd(c.totalLiabilitiesUsd)),
+    claimValue("Surplus / deficit", usd(c.totalEligibleAssetsUsd - c.totalLiabilitiesUsd)),
+    claimValue("Coverage", coverage(c.totalEligibleAssetsUsd, c.totalLiabilitiesUsd)),
+  );
+  root.append(status, figures);
+}
+
 function clearClaimDetails() {
   for (const id of ["claimDetails", "reserveDetails", "ledgerResult"]) output(id, "");
+  // Text states go back into the boxed panel the figures replace.
+  element("epochResult").classList.add("boxed");
   const body = element("rates");
   body.replaceChildren();
   const row = document.createElement("tr"),
     cell = document.createElement("td");
-  cell.colSpan = 3;
+  cell.colSpan = 4;
   cell.textContent = "No exchange rates loaded.";
   row.append(cell);
   body.append(row);
@@ -40,7 +81,7 @@ function renderRates(s: PublicSnapshot) {
   if (!s.rates.length) {
     const row = document.createElement("tr"),
       cell = document.createElement("td");
-    cell.colSpan = 3;
+    cell.colSpan = 4;
     cell.textContent = "No exchange rates published.";
     row.append(cell);
     body.append(row);
@@ -64,7 +105,7 @@ button("connectBtn").onclick = async () => {
       } else {
         snapshot = state.value!;
         output("connection", "Connected. Values read at block " + snapshot.blockNumber);
-        output("epochResult", claimOverview(snapshot));
+        renderClaim(snapshot);
         output("claimDetails", publicSummary(snapshot));
         output("reserveDetails", stringify({ oracleRates: snapshot.rates, reserveObservations: snapshot.assets }));
         renderRates(snapshot);
