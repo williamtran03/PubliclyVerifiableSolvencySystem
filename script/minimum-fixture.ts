@@ -1,0 +1,10 @@
+import {writeFileSync} from 'node:fs';
+import {identity,balance,pairNode,combine,tree,stringify} from '../prover/minimum/tree.ts';
+import {manifestHash,type Rate} from '../prover/minimum/oracle.ts';
+const snapshot=`0x${'01'.repeat(32)}` as const,salt=`0x${'02'.repeat(32)}` as const,nonce=`0x${'03'.repeat(32)}` as const;
+const id=identity(snapshot,'synthetic-fixture','2000-01-01',0,salt,nonce);
+const entries=[{identity:id,amount:10000000001n},{identity:identity(snapshot,'synthetic-fixture','2000-01-01',1,nonce,salt),amount:7000000002n}];
+const leaf=balance(snapshot,0,entries[0].amount),pair=pairNode(snapshot,0,entries[0]),parent=combine(pair,pairNode(snapshot,1,entries[1]));
+const root=tree(snapshot,4,entries).root;
+const rates:Rate[]=[{token:'0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',feed:'0x0000000000000000000000000000000000000010',tokenDecimals:18,oracleDecimals:8,rate:200000000000n,roundId:1n,updatedAt:990n}];
+writeFileSync('fixtures/minimum-hashes.json',stringify({snapshot,salt,nonce,identity:id,secondIdentity:entries[1].identity,amount:entries[0].amount,secondAmount:entries[1].amount,leaf:leaf.hash,pair:pair.hash,parent:parent.hash,root:root.hash,rootSum:root.sum,rateManifestHash:manifestHash(snapshot,rates,1000n,60n)}));
