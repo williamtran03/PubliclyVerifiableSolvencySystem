@@ -83,8 +83,10 @@ export function claimOverview(s:PublicSnapshot):string {
  const c=s.claim;
  return `${c.totalEligibleAssetsUsd>=c.totalLiabilitiesUsd?'SOLVENT':'INSOLVENT'} at snapshot\nEligible assets: ${usd(c.totalEligibleAssetsUsd)}\nLiabilities: ${usd(c.totalLiabilitiesUsd)}\nSurplus / deficit: ${usd(c.totalEligibleAssetsUsd-c.totalLiabilitiesUsd)}\nCoverage: ${coverage(c.totalEligibleAssetsUsd,c.totalLiabilitiesUsd)}\nSnapshot: ${new Date(Number(c.snapshotTime)*1000).toISOString().replace('T',' ').replace('.000Z',' UTC')}`;
 }
+/** Native currency uses the 0xEeee… sentinel rather than a token contract. */
+export const NATIVE='0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' as const;
 export function exchangeRateRows(s:PublicSnapshot):string[][] {
- const native='0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+ const native=NATIVE.toLowerCase();
  return s.rates.map(r=>{
   const scale=10n**BigInt(r.oracleDecimals);
   const fraction=(r.rate%scale).toString().padStart(r.oracleDecimals,'0').replace(/0+$/,'');
