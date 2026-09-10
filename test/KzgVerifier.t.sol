@@ -15,10 +15,8 @@ contract KzgVerifierTest is Test {
     function setUp() public {
         string memory json = vm.readFile("fixtures/kzg-epoch.json");
 
-        commitment = KzgVerifier.G1Point(
-            vm.parseJsonUint(json, ".commitment.x"),
-            vm.parseJsonUint(json, ".commitment.y")
-        );
+        commitment =
+            KzgVerifier.G1Point(vm.parseJsonUint(json, ".commitment.x"), vm.parseJsonUint(json, ".commitment.y"));
         z = vm.parseJsonUint(json, ".z");
         value = vm.parseJsonUint(json, ".value");
         proof = KzgVerifier.G1Point(vm.parseJsonUint(json, ".proof.x"), vm.parseJsonUint(json, ".proof.y"));

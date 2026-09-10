@@ -31,11 +31,7 @@ contract SolvencyRegistryTest is Test {
     function test_SubmitEpoch() public {
         registry.submitEpoch(proof, rootHash, totalLiabilities);
 
-        (
-            uint256 storedHash,
-            uint256 storedLiabilities,
-            uint64 timestamp
-        ) = registry.currentEpoch();
+        (uint256 storedHash, uint256 storedLiabilities, uint64 timestamp) = registry.currentEpoch();
 
         assertEq(storedHash, rootHash);
         assertEq(storedLiabilities, totalLiabilities);

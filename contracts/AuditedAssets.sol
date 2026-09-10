@@ -144,7 +144,9 @@ contract AuditedAssets {
 
     function approveAsset(uint256 id, bool approved) external onlyAuditor {
         Asset storage a = assets[id];
-        if (a.status != Status.Pending || a.removalPending || (approved && !a.ownershipVerified)) revert InvalidState();
+        if (a.status != Status.Pending || a.removalPending || (approved && !a.ownershipVerified)) {
+            revert InvalidState();
+        }
         a.status = approved ? Status.Approved : Status.Rejected;
         a.verifiedAt = block.timestamp;
         if (!approved) activeKeys[keccak256(abi.encode(a.token, a.reserve))] = false;

@@ -90,15 +90,13 @@ library KzgVerifier {
         if (!success) revert EcMulFailed();
     }
 
-    function pairingProductIsOne(
-        G1Point memory a1,
-        G2Point memory a2,
-        G1Point memory b1,
-        G2Point memory b2
-    ) internal view returns (bool) {
+    function pairingProductIsOne(G1Point memory a1, G2Point memory a2, G1Point memory b1, G2Point memory b2)
+        internal
+        view
+        returns (bool)
+    {
         uint256[12] memory input = [
-            a1.x, a1.y, a2.xImag, a2.xReal, a2.yImag, a2.yReal,
-            b1.x, b1.y, b2.xImag, b2.xReal, b2.yImag, b2.yReal
+            a1.x, a1.y, a2.xImag, a2.xReal, a2.yImag, a2.yReal, b1.x, b1.y, b2.xImag, b2.xReal, b2.yImag, b2.yReal
         ];
 
         uint256[1] memory out;
