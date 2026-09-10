@@ -32,7 +32,7 @@ circuit-prove: circuit-check
 
 # regenerate contracts/HonkVerifier.sol -- only needed when the circuit changes
 circuit-verifier: circuit-prove
-	cd circuits/single-asset && bb write_solidity_verifier -k target/vk/vk -o ../contracts/HonkVerifier.sol -t evm
+	cd circuits/single-asset && bb write_solidity_verifier -k target/vk/vk -o ../../contracts/HonkVerifier.sol -t evm
 
 # ---- arm 2: KZG grand sum (no circuit) ------------------------------------
 # one-time setup, the counterpart to the circuit's verification key
