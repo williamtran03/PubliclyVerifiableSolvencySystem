@@ -17,10 +17,10 @@ contract MultiAssetDemo is Script {
     MultiAssetSolvencyRegistry registry;
 
     function run() external {
-        string memory json = vm.readFile("fixtures/multiasset-epoch.json");
+        string memory json = vm.readFile("fixtures/multi-asset/multiasset-epoch.json");
         uint256 rootHash = vm.parseJsonUint(json, ".rootHash");
         uint256 liabilitiesUsd = vm.parseJsonUint(json, ".totalLiabilitiesUsd");
-        bytes memory proof = vm.readFileBinary("fixtures/multiasset-proof.bin");
+        bytes memory proof = vm.readFileBinary("fixtures/multi-asset/multiasset-proof.bin");
 
         vm.startBroadcast();
         deploy();

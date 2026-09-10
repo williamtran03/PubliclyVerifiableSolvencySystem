@@ -4,7 +4,7 @@ import { foundry } from "viem/chains";
 import { verifyProof, deserializeProof, poseidon2Hash } from "../prover/merkleSumTree.ts";
 
 const registryAddress = process.argv[2];
-const proofPath = process.argv[3] ?? "./fixtures/proof-customer-123.json";
+const proofPath = process.argv[3] ?? "./fixtures/single-asset/proof-customer-123.json";
 
 if (!registryAddress) {
   console.error("Usage: npx tsx cli/verify-inclusion.ts <registry address> [proof file]");

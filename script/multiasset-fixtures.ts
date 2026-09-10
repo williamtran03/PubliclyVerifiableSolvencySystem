@@ -13,10 +13,10 @@ if (words.length !== NUM_ASSETS + 2) {
   throw new Error(`expected ${NUM_ASSETS + 2} public inputs, got ${words.length}`);
 }
 
-mkdirSync("./fixtures", { recursive: true });
-copyFileSync(`${PROOF_DIR}/proof`, "./fixtures/multiasset-proof.bin");
+mkdirSync("./fixtures/multi-asset", { recursive: true });
+copyFileSync(`${PROOF_DIR}/proof`, "./fixtures/multi-asset/multiasset-proof.bin");
 writeFileSync(
-  "./fixtures/multiasset-epoch.json",
+  "./fixtures/multi-asset/multiasset-epoch.json",
   JSON.stringify(
     {
       prices: words.slice(0, NUM_ASSETS).map(String),
@@ -28,4 +28,4 @@ writeFileSync(
   ) + "\n",
 );
 
-console.log("Wrote fixtures/multiasset-proof.bin + fixtures/multiasset-epoch.json");
+console.log("Wrote fixtures/multi-asset/multiasset-proof.bin + fixtures/multi-asset/multiasset-epoch.json");

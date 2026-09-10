@@ -17,7 +17,7 @@ frontend: fixtures
 demo-site: multiasset-fixtures
 	npx vite --config vite.demo.config.ts
 
-# writes fixtures/epoch.json + circuits/single-asset/Prover.toml from customers.csv
+# writes fixtures/single-asset/epoch.json + circuits/single-asset/Prover.toml from customers.csv
 fixtures:
 	npx tsx prover/buildTree.ts
 
@@ -28,7 +28,7 @@ circuit-prove: circuit-check
 	cd circuits/single-asset && bb write_vk -s ultra_honk -b target/circuit.json -o target/vk --oracle_hash keccak
 	cd circuits/single-asset && bb prove -s ultra_honk -b target/circuit.json -w target/circuit.gz -o target/proof -k target/vk/vk --oracle_hash keccak
 	cd circuits/single-asset && bb verify -s ultra_honk -p target/proof/proof -k target/vk/vk -i target/proof/public_inputs --oracle_hash keccak
-	cp circuits/single-asset/target/proof/proof fixtures/proof.bin
+	cp circuits/single-asset/target/proof/proof fixtures/single-asset/proof.bin
 
 # regenerate contracts/HonkVerifier.sol -- only needed when the circuit changes
 circuit-verifier: circuit-prove

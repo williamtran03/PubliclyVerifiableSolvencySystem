@@ -10,7 +10,7 @@ broadcast/*/dry-run/
 # node
 node_modules/
 
-fixtures/proof-*.json
+fixtures/single-asset/proof-*.json
 frontend/public/proofs/
 
 # frontend build output

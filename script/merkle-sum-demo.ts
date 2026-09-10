@@ -10,7 +10,7 @@ const publicClient = createPublicClient({ chain: foundry, transport });
 assert.equal(await publicClient.getChainId(), 31337, "local Anvil only");
 const account = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 const wallet = createWalletClient({ account, chain: foundry, transport });
-const customers = JSON.parse(readFileSync("fixtures/split-customers.example.json", "utf8")).map((c: any) => ({ ...c, amounts: c.amounts.map(BigInt) }));
+const customers = JSON.parse(readFileSync("fixtures/split/split-customers.example.json", "utf8")).map((c: any) => ({ ...c, amounts: c.amounts.map(BigInt) }));
 const { randomBytes } = await import("node:crypto");
 const { ledger, bundles } = buildSplitLiabilities(customers, `0x${randomBytes(32).toString("hex")}`);
 const artifact = JSON.parse(readFileSync("out/MerkleSumRegistry.sol/MerkleSumRegistry.json", "utf8"));

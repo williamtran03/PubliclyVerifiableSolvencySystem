@@ -43,10 +43,10 @@ contract MultiAssetSolvencyRegistryTest is Test {
         vm.deal(reserve, 2 ether);
         usdc.mint(reserve, 1000e6);
 
-        string memory json = vm.readFile("fixtures/multiasset-epoch.json");
+        string memory json = vm.readFile("fixtures/multi-asset/multiasset-epoch.json");
         rootHash = vm.parseJsonUint(json, ".rootHash");
         liabilitiesUsd = vm.parseJsonUint(json, ".totalLiabilitiesUsd");
-        proof = vm.readFileBinary("fixtures/multiasset-proof.bin");
+        proof = vm.readFileBinary("fixtures/multi-asset/multiasset-proof.bin");
     }
 
     // Read straight off the mocks so the negative tests do not go through the

@@ -25,7 +25,7 @@ const point = (p: G1Point) => {
   return { x: affine.x.toString(), y: affine.y.toString() };
 };
 
-const srs = loadSrs("./fixtures/srs.json");
+const srs = loadSrs("./fixtures/kzg/srs.json");
 const entries = parseCustomersCsv("./prover/customers.csv");
 
 const balances = entries.map((e) => e.balance);
@@ -52,8 +52,8 @@ const serializedRange = JSON.stringify(
   2,
 );
 
-mkdirSync("./fixtures", { recursive: true });
-writeFileSync("./fixtures/kzg-range-proof.json", serializedRange + "\n");
+mkdirSync("./fixtures/kzg", { recursive: true });
+writeFileSync("./fixtures/kzg/kzg-range-proof.json", serializedRange + "\n");
 
 const [g2xImag, g2xReal, g2yImag, g2yReal] = g2ForPrecompile(srs.g2);
 const [tauxImag, tauxReal, tauyImag, tauyReal] = g2ForPrecompile(srs.tauG2);
@@ -70,7 +70,7 @@ const epochJson = {
   tauG2: { xImag: tauxImag.toString(), xReal: tauxReal.toString(), yImag: tauyImag.toString(), yReal: tauyReal.toString() },
 };
 
-writeFileSync("./fixtures/kzg-epoch.json", JSON.stringify(epochJson, null, 2) + "\n");
+writeFileSync("./fixtures/kzg/kzg-epoch.json", JSON.stringify(epochJson, null, 2) + "\n");
 
-console.log(`Wrote fixtures/kzg-epoch.json (total ${epoch.totalLiabilities}, domain ${LEAF_CAPACITY})`);
-console.log(`Wrote fixtures/kzg-range-proof.json (${rangeProof.bits} bit polynomials)`);
+console.log(`Wrote fixtures/kzg/kzg-epoch.json (total ${epoch.totalLiabilities}, domain ${LEAF_CAPACITY})`);
+console.log(`Wrote fixtures/kzg/kzg-range-proof.json (${rangeProof.bits} bit polynomials)`);

@@ -30,8 +30,8 @@ await new Promise((resolve) => setTimeout(resolve, 1000));
 console.log("==> building tree + proving circuit (prover/customers.csv -> fixtures/*)");
 execSync("make circuit-prove", { stdio: "inherit" });
 
-const { rootHash } = JSON.parse(readFileSync("fixtures/epoch.json", "utf8"));
-const proof = toHex(readFileSync("fixtures/proof.bin"));
+const { rootHash } = JSON.parse(readFileSync("fixtures/single-asset/epoch.json", "utf8"));
+const proof = toHex(readFileSync("fixtures/single-asset/proof.bin"));
 
 const account = privateKeyToAccount(OWNER_KEY as `0x${string}`);
 const publicClient = createPublicClient({ chain: foundry, transport: http(RPC_URL) });

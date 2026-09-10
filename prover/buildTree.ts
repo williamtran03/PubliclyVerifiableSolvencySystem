@@ -25,6 +25,8 @@ function parseCustomersCsv(path: string): Entry[] {
 const entries = parseCustomersCsv("./prover/customers.csv");
 const { levels, root, entries: padded } = buildTree(entries, poseidon2Hash);
 
+mkdirSync("./fixtures/single-asset", { recursive: true });
+
 const customerId = "customer-123";
 const index = padded.findIndex((e) => e.username === customerId);
 
@@ -33,8 +35,8 @@ if (index === -1) {
 } else {
   const proof = createProof(index, padded, levels);
   console.log("Proof valid:", verifyProof(proof, poseidon2Hash));
-  writeFileSync(`./fixtures/proof-${customerId}.json`, serializeProof(proof));
-  console.log(`Wrote fixtures/proof-${customerId}.json`);
+  writeFileSync(`./fixtures/single-asset/proof-${customerId}.json`, serializeProof(proof));
+  console.log(`Wrote fixtures/single-asset/proof-${customerId}.json`);
 }
 
 mkdirSync("./frontend/public/proofs", { recursive: true });
@@ -46,9 +48,8 @@ for (const username of realUsernames) {
 writeFileSync("./frontend/public/proofs/index.json", JSON.stringify(realUsernames, null, 2));
 console.log(`Wrote frontend/public/proofs/ (${realUsernames.length} customers)`);
 
-mkdirSync("./fixtures", { recursive: true });
 writeFileSync(
-  "./fixtures/epoch.json",
+  "./fixtures/single-asset/epoch.json",
   JSON.stringify(
     {
       rootHash: root.hash.toString(),
@@ -58,7 +59,7 @@ writeFileSync(
     2,
   ),
 );
-console.log("Wrote fixtures/epoch.json");
+console.log("Wrote fixtures/single-asset/epoch.json");
 
 const usernames = padded.map((e) => usernameToBigInt(e.username).toString());
 const salts = padded.map((e) => e.salt.toString());

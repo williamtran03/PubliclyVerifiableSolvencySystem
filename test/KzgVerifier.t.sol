@@ -13,7 +13,7 @@ contract KzgVerifierTest is Test {
     KzgVerifier.G2Point tauG2;
 
     function setUp() public {
-        string memory json = vm.readFile("fixtures/kzg-epoch.json");
+        string memory json = vm.readFile("fixtures/kzg/kzg-epoch.json");
 
         commitment = KzgVerifier.G1Point(
             vm.parseJsonUint(json, ".commitment.x"),

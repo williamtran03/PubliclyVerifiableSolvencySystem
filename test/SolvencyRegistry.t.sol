@@ -25,9 +25,9 @@ contract SolvencyRegistryTest is Test {
         vm.deal(reserve1, 30000);
         vm.deal(reserve2, 20000);
 
-        string memory json = vm.readFile("fixtures/epoch.json");
+        string memory json = vm.readFile("fixtures/single-asset/epoch.json");
         rootHash = vm.parseJsonUint(json, ".rootHash");
-        proof = vm.readFileBinary("fixtures/proof.bin");
+        proof = vm.readFileBinary("fixtures/single-asset/proof.bin");
     }
 
     function test_SubmitEpoch() public {
@@ -46,7 +46,7 @@ contract SolvencyRegistryTest is Test {
     function test_DoesNotPublishLiabilities() public {
         registry.submitEpoch(proof, rootHash);
 
-        string memory json = vm.readFile("fixtures/epoch.json");
+        string memory json = vm.readFile("fixtures/single-asset/epoch.json");
         uint256 actualLiabilities = vm.parseJsonUint(json, ".totalLiabilities");
 
         (, uint256 storedReserves,) = registry.currentEpoch();
