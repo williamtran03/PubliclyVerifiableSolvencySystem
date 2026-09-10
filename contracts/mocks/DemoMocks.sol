@@ -3,22 +3,31 @@ pragma solidity 0.8.28;
 
 contract MockAggregator {
     uint8 public decimals;
-    int256 public answer;
-    uint256 public updatedAt;
+    uint80 public latestRound;
+    mapping(uint80 => int256) public answers;
+    mapping(uint80 => uint256) public updatedAts;
 
     constructor(uint8 _decimals, int256 _answer) {
         decimals = _decimals;
-        answer = _answer;
-        updatedAt = block.timestamp;
+        _push(_answer, block.timestamp);
     }
 
     function set(int256 _answer, uint256 _updatedAt) external {
-        answer = _answer;
-        updatedAt = _updatedAt;
+        _push(_answer, _updatedAt);
+    }
+
+    function _push(int256 _answer, uint256 _updatedAt) internal {
+        latestRound += 1;
+        answers[latestRound] = _answer;
+        updatedAts[latestRound] = _updatedAt;
     }
 
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
-        return (0, answer, updatedAt, updatedAt, 0);
+        return (latestRound, answers[latestRound], updatedAts[latestRound], updatedAts[latestRound], latestRound);
+    }
+
+    function getRoundData(uint80 roundId) external view returns (uint80, int256, uint256, uint256, uint80) {
+        return (roundId, answers[roundId], updatedAts[roundId], updatedAts[roundId], roundId);
     }
 }
 

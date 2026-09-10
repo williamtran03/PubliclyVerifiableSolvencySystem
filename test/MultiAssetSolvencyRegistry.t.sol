@@ -49,19 +49,28 @@ contract MultiAssetSolvencyRegistryTest is Test {
         proof = vm.readFileBinary("fixtures/multiasset-proof.bin");
     }
 
+    // Read straight off the mocks so the negative tests do not go through the
+    // validating path before the call under test.
+    function latestRounds() internal view returns (uint80[3] memory roundIds) {
+        roundIds[0] = btcFeed.latestRound();
+        roundIds[1] = ethFeed.latestRound();
+        roundIds[2] = usdcFeed.latestRound();
+    }
+
     function test_ReadsTheConversionTableFromTheOracles() public view {
-        uint256[3] memory prices = registry.readPrices();
+        (uint256[3] memory prices,) = registry.readPrices();
         assertEq(prices[0], 60_000);
         assertEq(prices[1], 3_000);
         assertEq(prices[2], 1);
     }
 
     function test_ValuesReservesAcrossAllThreeAssets() public view {
-        assertEq(registry.totalAssetsUsd(registry.readPrices()), 187_000);
+        (uint256[3] memory prices,) = registry.readPrices();
+        assertEq(registry.totalAssetsUsd(prices), 187_000);
     }
 
     function test_SubmitEpoch() public {
-        registry.submitEpoch(proof, rootHash, liabilitiesUsd);
+        registry.submitEpoch(proof, rootHash, liabilitiesUsd, latestRounds());
 
         (uint256 storedRoot, uint256 storedLiabilities, uint256 storedAssets, uint64 timestamp) =
             registry.currentEpoch();
@@ -71,12 +80,15 @@ contract MultiAssetSolvencyRegistryTest is Test {
         assertEq(storedAssets, 187_000);
         assertEq(timestamp, block.timestamp);
         assertEq(registry.epochCount(), 1);
+        assertEq(registry.epochPrices(0), 60_000);
+        assertEq(registry.epochRoundIds(0), 1);
     }
 
     function test_RevertsWhenTheOraclePriceDiffersFromTheProvenTable() public {
         btcFeed.set(59_000e8, block.timestamp);
+        uint80[3] memory roundIds = latestRounds();
         vm.expectRevert(); // the verifier rejects the wrong price table with its own error
-        registry.submitEpoch(proof, rootHash, liabilitiesUsd);
+        registry.submitEpoch(proof, rootHash, liabilitiesUsd, roundIds);
     }
 
     function test_RevertsIfInsolvent() public {
@@ -84,25 +96,36 @@ contract MultiAssetSolvencyRegistryTest is Test {
         vm.deal(reserve, 0);
         usdc.burn(reserve);
 
+        uint80[3] memory roundIds = latestRounds();
         vm.expectRevert(abi.encodeWithSelector(MultiAssetSolvencyRegistry.Insolvent.selector, 0, 155_000));
-        registry.submitEpoch(proof, rootHash, liabilitiesUsd);
+        registry.submitEpoch(proof, rootHash, liabilitiesUsd, roundIds);
     }
 
     function test_RevertsOnStalePrice() public {
         ethFeed.set(3_000e8, block.timestamp - 2 hours);
+        uint80[3] memory roundIds = latestRounds();
         vm.expectRevert(MultiAssetSolvencyRegistry.StalePrice.selector);
-        registry.submitEpoch(proof, rootHash, liabilitiesUsd);
+        registry.submitEpoch(proof, rootHash, liabilitiesUsd, roundIds);
     }
 
     function test_RevertsOnNonPositivePrice() public {
         ethFeed.set(0, block.timestamp);
+        uint80[3] memory roundIds = latestRounds();
         vm.expectRevert(MultiAssetSolvencyRegistry.BadPrice.selector);
-        registry.submitEpoch(proof, rootHash, liabilitiesUsd);
+        registry.submitEpoch(proof, rootHash, liabilitiesUsd, roundIds);
+    }
+
+    function test_RevertsWhenPinningARoundThatHasGoneStale() public {
+        uint80[3] memory stale = latestRounds();
+        vm.warp(block.timestamp + 2 hours);
+        vm.expectRevert(MultiAssetSolvencyRegistry.StalePrice.selector);
+        registry.submitEpoch(proof, rootHash, liabilitiesUsd, stale);
     }
 
     function test_RevertsForNonOwner() public {
+        uint80[3] memory roundIds = latestRounds();
         vm.prank(address(0xBEEF));
         vm.expectRevert(MultiAssetSolvencyRegistry.NotOwner.selector);
-        registry.submitEpoch(proof, rootHash, liabilitiesUsd);
+        registry.submitEpoch(proof, rootHash, liabilitiesUsd, roundIds);
     }
 }
