@@ -26,8 +26,11 @@ contract MultiAssetDemo is Script {
         deploy();
         fundReserves();
         submit(proof, rootHash, liabilitiesUsd);
-        showPriceBinding(proof, rootHash, liabilitiesUsd);
         vm.stopBroadcast();
+
+        // Outside the broadcast on purpose: this attempt is meant to revert, and a
+        // reverting broadcast transaction aborts the whole run before anything lands.
+        showPriceBinding(proof, rootHash, liabilitiesUsd);
     }
 
     function deploy() internal {
@@ -58,12 +61,13 @@ contract MultiAssetDemo is Script {
     }
 
     function submit(bytes memory proof, uint256 rootHash, uint256 liabilitiesUsd) internal {
-        uint256[3] memory prices = registry.readPrices();
+        (uint256[3] memory prices, uint80[3] memory roundIds) = registry.readPrices();
         console.log("==> conversion table read on-chain:", prices[0], prices[1], prices[2]);
+        console.log("==> pinned oracle rounds:", roundIds[0], roundIds[1], roundIds[2]);
         console.log("==> reserves valued at USD:", registry.totalAssetsUsd(prices));
         console.log("==> proven liabilities USD:", liabilitiesUsd);
 
-        registry.submitEpoch(proof, rootHash, liabilitiesUsd);
+        registry.submitEpoch(proof, rootHash, liabilitiesUsd, roundIds);
         (, uint256 storedLiabilities, uint256 storedAssets,) = registry.currentEpoch();
         console.log("OK: epoch accepted, assets USD:", storedAssets);
         console.log("    against liabilities USD:", storedLiabilities);
@@ -71,8 +75,9 @@ contract MultiAssetDemo is Script {
 
     function showPriceBinding(bytes memory proof, uint256 rootHash, uint256 liabilitiesUsd) internal {
         btcFeed.set(59_000e8, block.timestamp);
-        console.log("==> BTC feed moved to $59000, resubmitting the same proof");
-        try registry.submitEpoch(proof, rootHash, liabilitiesUsd) {
+        (, uint80[3] memory newRounds) = registry.readPrices();
+        console.log("==> BTC feed moved to $59000, resubmitting the same proof at the new round");
+        try registry.submitEpoch(proof, rootHash, liabilitiesUsd, newRounds) {
             console.log("FAIL: proof accepted under a different price table");
         } catch {
             console.log("OK: rejected, the proof is bound to the table it was proved against");
