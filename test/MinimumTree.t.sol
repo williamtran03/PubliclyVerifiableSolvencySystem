@@ -73,6 +73,17 @@ contract MinimumTreeTest is Test {
         assertEq(sum, uint256(a) + b);
     }
 
+    function test_MaximumCapacity() public pure {
+        bytes32[] memory ids = new bytes32[](256);
+        uint256[] memory amounts = new uint256[](256);
+        for (uint256 i; i < 256; i++) {
+            ids[i] = bytes32(i + 1);
+            amounts[i] = i + 1;
+        }
+        (, uint256 total) = MinimumTree.root(bytes32(uint256(1)), 256, ids, amounts);
+        assertEq(total, 32896);
+    }
+
     function test_OverflowAndDuplicateIdentities() public {
         TreeHarness h = new TreeHarness();
         bytes32[] memory ids = new bytes32[](2);
