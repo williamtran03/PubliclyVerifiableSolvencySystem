@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:prover": "node --import tsx --test --test-isolation=none prover/minimum/*.test.ts",
+    "test:prover": "node --import tsx --test --experimental-test-isolation=none prover/minimum/*.test.ts",
     "test": "npm run test:unit && npm run test:integration",
-    "test:unit": "node --import tsx --test --test-isolation=none prover/minimum/*.test.ts backend/*.test.ts frontend/src/*.test.ts",
-    "test:integration": "node --import tsx --test --test-isolation=none integration/*.test.ts",
+    "test:unit": "node --import tsx --test --experimental-test-isolation=none prover/minimum/*.test.ts backend/*.test.ts frontend/src/*.test.ts",
+    "test:integration": "node --import tsx --test --experimental-test-isolation=none integration/*.test.ts",
     "minimum": "node --import tsx cli/minimum.ts",
     "backend": "node --import tsx backend/server.ts",
     "dev": "vite",
