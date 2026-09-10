@@ -1,4 +1,4 @@
-.PHONY: build test demo fixtures circuit-check circuit-prove circuit-verifier kzg-setup kzg-epoch frontend multiasset-test multiasset-fixtures multiasset-check multiasset-prove multiasset-verifier
+.PHONY: build test demo fixtures circuit-check circuit-prove circuit-verifier kzg-setup kzg-epoch frontend multiasset-test multiasset-fixtures multiasset-check multiasset-prove multiasset-demo multiasset-verifier
 
 build:
 	forge build
@@ -56,6 +56,12 @@ multiasset-prove: multiasset-check
 	cd circuit-multiasset && bb prove -s ultra_honk -b target/circuit_multiasset.json -w target/circuit_multiasset.gz -o target/proof -k target/vk/vk --oracle_hash keccak
 	cd circuit-multiasset && bb verify -s ultra_honk -p target/proof/proof -k target/vk/vk -i target/proof/public_inputs --oracle_hash keccak
 	npx tsx script/multiasset-fixtures.ts
+
+# live demo; needs a local anvil first: anvil --silent &
+# key is the standard anvil dev account, same one script/demo.ts uses
+multiasset-demo: build
+	forge script script/MultiAssetDemo.s.sol --rpc-url http://127.0.0.1:8545 --broadcast \
+		--private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 
 # regenerate contracts/MultiAssetHonkVerifier.sol -- only when the circuit changes
 multiasset-verifier: multiasset-prove
