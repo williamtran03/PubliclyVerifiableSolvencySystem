@@ -22,8 +22,7 @@
         <div class="page-head">
           <h1>Sign in</h1>
           <p class="subtitle">
-            Confirm your balance is included in the published liability commitment. The check runs
-            entirely in your browser.
+            Check that your balance is in the published total. Verification happens in your browser.
           </p>
         </div>
         <section class="card narrow">
@@ -32,9 +31,7 @@
           <button id="signIn">Sign in</button>
           <div id="loginResult" class="result" role="status"></div>
           <p class="note demo-note">
-            <strong>Demo front door.</strong> This password only reveals this page. It is not the
-            security boundary: your proof is still released solely against the expiring access token
-            checked by the backend, and the browser still verifies inclusion locally.
+            <strong>Demo login.</strong> The password only opens this page. Your proof still needs the access token.
           </p>
         </section>
       </section>
@@ -43,8 +40,7 @@
         <div class="page-head">
           <h1>My account</h1>
           <p class="subtitle">
-            Retrieve your private bundle, then verify every part against the root the registry
-            published on chain.
+            Retrieve your bundle and check every part against the published root.
           </p>
         </div>
 
@@ -60,8 +56,7 @@
         <section class="card">
           <h2>Verify my full balance</h2>
           <p>
-            Supply the identity and balance you know from your own records. If the operator omitted
-            or altered anything, verification fails.
+            Enter these from your own records. Wrong values fail the check.
           </p>
           <label>Access token<input id="accessToken" type="password" autocomplete="off" /></label>
           <div class="row">
@@ -79,11 +74,9 @@
         </section>
 
         <section class="card" id="inclusion" hidden>
-          <h2>How your inclusion was proven</h2>
+          <h2>Where your balance sits in the tree</h2>
           <p>
-            Your balance is split into random parts held at separate positions. Each part is hashed
-            with its neighbour, level by level, until it reaches the single root the registry
-            published. Your positions and their path are highlighted.
+            Your balance is held as several random parts. Each one is hashed upwards with its neighbour until it reaches the published root.
           </p>
           <div id="treeFigure" class="tree-figure"></div>
           <div class="legend">
@@ -93,24 +86,19 @@
             <span><i class="swatch other"></i>other customers and padding</span>
           </div>
           <details>
-            <summary>Step-by-step hashing for every part</summary>
+            <summary>Hashing steps</summary>
             <div id="ladders"></div>
           </details>
           <div class="actions">
-            <button id="downloadBundle">Download my proof bundle (JSON)</button>
+            <button id="downloadBundle">Download my bundle (JSON)</button>
             <button id="signOut" class="secondary">Sign out</button>
           </div>
           <p class="note">
-            The bundle contains your salts and nonces. Keep it private; anyone holding it learns your
-            positions and amounts.
+            Keep this file private. It holds your salts, positions and amounts.
           </p>
         </section>
       </section>
 
-      <p class="disclaimer">
-        Inclusion does not establish completeness: it proves your balance is inside the published
-        total, not that the operator disclosed every liability.
-      </p>
     </main>
     <script type="module" src="/src/account.ts"></script>
   </body>

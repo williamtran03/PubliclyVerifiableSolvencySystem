@@ -21,8 +21,7 @@
       <div class="page-head">
         <h1>Auditor workspace</h1>
         <p class="subtitle">
-          Inspect pending proposals, reserve control, eligibility, rate rounds and removals. Approval
-          is an attestation of checks you performed, not a proof the contract can make for you.
+          Pending proposals, reserve control, eligibility, rate rounds and removals. You attest to the checks the contract cannot make.
         </p>
       </div>
 
@@ -39,9 +38,7 @@
       <section class="card">
         <h2>Sign a decision</h2>
         <p>
-          Before approving, reconcile all private liabilities against independent records and query
-          historical reserve balances at the snapshot block. Finalization is blocked in this UI until
-          the historical balance, timestamp, freshness and eligibility checks pass.
+          Reconcile liabilities against independent records and check reserve balances at the snapshot block. Finalization stays blocked until those checks pass.
         </p>
         <label
           >Action<select id="auditAction">
@@ -65,10 +62,6 @@
         <div id="auditResult" class="result boxed" role="status"></div>
       </section>
 
-      <p class="disclaimer">
-        Auditor approval is an attestation, not a mathematical proof of undisclosed debts. Anyone
-        holding the auditor key can call the contract directly; that key is a trust boundary.
-      </p>
     </main>
     <script type="module" src="/src/auditor.ts"></script>
   </body>

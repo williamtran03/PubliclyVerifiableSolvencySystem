@@ -25,7 +25,7 @@ const claimValue = (label: string, text: string) => {
   return box;
 };
 
-/** The headline verdict reads as figures, not as a wall of monospace. */
+/** Renders the headline verdict as figures. */
 function renderClaim(s: PublicSnapshot) {
   const c = s.claim,
     solvent = c.totalEligibleAssetsUsd >= c.totalLiabilitiesUsd,
@@ -54,7 +54,6 @@ function renderClaim(s: PublicSnapshot) {
 
 function clearClaimDetails() {
   for (const id of ["claimDetails", "reserveDetails", "ledgerResult"]) output(id, "");
-  // Text states go back into the boxed panel the figures replace.
   element("epochResult").classList.add("boxed");
   const body = element("rates");
   body.replaceChildren();

@@ -21,8 +21,7 @@
       <div class="page-head">
         <h1>Operations</h1>
         <p class="subtitle">
-          The company's view of the registry: roles, registered reserve assets and every liability
-          snapshot with its current state.
+          Roles, reserve assets and every liability snapshot with its current state.
         </p>
       </div>
 
@@ -89,22 +88,16 @@
       <section class="card">
         <h2>Company actions</h2>
         <p>
-          Company writes are deliberately not exposed in the browser: they carry private customer
-          data and belong on an operator machine. Prepare a snapshot privately, then submit it with
-          the generated ABI.
+          Company writes carry private customer data and run on an operator machine. Prepare a snapshot there, then submit it with the generated ABI.
         </p>
         <pre class="code">npm run minimum -- build /path/source.private.json /path/snapshot
-npm run minimum -- audit /path/snapshot/ledger.json
-npm run minimum -- audit-private /path/independent.private.json /path/snapshot</pre>
+  npm run minimum -- audit /path/snapshot/ledger.json
+          npm run minimum -- audit-private /path/independent.private.json /path/snapshot</pre>
         <p class="note">
-          Only <code>ledger.json</code>, <code>rates.json</code> and <code>submission.json</code> are
-          public. Never copy <code>private/</code> into this project or the frontend public folder.
+          Only <code>ledger.json</code>, <code>rates.json</code> and <code>submission.json</code> are public. Keep <code>private/</code> out of the repo.
         </p>
       </section>
 
-      <p class="disclaimer">
-        Company and auditor roles are immutable in this prototype and cannot be rotated.
-      </p>
     </main>
     <script type="module" src="/src/operations.ts"></script>
   </body>

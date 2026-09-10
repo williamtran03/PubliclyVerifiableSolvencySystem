@@ -2,10 +2,10 @@ import { identity, pairNode, combine, type Bundle, type Part, type Node } from "
 import type { Hex } from "viem";
 
 export type Step = { level: number; direction: 0 | 1; sibling: Node; result: Node };
-/** The authentication path for one part, with every intermediate node kept for display. */
+/** The authentication path for one part. */
 export type PartPath = { part: Part; leaf: Node; steps: Step[]; root: Node };
 
-/** Recomputes the same walk `verify` performs, but records each intermediate node. */
+/** Recomputes the walk `verify` performs, keeping each intermediate node. */
 export function partPath(bundle: Bundle, part: Part): PartPath {
   const leaf = pairNode(bundle.snapshotId, part.pairPosition, {
     identity: identity(bundle.snapshotId, bundle.customerId, bundle.dateOfBirth, part.partIndex, part.salt, part.nonce),
@@ -25,11 +25,7 @@ export const paths = (bundle: Bundle) => bundle.parts.map((p) => partPath(bundle
 export const short = (h: Hex | string, head = 10, tail = 6) => `${h.slice(0, head)}…${h.slice(-tail)}`;
 export const usd = (v: bigint) => `$${v / 100000000n}.${(v % 100000000n).toString().padStart(8, "0")}`;
 
-/**
- * Draws the fixed-capacity tree with this customer's pair positions and their
- * authentication path highlighted. Legible up to 32 pairs; beyond that the
- * per-part ladder carries the same information without the crush.
- */
+/** Draws the tree with the customer's positions and authentication path highlighted. */
 export function treeSvg(bundle: Bundle, highlight: PartPath[]): SVGSVGElement {
   const capacity = bundle.capacity,
     depth = Math.log2(capacity);
@@ -43,7 +39,6 @@ export function treeSvg(bundle: Bundle, highlight: PartPath[]): SVGSVGElement {
   svg.setAttribute("aria-label", `Merkle tree of ${capacity} pairs with your positions highlighted`);
 
   const mine = new Set(highlight.map((p) => p.part.pairPosition));
-  // A node is on a path when it is an ancestor of one of the customer's positions.
   const onPath = new Set<string>();
   const siblingOf = new Set<string>();
   for (const position of mine) {

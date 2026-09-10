@@ -3,10 +3,7 @@ import { stringify, type Bundle } from "../../prover/minimum/tree.ts";
 import { paths, treeSvg, pathLadder } from "./treeView.ts";
 import { connectionPanel, markNavigation, output, element, button, value } from "./shared.ts";
 
-/**
- * Demo front door only. The real boundary is the backend's expiring bearer token:
- * this gate releases no data, it just reveals the page during a walkthrough.
- */
+/** Demo gate. Releases no data; the backend still requires the bearer token. */
 const DEMO_PASSWORD = "test";
 const SESSION = "solvency.minimum.demo-signed-in";
 
@@ -69,7 +66,7 @@ function renderInclusion(current: Bundle) {
   else {
     const note = document.createElement("p");
     note.className = "note";
-    note.textContent = `Capacity ${current.capacity} is too wide to draw legibly; the per-part hashing steps below carry the same proof.`;
+    note.textContent = `Capacity ${current.capacity} is too wide to draw. See the hashing steps below.`;
     figure.append(note);
   }
   const ladders = element("ladders");
@@ -94,7 +91,6 @@ button("verifyBtn").onclick = async () => {
     output("connection", "Read at block " + current.blockNumber);
     const result = localResult(retrieved, customer, dob, expectedUnits, anchor(current));
     output("verifyResult", result);
-    // An outdated epoch is reported, not drawn: its path leads to a root nobody published.
     if (result.startsWith("VALID")) {
       bundle = retrieved;
       renderInclusion(retrieved);

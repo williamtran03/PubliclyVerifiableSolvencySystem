@@ -5,7 +5,7 @@ const SETTINGS = "solvency.minimum.connection";
 export type Settings = { rpcUrl: string; registryAddress: string };
 export const DEFAULT_RPC = "http://127.0.0.1:8545";
 
-/** Connection settings are per-browser convenience only; nothing private is stored. */
+/** Stored per browser. Nothing private is kept here. */
 export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(SETTINGS);
@@ -30,7 +30,7 @@ export const element = <T extends HTMLElement>(id: string) => document.getElemen
 export const value = (id: string) => element<HTMLInputElement>(id).value.trim();
 export const button = (id: string) => element<HTMLButtonElement>(id);
 
-/** Verdicts lead with a keyword; colour the block so a pass or failure is visible without reading. */
+/** Colours the block from the leading verdict keyword. */
 export function output(id: string, text: string) {
   const target = element(id);
   target.textContent = text;
@@ -47,10 +47,7 @@ export async function loadState<T>(load: () => Promise<T>, render: (state: { sta
   }
 }
 
-/**
- * Wires the shared connection panel that every page carries, so the RPC URL and
- * registry address are entered once rather than on each view.
- */
+/** Connection panel shared by every page, so the address is entered once. */
 export function connectionPanel(onChange?: () => void) {
   const settings = loadSettings();
   const rpc = element<HTMLInputElement>("rpcUrl"),
