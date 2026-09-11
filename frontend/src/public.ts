@@ -1,4 +1,5 @@
 import { publicSummary, exchangeRateRows, checkPublicCalculation, usd, coverage, type PublicSnapshot } from "./minimumClient.ts";
+import type { Ledger } from "../../prover/minimum/tree.ts";
 import { stringify } from "../../prover/minimum/tree.ts";
 import { connectionPanel, markNavigation, output, element, button, loadState } from "./shared.ts";
 
@@ -8,6 +9,7 @@ const connection = connectionPanel(() => {
   snapshot = undefined;
   clearClaimDetails();
   button("auditLedger").disabled = true;
+  button("downloadLedger").disabled = true;
   output("epochResult", "Connection changed; read the claim again.");
 });
 let snapshot: PublicSnapshot | undefined;
@@ -54,6 +56,8 @@ function renderClaim(s: PublicSnapshot) {
 
 function clearClaimDetails() {
   for (const id of ["claimDetails", "reserveDetails", "ledgerResult"]) output(id, "");
+  element("ledgerWrap").hidden = true;
+  output("ledgerSummary", "Read the claim first, then load the ledger.");
   element("epochResult").classList.add("boxed");
   const body = element("rates");
   body.replaceChildren();
@@ -92,6 +96,7 @@ button("connectBtn").onclick = async () => {
   snapshot = undefined;
   clearClaimDetails();
   button("auditLedger").disabled = true;
+  button("downloadLedger").disabled = true;
   output("epochResult", "Reading claim…");
   await loadState(
     () => connection().current(),
@@ -114,18 +119,61 @@ button("connectBtn").onclick = async () => {
   );
 };
 
+let ledger: Ledger | undefined;
+
+function renderLedger(l: Ledger) {
+  const body = element("ledgerTable");
+  body.replaceChildren();
+  let total = 0n;
+  for (const [i, pair] of l.pairs.entries()) {
+    total += pair.amount;
+    const row = document.createElement("tr");
+    for (const text of [String(i + 1), pair.identity, usd(pair.amount)]) {
+      const cell = document.createElement("td");
+      cell.textContent = text;
+      row.append(cell);
+    }
+    body.append(row);
+  }
+  element("ledgerTotal").textContent = usd(total);
+  element("ledgerWrap").hidden = false;
+  return total;
+}
+
 button("auditLedger").onclick = async () => {
+  button("auditLedger").disabled = true;
+  output("ledgerSummary", "Reading the published ledger…");
   try {
     const client = connection();
     const s = await client.current();
-    output("ledgerResult", "Recomputing…");
-    const ledger = await client.ledger(s.claim.snapshotId, s.claim.rootHash, s.claim.totalLiabilitiesUsd, s.capacity);
+    const loaded = await client.ledger(s.claim.snapshotId, s.claim.rootHash, s.claim.totalLiabilitiesUsd, s.capacity);
     if (!checkPublicCalculation(s)) throw Error("Manifest or USD arithmetic mismatch");
+    const total = renderLedger(loaded);
+    if (total !== s.claim.totalLiabilitiesUsd) throw Error("Ledger entries do not add up to the published total");
+    ledger = loaded;
+    button("downloadLedger").disabled = false;
     output(
-      "ledgerResult",
-      `VALID public ledger: ${ledger.pairs.length} real parts, ${ledger.capacity} capacity. Root, total and asset conversions match.\n${stringify(ledger)}`,
+      "ledgerSummary",
+      `VALID: ${loaded.pairs.length} entries adding to ${usd(total)}, which is the total the reserves were checked against.\n` +
+        `The ${loaded.capacity - loaded.pairs.length} unused slots are empty and hash to a fixed padding value.\n` +
+        `Recomputed root ${loaded.rootHash} matches the root on chain.`,
     );
+    output("ledgerResult", "");
   } catch (e) {
-    output("ledgerResult", `ERROR: ${e instanceof Error ? e.message : e}`);
+    element("ledgerWrap").hidden = true;
+    output("ledgerSummary", `ERROR: ${e instanceof Error ? e.message : e}`);
+  } finally {
+    button("auditLedger").disabled = !snapshot;
   }
+};
+
+button("downloadLedger").onclick = () => {
+  if (!ledger) return;
+  const blob = new Blob([stringify(ledger)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `ledger-${ledger.snapshotId.slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
 };

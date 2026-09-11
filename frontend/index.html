@@ -42,9 +42,45 @@
           <summary>Technical verification details</summary>
           <div id="claimDetails" class="result boxed"></div>
           <div id="reserveDetails" class="result boxed"></div>
-          <button id="auditLedger" disabled>Recompute public ledger and USD totals</button>
-          <div id="ledgerResult" class="result boxed" role="status"></div>
         </details>
+      </section>
+
+      <section class="card" id="ledger-section">
+        <h2>The liability ledger</h2>
+        <p>
+          Every liability in the claim, exactly as the registry published it. The commitments hide who
+          each customer is; the amounts are open, so anyone can add them up and compare the result
+          against the total the reserves were checked against.
+        </p>
+        <div class="actions">
+          <button id="auditLedger" disabled>Load and recompute the ledger</button>
+          <button id="downloadLedger" class="secondary" disabled>Download ledger.json</button>
+        </div>
+        <div id="ledgerSummary" class="result boxed" role="status">
+          Read the claim first, then load the ledger.
+        </div>
+        <div class="table-scroll" id="ledgerWrap" hidden>
+          <table>
+            <caption>
+              Published liabilities, one row per commitment
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">#</th>
+                <th scope="col">Commitment</th>
+                <th scope="col">Amount (USD)</th>
+              </tr>
+            </thead>
+            <tbody id="ledgerTable"></tbody>
+            <tfoot>
+              <tr>
+                <th scope="row" colspan="2">Total</th>
+                <td id="ledgerTotal"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div id="ledgerResult" class="result" role="status"></div>
       </section>
 
       <section class="card" id="rates-section">

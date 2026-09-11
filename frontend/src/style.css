@@ -510,3 +510,14 @@ code {
 .claim-label { display:block; color:var(--muted); font-size:12px; }
 .claim-figure strong { display:block; margin-top:3px; font-size:18px; }
 .technical-note { margin-bottom:12px; }
+
+tfoot th,
+tfoot td {
+  background: var(--code-bg);
+  font-weight: 600;
+  border-bottom: 0;
+}
+tfoot td {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
