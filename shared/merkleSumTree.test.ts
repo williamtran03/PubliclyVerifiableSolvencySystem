@@ -38,3 +38,23 @@ test("a non-power-of-two entry count still pads and sums correctly", () => {
   const { root } = buildTree(five, poseidon2Hash);
   assert.equal(root.sum, 49550n + 100n + 200n);
 });
+
+test("an index outside the tree is rejected before a proof is built", () => {
+  const { levels, entries: padded } = buildTree(entries, poseidon2Hash);
+  assert.throws(() => createProof(padded.length, padded, levels), /outside the tree/);
+  assert.throws(() => createProof(-1, padded, levels), /outside the tree/);
+});
+
+test("a malformed proof returns false instead of throwing", () => {
+  const { levels, entries: padded } = buildTree(entries, poseidon2Hash);
+  const proof = createProof(0, padded, levels);
+
+  const shortSums = { ...proof, siblingSums: proof.siblingSums.slice(1) };
+  assert.equal(verifyProof(shortSums, poseidon2Hash), false);
+
+  const badDirection = { ...proof, pathIndices: [2, ...proof.pathIndices.slice(1)] };
+  assert.equal(verifyProof(badDirection, poseidon2Hash), false);
+
+  const negativeBalance = { ...proof, entry: { ...proof.entry, balance: -1n } };
+  assert.equal(verifyProof(negativeBalance, poseidon2Hash), false);
+});

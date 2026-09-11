@@ -1,6 +1,12 @@
 // Poseidon2 merkle-sum tree: the shared core for every arm that is proved in
 // a circuit. Pads to a fixed LEAF_CAPACITY because a circuit's array sizes are
 // compile-time constants.
+//
+// arms/published-ledger/prover/tree.ts is a deliberate sibling, not a stale
+// copy: it hashes a 2-field leaf with keccak and sizes itself to the ledger,
+// because MerkleSumRegistry.sol rebuilds it on-chain. This file's leaf
+// encoding and padding must byte-match the Noir circuits instead, so the two
+// are kept apart on purpose. Only the walk below is common to both.
 export type HashFn = (values: bigint[]) => bigint;
 
 export type Entry = {
@@ -105,6 +111,9 @@ export function buildTree(
 }
 
 export function createProof(index: number, entries: Entry[], levels: Node[][]): MerkleSumProof {
+  if (!Number.isSafeInteger(index) || index < 0 || index >= entries.length) {
+    throw new Error(`index ${index} is outside the tree`);
+  }
   const root = levels[levels.length - 1][0];
   const siblingHashes: bigint[] = [];
   const siblingSums: bigint[] = [];
@@ -133,17 +142,32 @@ export function createProof(index: number, entries: Entry[], levels: Node[][]): 
   };
 }
 
+// Returns false rather than throwing on a malformed proof: this is the check a
+// customer runs against data the operator handed them, so every rejection path
+// has to look the same to the caller.
 export function verifyProof(proof: MerkleSumProof, hash: HashFn): boolean {
-  let node: Node = computeLeaf(proof.entry, hash);
+  try {
+    if (
+      proof.siblingHashes.length !== proof.siblingSums.length ||
+      proof.siblingHashes.length !== proof.pathIndices.length ||
+      proof.pathIndices.some((i) => i !== 0 && i !== 1)
+    ) {
+      return false;
+    }
 
-  for (let level = 0; level < proof.siblingHashes.length; level++) {
-    const sibling: Node = { hash: proof.siblingHashes[level], sum: proof.siblingSums[level] };
-    const isRightChild = proof.pathIndices[level] === 1;
+    let node: Node = computeLeaf(proof.entry, hash);
 
-    node = isRightChild ? combineNodes(sibling, node, hash) : combineNodes(node, sibling, hash);
+    for (let level = 0; level < proof.siblingHashes.length; level++) {
+      const sibling: Node = { hash: proof.siblingHashes[level], sum: proof.siblingSums[level] };
+      const isRightChild = proof.pathIndices[level] === 1;
+
+      node = isRightChild ? combineNodes(sibling, node, hash) : combineNodes(node, sibling, hash);
+    }
+
+    return node.hash === proof.rootHash && node.sum === proof.rootSum;
+  } catch {
+    return false;
   }
-
-  return node.hash === proof.rootHash && node.sum === proof.rootSum;
 }
 
 import { poseidon2Hash as poseidon2 } from "@zkpassport/poseidon2";
