@@ -15,12 +15,7 @@ contract SolvencyRegistry {
     uint256 public epochCount;
     address[] public reserves;
     IVerifier public immutable verifier;
-    event EpochSubmitted(
-        uint256 indexed epochId,
-        uint256 rootHash,
-        uint256 totalReservesAtEpoch,
-        uint64 timestamp
-    );
+    event EpochSubmitted(uint256 indexed epochId, uint256 rootHash, uint256 totalReservesAtEpoch, uint64 timestamp);
 
     constructor(address[] memory _reserves, address _verifier) {
         owner = msg.sender;
@@ -39,13 +34,9 @@ contract SolvencyRegistry {
         }
     }
 
-    /// @notice Publishes an epoch. Total liabilities are never revealed: the
-    ///         circuit proves they are covered by `totalReserves()`, which this
-    ///         contract reads itself so the prover cannot choose it.
     function submitEpoch(bytes calldata proof, uint256 rootHash) external onlyOwner {
         uint256 assets = totalReserves();
 
-        // Public input order is Noir's: public parameters first, then returns.
         bytes32[] memory publicInputs = new bytes32[](2);
         publicInputs[0] = bytes32(assets);
         publicInputs[1] = bytes32(rootHash);

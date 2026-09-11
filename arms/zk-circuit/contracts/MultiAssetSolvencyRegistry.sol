@@ -83,11 +83,7 @@ contract MultiAssetSolvencyRegistry {
 
     // The conversion table the prover should use: latest round of each feed, plus the
     // round ids to pin so the contract values the epoch at exactly the same numbers.
-    function readPrices()
-        public
-        view
-        returns (uint256[NUM_ASSETS] memory prices, uint80[NUM_ASSETS] memory roundIds)
-    {
+    function readPrices() public view returns (uint256[NUM_ASSETS] memory prices, uint80[NUM_ASSETS] memory roundIds) {
         for (uint256 i = 0; i < NUM_ASSETS; i++) {
             (uint80 roundId,,,,) = IAggregatorV3(assets[i].feed).latestRoundData();
             roundIds[i] = roundId;
@@ -98,11 +94,7 @@ contract MultiAssetSolvencyRegistry {
     // Pinned to explicit rounds rather than whatever is live at mining time, so the
     // prover and this contract cannot disagree, and an auditor can refetch the rounds.
     // Staleness still applies, which is what bounds round shopping.
-    function readPricesAt(uint80[NUM_ASSETS] memory roundIds)
-        public
-        view
-        returns (uint256[NUM_ASSETS] memory prices)
-    {
+    function readPricesAt(uint80[NUM_ASSETS] memory roundIds) public view returns (uint256[NUM_ASSETS] memory prices) {
         for (uint256 i = 0; i < NUM_ASSETS; i++) {
             IAggregatorV3 feed = IAggregatorV3(assets[i].feed);
             (, int256 answer,, uint256 updatedAt,) = feed.getRoundData(roundIds[i]);
@@ -151,9 +143,7 @@ contract MultiAssetSolvencyRegistry {
         currentEpoch = Epoch(rootHash, liabilitiesUsd, assetsUsd, uint64(block.timestamp));
         epochPrices = prices;
         epochRoundIds = roundIds;
-        emit EpochSubmitted(
-            epochCount, rootHash, liabilitiesUsd, assetsUsd, prices, roundIds, uint64(block.timestamp)
-        );
+        emit EpochSubmitted(epochCount, rootHash, liabilitiesUsd, assetsUsd, prices, roundIds, uint64(block.timestamp));
         epochCount++;
     }
 }

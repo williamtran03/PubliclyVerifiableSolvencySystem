@@ -1,20 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-
-
 /// @notice Publishes pseudonymous partial balances, not a zero-knowledge proof.
 /// @dev Reuses the baseline reserve model. Control/eligibility of reserves remains unproven.
 contract MerkleSumRegistry {
-    struct Epoch { uint256 rootHash; uint256 totalLiabilities; uint64 timestamp; }
+    struct Epoch {
+        uint256 rootHash;
+        uint256 totalLiabilities;
+        uint64 timestamp;
+    }
     address public immutable owner;
     address[] public reserves;
     Epoch public currentEpoch;
     uint256 public epochCount;
     event EpochSubmitted(uint256 indexed epochId, uint256 rootHash, uint256 totalLiabilities, uint64 timestamp);
-    modifier onlyOwner() { require(msg.sender == owner, "not owner"); _; }
+    modifier onlyOwner() {
+        require(msg.sender == owner, "not owner");
+        _;
+    }
+
     function totalReserves() public view returns (uint256 total) {
-        for (uint256 i; i < reserves.length; ++i) total += reserves[i].balance;
+        for (uint256 i; i < reserves.length; ++i) {
+            total += reserves[i].balance;
+        }
     }
     uint256 public constant MAX_ENTRIES = 256;
     bytes32 public currentSnapshotId;
@@ -26,7 +34,9 @@ contract MerkleSumRegistry {
         reserves = reserveAddresses;
         for (uint256 i; i < reserveAddresses.length; ++i) {
             require(reserveAddresses[i] != address(0), "zero reserve");
-            for (uint256 j; j < i; ++j) require(reserveAddresses[i] != reserveAddresses[j], "duplicate reserve");
+            for (uint256 j; j < i; ++j) {
+                require(reserveAddresses[i] != reserveAddresses[j], "duplicate reserve");
+            }
         }
     }
 
@@ -36,7 +46,8 @@ contract MerkleSumRegistry {
     }
 
     function submitLedger(bytes32 snapshotId, uint256[] calldata identities, uint256[] calldata amounts)
-        external onlyOwner
+        external
+        onlyOwner
     {
         require(snapshotId != bytes32(0) && !usedSnapshots[snapshotId], "invalid snapshot");
         (uint256 rootHash, uint256 liabilities) = computeRoot(identities, amounts);
@@ -52,7 +63,9 @@ contract MerkleSumRegistry {
 
     /// @dev Same leaf/parent encoding and zero padding as shared/merkleSumTree.ts.
     function computeRoot(uint256[] calldata identities, uint256[] calldata amounts)
-        public pure returns (uint256 rootHash, uint256 liabilities)
+        public
+        pure
+        returns (uint256 rootHash, uint256 liabilities)
     {
         uint256 n = identities.length;
         require(n != 0 && n <= MAX_ENTRIES && n == amounts.length, "invalid length");
