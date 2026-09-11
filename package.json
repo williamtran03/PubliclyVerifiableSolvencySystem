@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:prover": "node --import tsx --test prover/*.test.ts prover/kzg/*.test.ts prover/keccak/*.test.ts",
-    "merkle": "node --import tsx cli/merkle-sum.ts",
-    "demo:merkle": "node --import tsx script/merkle-sum-demo.ts"
+    "test": "node --import tsx --test shared/*.test.ts arms/*/prover/*.test.ts",
+    "check": "tsc --noEmit",
+    "ledger": "node --import tsx arms/published-ledger/cli/verify.ts",
+    "inclusion": "node --import tsx arms/single-asset/cli/verify-inclusion.ts"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",

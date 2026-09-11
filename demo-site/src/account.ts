@@ -1,4 +1,4 @@
-import { deserializeBundle, verifyBundle, type CustomerBundle } from "@prover/multi-asset/multiAssetTree.ts";
+import { deserializeBundle, verifyBundle, type CustomerBundle } from "@arms/zk-circuit/prover/multiAssetTree.ts";
 import { $, ASSET_NAMES, loadSettings, readEpoch, usd, type Epoch } from "./chain.ts";
 
 const SESSION_KEY = "northwind.account";

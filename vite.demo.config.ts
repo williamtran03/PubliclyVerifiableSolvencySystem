@@ -5,7 +5,8 @@ export default defineConfig({
   root: "demo-site",
   resolve: {
     alias: {
-      "@prover": resolve(import.meta.dirname, "prover"),
+      "@shared": resolve(import.meta.dirname, "shared"),
+      "@arms": resolve(import.meta.dirname, "arms"),
     },
   },
   build: {
