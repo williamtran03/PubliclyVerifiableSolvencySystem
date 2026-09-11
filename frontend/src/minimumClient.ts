@@ -78,7 +78,11 @@ export async function retrieveProof(token:string,fetcher:typeof fetch=fetch):Pro
 }
 export function localResult(bundle:Bundle,customerId:string,dateOfBirth:string,balance:bigint,current:Anchor):string {
  if(bundle.snapshotId!==current.snapshotId)return 'OUTDATED EPOCH: retrieve a proof for the current on-chain snapshot.';
- if(!verify(bundle,{customerId,dateOfBirth,balance},current))throw Error('Invalid proof, identity or independently known full balance');
+ // Name the field that disagrees. Which one is wrong is not a secret; the correct value still is.
+ if(bundle.customerId!==customerId)throw Error('the customer ID you entered does not match your bundle');
+ if(bundle.dateOfBirth!==dateOfBirth)throw Error('the date of birth you entered does not match your bundle');
+ if(bundle.expectedBalance!==balance)throw Error('the balance you entered does not match the balance in your bundle');
+ if(!verify(bundle,{customerId,dateOfBirth,balance},current))throw Error('the proof does not reconstruct the published root');
  return `VALID: ${usd(balance)} included in epoch ${current.snapshotId}. All parts verified locally.`;
 }
 export async function loadState<T>(load:()=>Promise<T>,render:(state:{status:'loading'|'ready'|'error';value?:T;error?:string})=>void) {render({status:'loading'});try{render({status:'ready',value:await load()});}catch(error){render({status:'error',error:error instanceof Error?error.message:String(error)});}}
