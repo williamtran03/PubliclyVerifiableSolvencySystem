@@ -132,6 +132,18 @@ export function createProof(index: number, holdings: Holding[], levels: Node[][]
 
 export function verifyProof(proof: MultiAssetProof, prices: bigint[]): boolean {
   try {
+    // Exactly one bit per level. A direction other than 0 or 1 walks the same path
+    // as 0, so without this one leaf could be presented twice under two "positions".
+    const depth = Math.log2(LEAF_CAPACITY);
+    if (
+      proof.siblingHashes.length !== depth ||
+      proof.siblingSums.length !== depth ||
+      proof.pathIndices.length !== depth ||
+      proof.pathIndices.some((i) => i !== 0 && i !== 1)
+    ) {
+      return false;
+    }
+
     let node = computeLeaf(proof.holding, prices);
     for (let level = 0; level < proof.siblingHashes.length; level++) {
       const sibling: Node = { hash: proof.siblingHashes[level], sum: proof.siblingSums[level] };

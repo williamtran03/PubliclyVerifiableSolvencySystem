@@ -80,3 +80,26 @@ test("a bundle claiming someone else's leaf is rejected", () => {
   };
   assert.equal(verifyBundle(bundle, new Map([[0, 2n]]), root.hash, root.sum), false);
 });
+
+test("one leaf cannot be counted twice by giving it a second path encoding", () => {
+  const { levels, root, holdings: padded } = buildTree(holdings, prices);
+  const part = createProof(0, padded, levels);
+  const alias = { ...part, pathIndices: [2, ...part.pathIndices.slice(1)] };
+  const bundle = { username: "customer-123", prices: prices.map(String), parts: [part, alias] };
+
+  // customer-123 really holds one 2 BTC leaf; claiming 4 BTC must fail
+  assert.equal(verifyBundle(bundle, new Map([[0, 4n]]), root.hash, root.sum), false);
+  assert.equal(verifyProof(alias, prices), false);
+});
+
+test("a proof with the wrong number of levels is rejected", () => {
+  const { levels, holdings: padded } = buildTree(holdings, prices);
+  const proof = createProof(0, padded, levels);
+  const short = {
+    ...proof,
+    siblingHashes: proof.siblingHashes.slice(1),
+    siblingSums: proof.siblingSums.slice(1),
+    pathIndices: proof.pathIndices.slice(1),
+  };
+  assert.equal(verifyProof(short, prices), false);
+});
