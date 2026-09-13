@@ -1,6 +1,6 @@
 import { bn254 } from "@noble/curves/bn254";
 import { Fr } from "./field.ts";
-import { divideByLinear, evaluate, type Poly } from "./poly.ts";
+import { divideByLinear, evaluate, trim, type Poly } from "./poly.ts";
 import { G1, type G1Point, type Srs } from "./srs.ts";
 
 export type Opening = {
@@ -40,6 +40,24 @@ export function verify(srs: Srs, commitment: G1Point, opening: Opening): boolean
   const result = bn254.pairingBatch([
     { g1: left, g2: srs.g2 },
     { g1: opening.proof.negate(), g2: srs.tauG2 },
+  ]);
+  return bn254.fields.Fp12.eql(result, bn254.fields.Fp12.ONE);
+}
+
+export function commitShifted(srs: Srs, poly: Poly): G1Point {
+  const degree = trim(poly).length - 1;
+  if (degree > srs.boundedDegree) {
+    throw new Error(`polynomial of degree ${degree} exceeds the bound ${srs.boundedDegree}`);
+  }
+  const shift = srs.maxDegree - srs.boundedDegree;
+  return commit(srs, [...new Array(shift).fill(Fr.ZERO), ...trim(poly)]);
+}
+
+export function verifyDegreeBound(srs: Srs, commitment: G1Point, shifted: G1Point): boolean {
+  if (commitment.equals(G1.ZERO)) return shifted.equals(G1.ZERO);
+  const result = bn254.pairingBatch([
+    { g1: shifted, g2: srs.g2 },
+    { g1: commitment.negate(), g2: srs.boundG2 },
   ]);
   return bn254.fields.Fp12.eql(result, bn254.fields.Fp12.ONE);
 }

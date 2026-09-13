@@ -1,22 +1,18 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { keccak256, toHex } from "viem";
-import { LEAF_CAPACITY, type Entry } from "../../../shared/merkleSumTree.ts";
-import { loadSrs, g2ForPrecompile, type G1Point } from "./srs.ts";
-import { buildGrandSumEpoch } from "./grandSum.ts";
+import { loadSrs, g2ForPrecompile, type G1Point, type G2Point } from "./srs.ts";
+import { buildGrandSumEpoch, identityOf, proveInclusion, verifyGrandSum, verifyInclusion, type Account } from "./grandSum.ts";
 import { proveRange, verifyRange } from "./range.ts";
-import { verify } from "./commit.ts";
-import { interpolate } from "./field.ts";
+import { commit, open } from "./commit.ts";
+import { Fr } from "./field.ts";
+import { add, mul } from "./poly.ts";
 
-function parseCustomersCsv(path: string): Entry[] {
+// Columns: username,balance,salt with a header row. The salt is the customer's own.
+function parseCustomersCsv(path: string): Account[] {
   const content = readFileSync(path, "utf8").trim();
   const [, ...rows] = content.split("\n");
   return rows.map((row) => {
     const [username, balance, salt] = row.split(",");
-    return {
-      username: username.trim(),
-      balance: BigInt(balance.trim()),
-      salt: BigInt(salt.trim()),
-    };
+    return { username: username.trim(), balance: BigInt(balance.trim()), salt: BigInt(salt.trim()) };
   });
 }
 
@@ -25,52 +21,80 @@ const point = (p: G1Point) => {
   return { x: affine.x.toString(), y: affine.y.toString() };
 };
 
+const g2Json = (p: G2Point) => {
+  const [xImag, xReal, yImag, yReal] = g2ForPrecompile(p).map(String);
+  return { xImag, xReal, yImag, yReal };
+};
+
 const srs = loadSrs("./arms/snarkless/fixtures/srs.json");
-const entries = parseCustomersCsv("./shared/customers.csv");
+const accounts = parseCustomersCsv("./shared/customers.csv");
 
-const balances = entries.map((e) => e.balance);
-const padded = [...balances, ...new Array(LEAF_CAPACITY - balances.length).fill(0n)];
+const epoch = buildGrandSumEpoch(srs, accounts);
+if (!verifyGrandSum(srs, epoch.balanceCommitment, epoch.shiftedCommitment, epoch.opening, epoch.totalLiabilities)) {
+  throw new Error("grand sum failed to verify");
+}
 
-const epoch = buildGrandSumEpoch(srs, balances);
-if (!verify(srs, epoch.commitment, epoch.opening)) throw new Error("grand sum opening failed to verify");
-
-const balancePoly = interpolate(padded);
-const rangeProof = proveRange(srs, balancePoly, padded);
-if (!verifyRange(srs, epoch.commitment, LEAF_CAPACITY, rangeProof)) {
+const rangeProof = proveRange(srs, epoch.balancePoly, epoch.balances);
+if (!verifyRange(srs, epoch.balanceCommitment, epoch.balances.length, rangeProof)) {
   throw new Error("range proof failed to verify");
 }
 
-const serializedRange = JSON.stringify(
-  {
-    bits: rangeProof.bits,
-    bitCommitments: rangeProof.bitCommitments.map(point),
-    quotientCommitment: point(rangeProof.quotientCommitment),
-    values: rangeProof.values.map((v) => v.toString()),
-    batchProof: point(rangeProof.batchProof),
-  },
-  null,
-  2,
-);
+const inclusions = accounts.map((account, index) => {
+  const inclusion = proveInclusion(srs, epoch, index);
+  if (!verifyInclusion(srs, epoch, account, inclusion)) throw new Error(`${account.username} failed inclusion`);
+  return {
+    username: account.username,
+    index,
+    identity: identityOf(account.username, account.salt).toString(),
+    balance: account.balance.toString(),
+    proof: point(inclusion.proof),
+  };
+});
 
 mkdirSync("./arms/snarkless/fixtures", { recursive: true });
-writeFileSync("./arms/snarkless/fixtures/range-proof.json", serializedRange + "\n");
+const write = (name: string, value: unknown) =>
+  writeFileSync(`./arms/snarkless/fixtures/${name}`, JSON.stringify(value, null, 2) + "\n");
 
-const [g2xImag, g2xReal, g2yImag, g2yReal] = g2ForPrecompile(srs.g2);
-const [tauxImag, tauxReal, tauyImag, tauyReal] = g2ForPrecompile(srs.tauG2);
-
-const epochJson = {
-  domainSize: LEAF_CAPACITY,
+write("epoch.json", {
+  domainSize: epoch.balances.length,
   totalLiabilities: epoch.totalLiabilities.toString(),
-  commitment: point(epoch.commitment),
-  z: epoch.opening.z.toString(),
-  value: epoch.opening.value.toString(),
-  proof: point(epoch.opening.proof),
-  rangeProofHash: keccak256(toHex(serializedRange)),
-  g2: { xImag: g2xImag.toString(), xReal: g2xReal.toString(), yImag: g2yImag.toString(), yReal: g2yReal.toString() },
-  tauG2: { xImag: tauxImag.toString(), xReal: tauxReal.toString(), yImag: tauyImag.toString(), yReal: tauyReal.toString() },
-};
+  balanceCommitment: point(epoch.balanceCommitment),
+  shiftedCommitment: point(epoch.shiftedCommitment),
+  identityCommitment: point(epoch.identityCommitment),
+  sumProof: point(epoch.opening.proof),
+  constantTerm: epoch.opening.value.toString(),
+  g2: g2Json(srs.g2),
+  tauG2: g2Json(srs.tauG2),
+  boundG2: g2Json(srs.boundG2),
+});
+write("range-proof.json", {
+  bits: rangeProof.bits,
+  bitCommitments: rangeProof.bitCommitments.map(point),
+  quotientCommitment: point(rangeProof.quotientCommitment),
+  values: rangeProof.values.map((v) => v.toString()),
+  batchProof: point(rangeProof.batchProof),
+});
+write("inclusion.json", inclusions);
 
-writeFileSync("./arms/snarkless/fixtures/epoch.json", JSON.stringify(epochJson, null, 2) + "\n");
+// The degree-bound attack, kept as a fixture so the registry test can show it is refused:
+// p + 5000·Z_H has the same balances on the domain but a constant term 5000 lower.
+const vanishing = [Fr.neg(Fr.ONE), ...new Array(epoch.balances.length - 1).fill(0n), Fr.ONE];
+const cheat = add(epoch.balancePoly, mul(vanishing, [5000n]));
+const cheatOpening = open(srs, cheat, 0n);
+const cheatRange = proveRange(srs, cheat, epoch.balances); // still verifies: same balances on the domain
+write("attack.json", {
+  balanceCommitment: point(commit(srs, cheat)),
+  sumProof: point(cheatOpening.proof),
+  constantTerm: cheatOpening.value.toString(),
+  totalLiabilities: Fr.mul(BigInt(epoch.balances.length), cheatOpening.value).toString(),
+  range: {
+    bitCommitments: cheatRange.bitCommitments.map(point),
+    quotientCommitment: point(cheatRange.quotientCommitment),
+    values: cheatRange.values.map((v) => v.toString()),
+    batchProof: point(cheatRange.batchProof),
+  },
+});
 
-console.log(`Wrote arms/snarkless/fixtures/epoch.json (total ${epoch.totalLiabilities}, domain ${LEAF_CAPACITY})`);
+console.log(`Wrote arms/snarkless/fixtures/epoch.json (total ${epoch.totalLiabilities}, domain ${epoch.balances.length})`);
 console.log(`Wrote arms/snarkless/fixtures/range-proof.json (${rangeProof.bits} bit polynomials)`);
+console.log(`Wrote arms/snarkless/fixtures/inclusion.json (${inclusions.length} customers)`);

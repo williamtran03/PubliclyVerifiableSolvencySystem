@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { bn254 } from "@noble/curves/bn254";
 import { Fr } from "./field.ts";
+import { LEAF_CAPACITY } from "../../../shared/merkleSumTree.ts";
 
 const G1 = bn254.G1.ProjectivePoint;
 const G2 = bn254.G2.ProjectivePoint;
@@ -14,9 +15,12 @@ export type Srs = {
   g1: G1Point[];
   g2: G2Point;
   tauG2: G2Point;
+  boundedDegree: number;
+  boundG2: G2Point;
 };
 
-export function generateSrs(maxDegree: number): Srs {
+export function generateSrs(maxDegree: number, boundedDegree: number = LEAF_CAPACITY - 1): Srs {
+  if (boundedDegree < 0 || boundedDegree > maxDegree) throw new Error("bounded degree outside the SRS");
   const tau = Fr.create(BigInt(`0x${randomBytes(64).toString("hex")}`));
   if (Fr.is0(tau)) throw new Error("degenerate tau; retry");
 
@@ -27,7 +31,14 @@ export function generateSrs(maxDegree: number): Srs {
     power = Fr.mul(power, tau);
   }
 
-  return { maxDegree, g1, g2: G2.BASE, tauG2: G2.BASE.multiply(tau) };
+  return {
+    maxDegree,
+    g1,
+    g2: G2.BASE,
+    tauG2: G2.BASE.multiply(tau),
+    boundedDegree,
+    boundG2: G2.BASE.multiply(Fr.pow(tau, BigInt(maxDegree - boundedDegree))),
+  };
 }
 
 type SerializedSrs = {
@@ -35,6 +46,8 @@ type SerializedSrs = {
   g1: [string, string][];
   g2: [string, string, string, string];
   tauG2: [string, string, string, string];
+  boundedDegree: number;
+  boundG2: [string, string, string, string];
 };
 
 const hex = (value: bigint) => `0x${value.toString(16).padStart(64, "0")}`;
@@ -55,6 +68,8 @@ export function saveSrs(srs: Srs, path: string): void {
     g1: srs.g1.map(g1ToJson),
     g2: g2ToJson(srs.g2),
     tauG2: g2ToJson(srs.tauG2),
+    boundedDegree: srs.boundedDegree,
+    boundG2: g2ToJson(srs.boundG2),
   };
   writeFileSync(path, JSON.stringify(json, null, 2) + "\n");
 }
@@ -72,12 +87,14 @@ export function loadSrs(path: string): Srs {
     g1: json.g1.map(([x, y]) => G1.fromAffine({ x: BigInt(x), y: BigInt(y) })),
     g2: g2(json.g2),
     tauG2: g2(json.tauG2),
+    boundedDegree: json.boundedDegree,
+    boundG2: g2(json.boundG2),
   };
 }
 
 export function g2ForPrecompile(point: G2Point): [bigint, bigint, bigint, bigint] {
   const affine = point.toAffine();
-  return [affine.x.c1, affine.x.c0, affine.y.c1, affine.y.c0]; // precompile order: imaginary part first
+  return [affine.x.c1, affine.x.c0, affine.y.c1, affine.y.c0];
 }
 
 export { G1, G2 };

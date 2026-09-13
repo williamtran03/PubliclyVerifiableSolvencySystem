@@ -2,15 +2,14 @@
 pragma solidity 0.8.28;
 
 library KzgVerifier {
-    uint256 internal constant FP = // base field
-        21888242871839275222246405745257275088696311157297823662689037894645226208583;
-    uint256 internal constant FR = // scalar field
-        21888242871839275222246405745257275088548364400416034343698204186575808495617;
+    uint256 internal constant FP = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
+    uint256 internal constant FR = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
 
     error EcAddFailed();
     error EcMulFailed();
     error PairingFailed();
     error PointNotOnCurve();
+    error ScalarOutOfField();
 
     struct G1Point {
         uint256 x;
@@ -18,7 +17,6 @@ library KzgVerifier {
     }
 
     struct G2Point {
-        // precompile order: imaginary part first
         uint256 xImag;
         uint256 xReal;
         uint256 yImag;
@@ -35,10 +33,21 @@ library KzgVerifier {
     ) internal view returns (bool) {
         requireOnCurve(commitment);
         requireOnCurve(proof);
-        if (z >= FR || value >= FR) revert PointNotOnCurve();
+        if (z >= FR || value >= FR) revert ScalarOutOfField();
 
         G1Point memory lhs = add(sub(commitment, mul(generator(), value)), mul(proof, z));
         return pairingProductIsOne(lhs, g2, negate(proof), tauG2);
+    }
+
+    function verifyDegreeBound(
+        G1Point memory commitment,
+        G1Point memory shifted,
+        G2Point memory g2,
+        G2Point memory boundG2
+    ) internal view returns (bool) {
+        requireOnCurve(commitment);
+        requireOnCurve(shifted);
+        return pairingProductIsOne(shifted, g2, negate(commitment), boundG2);
     }
 
     function generator() internal pure returns (G1Point memory) {
