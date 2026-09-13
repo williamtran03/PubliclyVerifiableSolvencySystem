@@ -3,33 +3,13 @@ import { usernameToBigInt, LEAF_CAPACITY } from "../../../shared/merkleSumTree.t
 import {
   buildTree,
   createProof,
+  parseHoldingsCsv,
   serializeBundle,
   NUM_ASSETS,
-  MAX_U64,
   type Holding,
 } from "./multiAssetTree.ts";
 
-function parseHoldingsCsv(path: string): Holding[] {
-  const [, ...rows] = readFileSync(path, "utf8").trim().split("\n");
-  return rows.map((row) => {
-    const [username, salt, assetId, amount] = row.split(",");
-    const holding = {
-      username: username.trim(),
-      salt: BigInt(salt.trim()),
-      assetId: Number(assetId.trim()),
-      amount: BigInt(amount.trim()),
-    };
-    if (!Number.isInteger(holding.assetId) || holding.assetId < 0 || holding.assetId >= NUM_ASSETS) {
-      throw new Error(`assetId ${holding.assetId} is outside the price table`);
-    }
-    if (holding.amount < 0n || holding.amount > MAX_U64) {
-      throw new Error(`amount ${holding.amount} does not fit in u64`);
-    }
-    return holding;
-  });
-}
-
-const holdings = parseHoldingsCsv("./arms/zk-circuit/prover/customers.csv");
+const holdings = parseHoldingsCsv(readFileSync("./arms/zk-circuit/prover/customers.csv", "utf8"));
 if (holdings.length > LEAF_CAPACITY) {
   throw new Error(`${holdings.length} holdings exceeds circuit capacity ${LEAF_CAPACITY}`);
 }

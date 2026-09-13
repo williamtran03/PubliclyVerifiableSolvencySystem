@@ -26,6 +26,27 @@ export type MultiAssetProof = {
 
 export const PADDING: Holding = { username: "", salt: 0n, assetId: 0, amount: 0n };
 
+// Columns: username,salt,assetId,amount with a header row.
+export function parseHoldingsCsv(csv: string): Holding[] {
+  const [, ...rows] = csv.trim().split("\n");
+  return rows.map((row) => {
+    const [username, salt, assetId, amount] = row.split(",");
+    const holding = {
+      username: username.trim(),
+      salt: BigInt(salt.trim()),
+      assetId: Number(assetId.trim()),
+      amount: BigInt(amount.trim()),
+    };
+    if (!Number.isInteger(holding.assetId) || holding.assetId < 0 || holding.assetId >= NUM_ASSETS) {
+      throw new Error(`assetId ${holding.assetId} is outside the price table`);
+    }
+    if (holding.amount < 0n || holding.amount > MAX_U64) {
+      throw new Error(`amount ${holding.amount} does not fit in u64`);
+    }
+    return holding;
+  });
+}
+
 function priceOf(assetId: number, prices: bigint[]): bigint {
   if (!Number.isInteger(assetId) || assetId < 0 || assetId >= NUM_ASSETS) {
     throw new Error(`assetId ${assetId} is outside the price table`);
