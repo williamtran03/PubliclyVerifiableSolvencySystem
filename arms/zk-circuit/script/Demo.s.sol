@@ -7,7 +7,15 @@ import {HonkVerifier} from "../contracts/MultiAssetHonkVerifier.sol";
 import {MockAggregator, MockToken} from "../contracts/mocks/DemoMocks.sol";
 
 contract MultiAssetDemo is Script {
-    address constant RESERVE = address(0xA11CE);
+    // Standard anvil dev accounts 0 and 1; public keys, local chain only.
+    uint256 constant COMPANY_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
+    uint256 constant AUDITOR_KEY = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
+    // A cold wallet with no ETH for gas: it only signs, the company relays.
+    uint256 constant RESERVE_KEY = uint256(keccak256("northwind cold wallet"));
+
+    address company;
+    address auditor;
+    address reserve;
 
     MockToken btc;
     MockToken usdc;
@@ -17,14 +25,27 @@ contract MultiAssetDemo is Script {
     MultiAssetSolvencyRegistry registry;
 
     function run() external {
+        company = vm.addr(COMPANY_KEY);
+        auditor = vm.addr(AUDITOR_KEY);
+        reserve = vm.addr(RESERVE_KEY);
+
         string memory json = vm.readFile("arms/zk-circuit/fixtures/epoch.json");
         uint256 rootHash = vm.parseJsonUint(json, ".rootHash");
         uint256 liabilitiesUsd = vm.parseJsonUint(json, ".totalLiabilitiesUsd");
         bytes memory proof = vm.readFileBinary("arms/zk-circuit/fixtures/proof.bin");
 
-        vm.startBroadcast();
+        vm.startBroadcast(COMPANY_KEY);
         deploy();
-        fundReserves();
+        fundReserve();
+        proposeAndProveReserve();
+        vm.stopBroadcast();
+
+        vm.startBroadcast(AUDITOR_KEY);
+        registry.reviewReserve(reserve, true);
+        console.log("==> auditor approved the reserve; it now counts towards assets");
+        vm.stopBroadcast();
+
+        vm.startBroadcast(COMPANY_KEY);
         submit(proof, rootHash, liabilitiesUsd);
         vm.stopBroadcast();
 
@@ -46,18 +67,27 @@ contract MultiAssetDemo is Script {
         assets[1] = MultiAssetSolvencyRegistry.Asset(address(0), address(ethFeed), 18);
         assets[2] = MultiAssetSolvencyRegistry.Asset(address(usdc), address(usdcFeed), 6);
 
-        address[] memory reserves = new address[](1);
-        reserves[0] = RESERVE;
-
-        registry = new MultiAssetSolvencyRegistry(assets, reserves, address(new HonkVerifier()), 1 hours);
+        registry = new MultiAssetSolvencyRegistry(company, auditor, assets, address(new HonkVerifier()), 1 hours);
         console.log("==> registry deployed at", address(registry));
+        console.log("    company:", company);
+        console.log("    auditor:", auditor);
     }
 
-    function fundReserves() internal {
-        btc.mint(RESERVE, 3e8);
-        usdc.mint(RESERVE, 1000e6);
-        payable(RESERVE).transfer(2 ether);
-        console.log("==> reserve funded: 3 BTC, 2 ETH, 1000 USDC");
+    function fundReserve() internal {
+        btc.mint(reserve, 3e8);
+        usdc.mint(reserve, 1000e6);
+        payable(reserve).transfer(2 ether);
+        console.log("==> reserve funded: 3 BTC, 2 ETH, 1000 USDC at", reserve);
+    }
+
+    function proposeAndProveReserve() internal {
+        registry.proposeReserve(reserve);
+        console.log("==> company proposed the reserve");
+
+        uint256 expiry = block.timestamp + 1 hours;
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(RESERVE_KEY, registry.reserveDigest(reserve, expiry));
+        registry.proveReserve(reserve, expiry, abi.encodePacked(r, s, v));
+        console.log("==> reserve signed the EIP-712 challenge off-chain; company relayed it");
     }
 
     function submit(bytes memory proof, uint256 rootHash, uint256 liabilitiesUsd) internal {
@@ -77,6 +107,7 @@ contract MultiAssetDemo is Script {
         btcFeed.set(59_000e8, block.timestamp);
         (, uint80[3] memory newRounds) = registry.readPrices();
         console.log("==> BTC feed moved to $59000, resubmitting the same proof at the new round");
+        vm.prank(company);
         try registry.submitEpoch(proof, rootHash, liabilitiesUsd, newRounds) {
             console.log("FAIL: proof accepted under a different price table");
         } catch {

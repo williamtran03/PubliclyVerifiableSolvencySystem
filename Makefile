@@ -63,10 +63,9 @@ zk-verifier: zk-prove
 	cd arms/zk-circuit/circuit && bb write_solidity_verifier -k target/vk/vk -o ../contracts/MultiAssetHonkVerifier.sol -t evm
 
 # live demo; needs a local anvil first: anvil --silent &
-# key is the standard anvil dev account
+# the script signs as anvil dev accounts 0 (company) and 1 (auditor)
 zk-demo: build
-	forge script arms/zk-circuit/script/Demo.s.sol --rpc-url http://127.0.0.1:8545 --broadcast \
-		--private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+	forge script arms/zk-circuit/script/Demo.s.sol --rpc-url http://127.0.0.1:8545 --broadcast
 
 # customer-facing demo site for this arm
 demo-site: zk-fixtures
