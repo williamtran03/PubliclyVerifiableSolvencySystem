@@ -1,74 +1,104 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity 0.8.28;
+
+import {ReserveRegistry} from "../../../shared/contracts/ReserveRegistry.sol";
 
 /// @notice Publishes pseudonymous partial balances, not a zero-knowledge proof.
-/// @dev Reuses the baseline reserve model. Control/eligibility of reserves remains unproven.
-contract MerkleSumRegistry {
+/// One merkle-sum tree per asset, rebuilt here from calldata, so every total is computed
+/// on-chain and compared with approved reserves of that same asset. Amounts are in each
+/// token's base units, so no price or rounding is involved.
+contract MerkleSumRegistry is ReserveRegistry {
+    uint256 public constant MAX_ENTRIES = 256; // per asset
+    uint256 public constant MAX_ASSETS = 8;
+
     struct Epoch {
-        uint256 rootHash;
-        uint256 totalLiabilities;
+        bytes32 snapshotId;
+        uint256[] rootHashes;
+        uint256[] liabilities;
+        uint256[] reserves;
         uint64 timestamp;
     }
-    address public immutable owner;
-    address[] public reserves;
-    Epoch public currentEpoch;
+
+    address[] public assets; // address(0) = native ETH
+    mapping(uint256 => Epoch) private epochs;
     uint256 public epochCount;
-    event EpochSubmitted(uint256 indexed epochId, uint256 rootHash, uint256 totalLiabilities, uint64 timestamp);
-    modifier onlyOwner() {
-        require(msg.sender == owner, "not owner");
-        _;
-    }
-
-    function totalReserves() public view returns (uint256 total) {
-        for (uint256 i; i < reserves.length; ++i) {
-            total += reserves[i].balance;
-        }
-    }
-    uint256 public constant MAX_ENTRIES = 256;
-    bytes32 public currentSnapshotId;
     mapping(bytes32 => bool) public usedSnapshots;
-    event LedgerSubmitted(bytes32 indexed snapshotId, uint256 indexed epochId, uint256 assets);
 
-    constructor(address[] memory reserveAddresses) {
-        owner = msg.sender;
-        reserves = reserveAddresses;
-        for (uint256 i; i < reserveAddresses.length; ++i) {
-            require(reserveAddresses[i] != address(0), "zero reserve");
-            for (uint256 j; j < i; ++j) {
-                require(reserveAddresses[i] != reserveAddresses[j], "duplicate reserve");
+    event LedgerSubmitted(
+        uint256 indexed epochId,
+        bytes32 indexed snapshotId,
+        uint256[] rootHashes,
+        uint256[] liabilities,
+        uint256[] reserves
+    );
+
+    error BadAssets();
+    error InvalidSnapshot();
+    error InvalidLength();
+    error NoEpoch();
+    error Insolvent(uint256 assetId, uint256 reserves, uint256 liabilities);
+
+    constructor(address _company, address _auditor, address[] memory tokens)
+        ReserveRegistry("MerkleSumRegistry", _company, _auditor)
+    {
+        if (tokens.length == 0 || tokens.length > MAX_ASSETS) revert BadAssets();
+        for (uint256 i = 0; i < tokens.length; i++) {
+            for (uint256 j = 0; j < i; j++) {
+                if (tokens[i] == tokens[j]) revert BadAssets();
             }
+            assets.push(tokens[i]);
         }
     }
 
-    // Explicitly reject the legacy unverified submission route.
-    function submitEpoch(uint256, uint256) external pure {
-        revert("use submitLedger");
+    function assetCount() external view returns (uint256) {
+        return assets.length;
     }
 
-    function submitLedger(bytes32 snapshotId, uint256[] calldata identities, uint256[] calldata amounts)
+    function getEpoch(uint256 epochId) public view returns (Epoch memory) {
+        if (epochId >= epochCount) revert NoEpoch();
+        return epochs[epochId];
+    }
+
+    function latestEpoch() external view returns (Epoch memory) {
+        if (epochCount == 0) revert NoEpoch();
+        return epochs[epochCount - 1];
+    }
+
+    /// @param identities per asset id, the salted identity commitment of each part
+    /// @param amounts per asset id, the matching part amounts
+    function submitLedger(bytes32 snapshotId, uint256[][] calldata identities, uint256[][] calldata amounts)
         external
-        onlyOwner
+        onlyCompany
     {
-        require(snapshotId != bytes32(0) && !usedSnapshots[snapshotId], "invalid snapshot");
-        (uint256 rootHash, uint256 liabilities) = computeRoot(identities, amounts);
-        uint256 assets = totalReserves();
-        require(assets >= liabilities, "insolvent");
+        if (snapshotId == bytes32(0) || usedSnapshots[snapshotId]) revert InvalidSnapshot();
+        if (identities.length != assets.length || amounts.length != assets.length) revert InvalidLength();
+
+        uint256 n = assets.length;
+        uint256[] memory rootHashes = new uint256[](n);
+        uint256[] memory liabilities = new uint256[](n);
+        uint256[] memory reserves = new uint256[](n);
+        for (uint256 a = 0; a < n; a++) {
+            (rootHashes[a], liabilities[a]) = computeRoot(identities[a], amounts[a]);
+            reserves[a] = reserveBalance(assets[a]);
+            if (reserves[a] < liabilities[a]) revert Insolvent(a, reserves[a], liabilities[a]);
+        }
+
         usedSnapshots[snapshotId] = true;
-        currentSnapshotId = snapshotId;
-        currentEpoch = Epoch(rootHash, liabilities, uint64(block.timestamp));
-        emit EpochSubmitted(epochCount, rootHash, liabilities, uint64(block.timestamp));
-        emit LedgerSubmitted(snapshotId, epochCount, assets);
-        epochCount++;
+        uint256 epochId = epochCount++;
+        epochs[epochId] = Epoch(snapshotId, rootHashes, liabilities, reserves, uint64(block.timestamp));
+        emit LedgerSubmitted(epochId, snapshotId, rootHashes, liabilities, reserves);
     }
 
-    /// @dev Same leaf/parent encoding and zero padding as shared/merkleSumTree.ts.
+    /// @dev Same leaf/parent encoding and zero padding as arms/published-ledger/prover/tree.ts.
+    /// An asset nobody holds has an empty ledger, with root and total 0.
     function computeRoot(uint256[] calldata identities, uint256[] calldata amounts)
         public
         pure
         returns (uint256 rootHash, uint256 liabilities)
     {
         uint256 n = identities.length;
-        require(n != 0 && n <= MAX_ENTRIES && n == amounts.length, "invalid length");
+        if (n > MAX_ENTRIES || n != amounts.length) revert InvalidLength();
+        if (n == 0) return (0, 0);
         uint256 size = 2;
         while (size < n) size *= 2;
         uint256[] memory hashes = new uint256[](size);
@@ -89,4 +119,3 @@ contract MerkleSumRegistry {
         return (hashes[0], sums[0]);
     }
 }
-
