@@ -13,7 +13,7 @@
         ledger-demo \
         zk-fixtures zk-check zk-prove zk-verifier zk-prices zk-circuit-test zk-demo demo-site \
         kzg-setup kzg-epoch \
-        single-fixtures single-check single-prove single-verifier single-demo single-site
+        single-fixtures single-check single-proof single-prove single-verifier single-demo single-site
 
 # ---- all arms ------------------------------------------------------------
 build:
@@ -93,10 +93,14 @@ single-fixtures:
 single-check: single-fixtures
 	cd arms/single-asset/circuit && nargo execute
 
-single-prove: single-check
+# proves into circuit/target/proof; leaves the committed fixture alone
+single-proof: single-check
 	cd arms/single-asset/circuit && bb write_vk -s ultra_honk -b target/circuit.json -o target/vk --oracle_hash keccak
 	cd arms/single-asset/circuit && bb prove -s ultra_honk -b target/circuit.json -w target/circuit.gz -o target/proof -k target/vk/vk --oracle_hash keccak
 	cd arms/single-asset/circuit && bb verify -s ultra_honk -p target/proof/proof -k target/vk/vk -i target/proof/public_inputs --oracle_hash keccak
+
+# refreshes the committed fixture from a new proof
+single-prove: single-proof
 	cp arms/single-asset/circuit/target/proof/proof arms/single-asset/fixtures/proof.bin
 
 single-verifier: single-prove

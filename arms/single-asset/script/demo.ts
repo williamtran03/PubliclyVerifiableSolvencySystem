@@ -15,8 +15,6 @@ const registryAbi = parseAbi([
   "function totalReserves() view returns (uint256)",
 ]);
 
-// The proof commits to this figure as a public input, so the reserves have to
-// add up to exactly it. Anvil accounts start with far more than that.
 const PROVEN_ASSETS = BigInt(process.env.ASSETS ?? "50000");
 
 console.log("==> starting anvil");
@@ -27,11 +25,11 @@ const anvil = spawn("anvil", ["--silent"]);
 process.on("exit", () => anvil.kill());
 await new Promise((resolve) => setTimeout(resolve, 1000));
 
-console.log("==> building tree + proving circuit (shared/customers.csv -> arms/single-asset/fixtures/)");
-execSync("make single-prove", { stdio: "inherit" });
+console.log("==> building tree + proving circuit (shared/customers.csv -> arms/single-asset/circuit/target/)");
+execSync("make single-proof", { stdio: "inherit" });
 
 const { rootHash } = JSON.parse(readFileSync("arms/single-asset/fixtures/epoch.json", "utf8"));
-const proof = toHex(readFileSync("arms/single-asset/fixtures/proof.bin"));
+const proof = toHex(readFileSync("arms/single-asset/circuit/target/proof/proof"));
 
 const account = privateKeyToAccount(OWNER_KEY as `0x${string}`);
 const publicClient = createPublicClient({ chain: foundry, transport: http(RPC_URL) });
