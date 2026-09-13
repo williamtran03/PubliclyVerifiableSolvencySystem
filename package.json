@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --import tsx --test shared/*.test.ts arms/*/prover/*.test.ts",
+    "test:integration": "node --import tsx --test arms/*/test/*.test.ts",
     "check": "tsc --noEmit",
     "ledger": "node --import tsx arms/published-ledger/cli/verify.ts",
     "inclusion": "node --import tsx arms/single-asset/cli/verify-inclusion.ts"

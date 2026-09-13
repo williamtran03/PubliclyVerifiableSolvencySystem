@@ -9,7 +9,7 @@
 #
 # Target names are prefixed by arm: ledger-, zk-, kzg-, single-.
 
-.PHONY: build test check compare \
+.PHONY: build test integration check compare \
         ledger-demo \
         zk-fixtures zk-check zk-prove zk-verifier zk-prices zk-circuit-test zk-demo demo-site \
         kzg-setup kzg-epoch \
@@ -22,6 +22,11 @@ build:
 test:
 	forge test
 	node --import tsx --test shared/*.test.ts arms/*/prover/*.test.ts
+	node --import tsx --test arms/*/test/*.test.ts
+
+# spawns its own anvil on a free port; needs forge build output in out/
+integration: build
+	node --import tsx --test arms/*/test/*.test.ts
 
 check:
 	npx tsc --noEmit
