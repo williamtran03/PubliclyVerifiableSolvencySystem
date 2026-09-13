@@ -2,97 +2,97 @@ use poseidon::poseidon2::Poseidon2;
 
 global NUM_ASSETS: u32 = 3; // 0: BTC, 1: ETH, 2: USDC
 
-fn combine_level<let M: u32>(hashes: [Field; M], sums: [Field; M]) -> ([Field; M / 2], [Field; M / 2]) {
-    let mut next_hashes: [Field; M / 2] = [0; M / 2];
-    let mut next_sums: [Field; M / 2] = [0; M / 2];
-
+// A plain Merkle tree: the circuit computes the per-asset totals from the leaves
+// itself, so node sums would add nothing but a leak of every sibling's balance.
+fn combine_level<let M: u32>(hashes: [Field; M]) -> [Field; M / 2] {
+    let mut next: [Field; M / 2] = [0; M / 2];
     for i in 0..(M / 2) {
-        next_hashes[i] = Poseidon2::hash([hashes[2 * i], sums[2 * i], hashes[2 * i + 1], sums[2 * i + 1]], 4);
-        next_sums[i] = sums[2 * i] + sums[2 * i + 1];
+        next[i] = Poseidon2::hash([hashes[2 * i], hashes[2 * i + 1]], 2);
     }
-
-    (next_hashes, next_sums)
+    next
 }
 
-fn price_of(asset_id: u32, prices: [u64; NUM_ASSETS]) -> Field {
-    let mut selected: Field = 0;
-    let mut matched: Field = 0;
-
-    for k in 0..NUM_ASSETS {
-        let is_match = (asset_id == k) as Field;
-        selected = selected + is_match * prices[k] as Field;
-        matched = matched + is_match;
-    }
-
-    assert(matched == 1); // rejects an asset_id outside the published price table
-    selected
-}
-
+// reserve_floors: per asset, in whole units. The registry checks its approved reserves
+// hold at least this much, so liabilities never have to be published: only that they
+// stay under the floor. Checked per asset, so a surplus in one cannot hide a shortfall
+// in another, and no price enters the proof.
+//
+// context: keccak(chain id, registry, epoch id) mod p, supplied by the registry. Hashed
+// into the published root, so a proof is only valid for one epoch of one deployment.
 fn main(
     usernames: [Field; 8],
     salts: [Field; 8],
     asset_ids: [u32; 8],
     amounts: [u64; 8],
-    prices: pub [u64; NUM_ASSETS],
-) -> pub (Field, Field) {
-    let mut leaf_hashes: [Field; 8] = [0; 8];
-    let mut leaf_sums: [Field; 8] = [0; 8];
+    reserve_floors: pub [u64; NUM_ASSETS],
+    context: pub Field,
+) -> pub Field {
+    let mut leaves: [Field; 8] = [0; 8];
+    let mut liabilities: [u64; NUM_ASSETS] = [0; NUM_ASSETS];
 
     for i in 0..8 {
-        leaf_hashes[i] =
+        assert(asset_ids[i] < NUM_ASSETS); // rejects an asset the registry does not track
+        leaves[i] =
             Poseidon2::hash([usernames[i], salts[i], asset_ids[i] as Field, amounts[i] as Field], 4);
-        leaf_sums[i] = amounts[i] as Field * price_of(asset_ids[i], prices);
+        liabilities[asset_ids[i]] += amounts[i]; // u64 addition is checked, so a wrap is unsatisfiable
     }
 
-    let (hashes2, sums2) = combine_level(leaf_hashes, leaf_sums); // 8 leaves -> 4 nodes
-    let (hashes1, sums1) = combine_level(hashes2, sums2); // 4 nodes -> 2 nodes
-    let (hashes0, sums0) = combine_level(hashes1, sums1); // 2 nodes -> 1 root
+    for a in 0..NUM_ASSETS {
+        assert(liabilities[a] <= reserve_floors[a]);
+    }
 
-    (hashes0[0], sums0[0])
+    let level2 = combine_level(leaves); // 8 leaves -> 4 nodes
+    let level1 = combine_level(level2); // 4 nodes -> 2 nodes
+    let level0 = combine_level(level1); // 2 nodes -> 1 root
+
+    Poseidon2::hash([level0[0], context], 2)
 }
 
+global TEST_USERNAMES: [Field; 8] = [
+    30781005513205101228431847987, // "customer-123"
+    30781005513205101228432045366, // "customer-456"
+    30781005513205101228432242745, // "customer-789"
+    0, 0, 0, 0, 0, // padding
+];
+global TEST_SALTS: [Field; 8] = [
+    84731920475619283746152039485761029384,
+    19283746501928374650192837465019283746,
+    55018273645019283746501928374650192837,
+    0, 0, 0, 0, 0,
+];
+global TEST_ASSETS: [u32; 8] = [0, 1, 2, 0, 0, 0, 0, 0];
+global TEST_AMOUNTS: [u64; 8] = [2, 10, 5000, 0, 0, 0, 0, 0]; // 2 BTC, 10 ETH, 5000 USDC
+
 #[test]
-fn test_total_usd_uses_the_public_price_table() {
-    let usernames: [Field; 8] = [
-        30781005513205101228431847987, // "customer-123"
-        30781005513205101228432045366, // "customer-456"
-        30781005513205101228432242745, // "customer-789"
-        0, 0, 0, 0, 0, // padding
-    ];
-    let salts: [Field; 8] = [
-        84731920475619283746152039485761029384,
-        19283746501928374650192837465019283746,
-        55018273645019283746501928374650192837,
-        0, 0, 0, 0, 0,
-    ];
-    let asset_ids: [u32; 8] = [0, 1, 2, 0, 0, 0, 0, 0];
-    let amounts: [u64; 8] = [2, 10, 5000, 0, 0, 0, 0, 0];
-    let prices: [u64; 3] = [60000, 3000, 1];
-
-    let (_root_hash, total_usd) = main(usernames, salts, asset_ids, amounts, prices);
-
-    assert(total_usd == 155000); // 2*60000 + 10*3000 + 5000*1
+fn test_accepts_floors_that_cover_every_asset() {
+    let _ = main(TEST_USERNAMES, TEST_SALTS, TEST_ASSETS, TEST_AMOUNTS, [2, 10, 5000], 7);
 }
 
-#[test]
-fn test_root_is_bound_to_the_price_table() {
-    let usernames: [Field; 8] = [1, 2, 3, 0, 0, 0, 0, 0];
-    let salts: [Field; 8] = [4, 5, 6, 0, 0, 0, 0, 0];
-    let asset_ids: [u32; 8] = [0, 1, 2, 0, 0, 0, 0, 0];
-    let amounts: [u64; 8] = [2, 10, 5000, 0, 0, 0, 0, 0];
-
-    let (root_a, total_a) = main(usernames, salts, asset_ids, amounts, [60000, 3000, 1]);
-    let (root_b, total_b) = main(usernames, salts, asset_ids, amounts, [30000, 3000, 1]);
-
-    assert(total_a == 155000);
-    assert(total_b == 95000);
-    assert(root_a != root_b); // sums are hashed into every node, so the root commits to the prices too
+// 3 BTC + 2 ETH + 1000 USDC is worth more than the liabilities in USD at any sane
+// price, but ETH and USDC are short. The USD-aggregate check used to accept this.
+#[test(should_fail)]
+fn test_rejects_a_shortfall_in_one_asset_hidden_by_a_surplus_in_another() {
+    let _ = main(TEST_USERNAMES, TEST_SALTS, TEST_ASSETS, TEST_AMOUNTS, [3, 2, 1000], 7);
 }
 
 #[test(should_fail)]
-fn test_asset_id_outside_the_price_table_is_rejected() {
+fn test_rejects_an_asset_outside_the_registry() {
     let asset_ids: [u32; 8] = [3, 0, 0, 0, 0, 0, 0, 0];
     let amounts: [u64; 8] = [1, 0, 0, 0, 0, 0, 0, 0];
+    let _ = main([0; 8], [0; 8], asset_ids, amounts, [10, 10, 10], 7);
+}
 
-    let _ = main([0; 8], [0; 8], asset_ids, amounts, [60000, 3000, 1]);
+#[test]
+fn test_root_is_bound_to_the_context() {
+    let root_a = main(TEST_USERNAMES, TEST_SALTS, TEST_ASSETS, TEST_AMOUNTS, [2, 10, 5000], 7);
+    let root_b = main(TEST_USERNAMES, TEST_SALTS, TEST_ASSETS, TEST_AMOUNTS, [2, 10, 5000], 8);
+    assert(root_a != root_b);
+}
+
+#[test]
+fn test_root_does_not_depend_on_the_floors() {
+    // Customers check inclusion against the root without knowing the floors.
+    let root_a = main(TEST_USERNAMES, TEST_SALTS, TEST_ASSETS, TEST_AMOUNTS, [2, 10, 5000], 7);
+    let root_b = main(TEST_USERNAMES, TEST_SALTS, TEST_ASSETS, TEST_AMOUNTS, [9, 99, 9999], 7);
+    assert(root_a == root_b);
 }

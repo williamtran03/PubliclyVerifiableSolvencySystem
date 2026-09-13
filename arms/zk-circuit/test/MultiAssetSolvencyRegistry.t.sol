@@ -7,7 +7,12 @@ import {ReserveRegistry} from "../../../shared/contracts/ReserveRegistry.sol";
 import {HonkVerifier} from "../contracts/MultiAssetHonkVerifier.sol";
 import {MockAggregator, MockToken} from "../contracts/mocks/DemoMocks.sol";
 
+// Reserve mechanics are tested in shared/test/ReserveRegistry.t.sol; this covers the arm.
 contract MultiAssetSolvencyRegistryTest is Test {
+    // The committed proof binds chain id, registry address and epoch 0, so the registry
+    // is placed where arms/zk-circuit/script/Demo.s.sol deploys it on a fresh anvil.
+    address constant FIXTURE_REGISTRY = 0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6;
+
     MultiAssetSolvencyRegistry registry;
     HonkVerifier verifier;
     MultiAssetSolvencyRegistry.Asset[] assets;
@@ -23,9 +28,11 @@ contract MultiAssetSolvencyRegistryTest is Test {
     uint256 reserveKey;
     bytes proof;
     uint256 rootHash;
-    uint256 liabilitiesUsd;
+    uint256 context;
+    uint64[3] floors;
 
     function setUp() public {
+        vm.chainId(31337);
         vm.warp(1_700_000_000);
         (reserve, reserveKey) = makeAddrAndKey("reserve");
 
@@ -35,23 +42,41 @@ contract MultiAssetSolvencyRegistryTest is Test {
         ethFeed = new MockAggregator(8, 3_000e8);
         usdcFeed = new MockAggregator(8, 1e8);
 
-        assets.push(MultiAssetSolvencyRegistry.Asset(address(btc), address(btcFeed), 8));
-        assets.push(MultiAssetSolvencyRegistry.Asset(address(0), address(ethFeed), 18));
-        assets.push(MultiAssetSolvencyRegistry.Asset(address(usdc), address(usdcFeed), 6));
+        assets.push(MultiAssetSolvencyRegistry.Asset(address(btc), address(btcFeed), 8, 1 hours));
+        assets.push(MultiAssetSolvencyRegistry.Asset(address(0), address(ethFeed), 18, 1 hours));
+        assets.push(MultiAssetSolvencyRegistry.Asset(address(usdc), address(usdcFeed), 6, 1 days));
 
         verifier = new HonkVerifier();
-        registry = new MultiAssetSolvencyRegistry(company, auditor, assets, address(verifier), 1 hours);
+        deployCodeTo(
+            "MultiAssetSolvencyRegistry.sol:MultiAssetSolvencyRegistry",
+            abi.encode(company, auditor, assets, address(verifier)),
+            FIXTURE_REGISTRY
+        );
+        registry = MultiAssetSolvencyRegistry(FIXTURE_REGISTRY);
 
-        // 3 BTC + 2 ETH + 1000 USDC = 180000 + 6000 + 1000 = 187000 USD
+        // Liabilities are 2 BTC, 10 ETH, 5000 USDC; every asset is covered on its own.
         btc.mint(reserve, 3e8);
-        vm.deal(reserve, 2 ether);
-        usdc.mint(reserve, 1000e6);
-        approveReserve(reserve, reserveKey);
+        vm.deal(reserve, 12 ether);
+        usdc.mint(reserve, 6000e6);
+        approveReserve(registry, reserve, reserveKey);
 
         string memory json = vm.readFile("arms/zk-circuit/fixtures/epoch.json");
         rootHash = vm.parseJsonUint(json, ".rootHash");
-        liabilitiesUsd = vm.parseJsonUint(json, ".totalLiabilitiesUsd");
+        context = vm.parseJsonUint(json, ".context");
+        uint256[] memory parsed = vm.parseJsonUintArray(json, ".floors");
+        for (uint256 i = 0; i < 3; i++) {
+            floors[i] = uint64(parsed[i]);
+        }
         proof = vm.readFileBinary("arms/zk-circuit/fixtures/proof.bin");
+    }
+
+    function approveReserve(MultiAssetSolvencyRegistry target, address wallet, uint256 key) internal {
+        vm.prank(company);
+        target.proposeReserve(wallet);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, target.reserveDigest(wallet, block.timestamp));
+        target.proveReserve(wallet, block.timestamp, abi.encodePacked(r, s, v));
+        vm.prank(auditor);
+        target.reviewReserve(wallet, true);
     }
 
     // Read straight off the mocks so the negative tests do not go through the
@@ -62,92 +87,89 @@ contract MultiAssetSolvencyRegistryTest is Test {
         roundIds[2] = usdcFeed.latestRound();
     }
 
-    function sign(address wallet, uint256 key, uint256 expiry) internal view returns (bytes memory) {
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, registry.reserveDigest(wallet, expiry));
-        return abi.encodePacked(r, s, v);
-    }
-
-    function approveReserve(address wallet, uint256 key) internal {
-        vm.prank(company);
-        registry.proposeReserve(wallet);
-        registry.proveReserve(wallet, block.timestamp + 1 hours, sign(wallet, key, block.timestamp + 1 hours));
-        vm.prank(auditor);
-        registry.reviewReserve(wallet, true);
-    }
-
     function submit(uint80[3] memory roundIds) internal {
         vm.prank(company);
-        registry.submitEpoch(proof, rootHash, liabilitiesUsd, roundIds);
+        registry.submitEpoch(proof, rootHash, floors, roundIds);
     }
 
-    // ---- roles (reserve mechanics are tested in shared/test/ReserveRegistry.t.sol) ----
+    // ---- epochs -------------------------------------------------------------
+
+    function test_FixtureWasProvedForThisRegistry() public view {
+        assertEq(registry.epochContext(0), context);
+    }
+
+    function test_SubmitEpoch() public {
+        submit(latestRounds());
+
+        MultiAssetSolvencyRegistry.Epoch memory epoch = registry.latestEpoch();
+        assertEq(epoch.rootHash, rootHash);
+        assertEq(epoch.context, context);
+        assertEq(epoch.floors[1], 12);
+        assertEq(epoch.reserveUnits[0], 3);
+        assertEq(epoch.reserveUnits[1], 12);
+        assertEq(epoch.reserveUnits[2], 6000);
+        assertEq(epoch.prices[0], 60_000e8);
+        assertEq(epoch.roundIds[0], 1);
+        // 3 * 60000 + 12 * 3000 + 6000 * 1, with 8 decimals
+        assertEq(epoch.assetsUsd, 222_000e8);
+        assertEq(epoch.timestamp, block.timestamp);
+        assertEq(registry.epochCount(), 1);
+        assertEq(registry.getEpoch(0).rootHash, rootHash);
+    }
+
+    function test_NoEpochBeforeTheFirstSubmission() public {
+        vm.expectRevert(MultiAssetSolvencyRegistry.NoEpoch.selector);
+        registry.latestEpoch();
+        vm.expectRevert(MultiAssetSolvencyRegistry.NoEpoch.selector);
+        registry.getEpoch(0);
+    }
 
     function test_OnlyTheCompanySubmitsEpochs() public {
         uint80[3] memory roundIds = latestRounds();
         vm.prank(auditor);
         vm.expectRevert(ReserveRegistry.NotCompany.selector);
-        registry.submitEpoch(proof, rootHash, liabilitiesUsd, roundIds);
+        registry.submitEpoch(proof, rootHash, floors, roundIds);
     }
 
-    // ---- valuation ----------------------------------------------------------
-
-    function test_ReadsTheConversionTableFromTheOracles() public view {
-        (uint256[3] memory prices,) = registry.readPrices();
-        assertEq(prices[0], 60_000);
-        assertEq(prices[1], 3_000);
-        assertEq(prices[2], 1);
-    }
-
-    function test_ValuesReservesAcrossAllThreeAssets() public view {
-        (uint256[3] memory prices,) = registry.readPrices();
-        assertEq(registry.totalAssetsUsd(prices), 187_000);
-    }
-
-    function test_UnapprovedReservesAreNotCounted() public {
-        (address wallet, uint256 key) = makeAddrAndKey("other");
-        btc.mint(wallet, 10e8);
-        vm.prank(company);
-        registry.proposeReserve(wallet);
-        registry.proveReserve(wallet, block.timestamp, sign(wallet, key, block.timestamp));
-
-        (uint256[3] memory prices,) = registry.readPrices();
-        assertEq(registry.totalAssetsUsd(prices), 187_000);
-    }
-
-    // ---- epochs -------------------------------------------------------------
-
-    function test_SubmitEpoch() public {
+    function test_ProofCannotBeReplayedForTheNextEpoch() public {
         submit(latestRounds());
 
-        (uint256 storedRoot, uint256 storedLiabilities, uint256 storedAssets, uint64 timestamp) =
-            registry.currentEpoch();
-
-        assertEq(storedRoot, rootHash);
-        assertEq(storedLiabilities, 155_000);
-        assertEq(storedAssets, 187_000);
-        assertEq(timestamp, block.timestamp);
-        assertEq(registry.epochCount(), 1);
-        assertEq(registry.epochPrices(0), 60_000);
-        assertEq(registry.epochRoundIds(0), 1);
-    }
-
-    function test_RevertsWhenTheOraclePriceDiffersFromTheProvenTable() public {
-        btcFeed.set(59_000e8, block.timestamp);
         uint80[3] memory roundIds = latestRounds();
         vm.prank(company);
-        vm.expectRevert(); // the verifier rejects the wrong price table with its own error
-        registry.submitEpoch(proof, rootHash, liabilitiesUsd, roundIds);
+        vm.expectRevert(); // epoch 1 has a different context, so the verifier rejects the proof
+        registry.submitEpoch(proof, rootHash, floors, roundIds);
     }
 
-    function test_RevertsIfInsolvent() public {
-        btc.burn(reserve);
-        vm.deal(reserve, 0);
-        usdc.burn(reserve);
+    function test_ProofIsBoundToTheRegistryItWasBuiltFor() public {
+        MultiAssetSolvencyRegistry other = new MultiAssetSolvencyRegistry(company, auditor, assets, address(verifier));
+        approveReserve(other, reserve, reserveKey);
 
         uint80[3] memory roundIds = latestRounds();
         vm.prank(company);
-        vm.expectRevert(abi.encodeWithSelector(MultiAssetSolvencyRegistry.Insolvent.selector, 0, 155_000));
-        registry.submitEpoch(proof, rootHash, liabilitiesUsd, roundIds);
+        vm.expectRevert();
+        other.submitEpoch(proof, rootHash, floors, roundIds);
+    }
+
+    function test_RejectsFloorsTheProofWasNotBuiltFor() public {
+        uint64[3] memory lower = floors;
+        lower[2] = 5999;
+        uint80[3] memory roundIds = latestRounds();
+        vm.prank(company);
+        vm.expectRevert();
+        registry.submitEpoch(proof, rootHash, lower, roundIds);
+    }
+
+    // ---- per-asset solvency -------------------------------------------------
+
+    function test_RejectsAShortfallInOneAssetEvenWhenUsdCoversIt() public {
+        // 3 BTC + 2 ETH + 6000 USDC is $192,000 against $155,000 of liabilities, which the
+        // old USD-aggregate check accepted. Customers are owed 10 ETH and there are 2.
+        vm.deal(reserve, 2 ether);
+
+        uint80[3] memory roundIds = latestRounds();
+        vm.prank(company);
+        vm.expectRevert(abi.encodeWithSelector(MultiAssetSolvencyRegistry.Insolvent.selector, 1, 2, 12));
+        registry.submitEpoch(proof, rootHash, floors, roundIds);
     }
 
     function test_RevertsIfTheOnlyReserveIsRemoved() public {
@@ -156,16 +178,70 @@ contract MultiAssetSolvencyRegistryTest is Test {
 
         uint80[3] memory roundIds = latestRounds();
         vm.prank(company);
-        vm.expectRevert(abi.encodeWithSelector(MultiAssetSolvencyRegistry.Insolvent.selector, 0, 155_000));
-        registry.submitEpoch(proof, rootHash, liabilitiesUsd, roundIds);
+        vm.expectRevert(abi.encodeWithSelector(MultiAssetSolvencyRegistry.Insolvent.selector, 0, 0, 3));
+        registry.submitEpoch(proof, rootHash, floors, roundIds);
     }
 
-    function test_RevertsOnStalePrice() public {
-        ethFeed.set(3_000e8, block.timestamp - 2 hours);
-        uint80[3] memory roundIds = latestRounds();
+    function test_UnapprovedReservesAreNotCounted() public {
+        (address wallet, uint256 key) = makeAddrAndKey("other");
+        btc.mint(wallet, 10e8);
         vm.prank(company);
+        registry.proposeReserve(wallet);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, registry.reserveDigest(wallet, block.timestamp));
+        registry.proveReserve(wallet, block.timestamp, abi.encodePacked(r, s, v));
+
+        assertEq(registry.reserveUnits()[0], 3);
+    }
+
+    function test_ADepositToAReserveDoesNotInvalidateTheProof() public {
+        // The public input is the floor, not the live balance, so dust cannot grief a submission.
+        vm.deal(reserve, 12 ether + 1);
+        btc.mint(reserve, 1);
+        submit(latestRounds());
+        assertEq(registry.epochCount(), 1);
+    }
+
+    // ---- oracle -------------------------------------------------------------
+
+    function test_KeepsSubDollarPrices() public {
+        usdcFeed.set(99_986_506, block.timestamp); // live Sepolia USDC/USD, $0.99986506
+        (uint256[3] memory prices,) = registry.readPrices();
+        assertEq(prices[2], 99_986_506);
+
+        submit(latestRounds());
+        assertEq(registry.latestEpoch().assetsUsd, 216_000e8 + 6000 * 99_986_506);
+    }
+
+    function test_NormalisesFeedDecimals() public {
+        MultiAssetSolvencyRegistry.Asset[] memory wide = assets;
+        wide[1].feed = address(new MockAggregator(18, 3_000e18));
+        MultiAssetSolvencyRegistry other = new MultiAssetSolvencyRegistry(company, auditor, wide, address(verifier));
+
+        (uint256[3] memory prices,) = other.readPrices();
+        assertEq(prices[1], 3_000e8);
+    }
+
+    function test_StalenessIsJudgedPerFeed() public {
+        vm.warp(block.timestamp + 2 hours);
+        btcFeed.set(60_000e8, block.timestamp);
+        ethFeed.set(3_000e8, block.timestamp);
+        registry.readPrices(); // USDC is 2 hours old, inside its 1 day bound
+
+        vm.warp(block.timestamp + 23 hours);
+        btcFeed.set(60_000e8, block.timestamp);
+        ethFeed.set(3_000e8, block.timestamp);
         vm.expectRevert(MultiAssetSolvencyRegistry.StalePrice.selector);
-        registry.submitEpoch(proof, rootHash, liabilitiesUsd, roundIds);
+        registry.readPrices();
+    }
+
+    function test_PinnedRoundsSurviveAFeedUpdate() public {
+        uint80[3] memory pinned = latestRounds();
+        btcFeed.set(59_000e8, block.timestamp); // lands between fetching and submitting
+
+        submit(pinned);
+        MultiAssetSolvencyRegistry.Epoch memory epoch = registry.latestEpoch();
+        assertEq(epoch.roundIds[0], 1);
+        assertEq(epoch.prices[0], 60_000e8);
     }
 
     function test_RevertsOnNonPositivePrice() public {
@@ -173,7 +249,7 @@ contract MultiAssetSolvencyRegistryTest is Test {
         uint80[3] memory roundIds = latestRounds();
         vm.prank(company);
         vm.expectRevert(MultiAssetSolvencyRegistry.BadPrice.selector);
-        registry.submitEpoch(proof, rootHash, liabilitiesUsd, roundIds);
+        registry.submitEpoch(proof, rootHash, floors, roundIds);
     }
 
     function test_RevertsWhenPinningARoundThatHasGoneStale() public {
@@ -181,6 +257,6 @@ contract MultiAssetSolvencyRegistryTest is Test {
         vm.warp(block.timestamp + 2 hours);
         vm.prank(company);
         vm.expectRevert(MultiAssetSolvencyRegistry.StalePrice.selector);
-        registry.submitEpoch(proof, rootHash, liabilitiesUsd, stale);
+        registry.submitEpoch(proof, rootHash, floors, stale);
     }
 }

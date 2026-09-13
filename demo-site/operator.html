@@ -39,7 +39,7 @@
         <h1>Operations console</h1>
         <p>
           Internal view. The customer ledger on this page is private data; what reaches the chain is
-          a single commitment and a total. This page exists to show that the two agree.
+          a single commitment and one reserve floor per asset. This page exists to show that the two agree.
         </p>
       </div>
 
@@ -48,23 +48,25 @@
       <section class="card">
         <h2>Reconciliation</h2>
         <dl class="kv">
-          <dt>Ledger total</dt>
-          <dd id="ledgerTotal">—</dd>
-          <dt>Published liabilities</dt>
-          <dd id="publishedTotal">—</dd>
           <dt>Ledger commitment</dt>
           <dd class="mono" id="ledgerRoot">—</dd>
           <dt>Published commitment</dt>
           <dd class="mono" id="publishedRoot">—</dd>
         </dl>
         <div id="reconcile" class="result" hidden></div>
+        <table>
+          <thead>
+            <tr><th>Asset</th><th>Owed (private)</th><th>Floor</th><th>Reserves</th></tr>
+          </thead>
+          <tbody id="assetRows"></tbody>
+        </table>
       </section>
 
       <section class="card">
         <h2>Customer ledger <span class="muted" id="ledgerCount"></span></h2>
         <table>
           <thead>
-            <tr><th>Account</th><th>Asset</th><th>Amount</th><th>Value</th></tr>
+            <tr><th>Account</th><th>Asset</th><th>Amount</th></tr>
           </thead>
           <tbody id="ledgerRows"></tbody>
         </table>
@@ -72,41 +74,23 @@
       </section>
 
       <section class="card">
-        <h2>Reserves</h2>
-        <dl class="kv">
-          <dt>Valued reserves</dt>
-          <dd id="assets">—</dd>
-          <dt>Liabilities</dt>
-          <dd id="liabilities">—</dd>
-          <dt>Surplus</dt>
-          <dd id="surplus">—</dd>
-        </dl>
-        <table>
-          <thead>
-            <tr><th>Asset</th><th>Price</th><th>Pinned round</th></tr>
-          </thead>
-          <tbody id="priceRows"></tbody>
-        </table>
-      </section>
-
-      <section class="card">
         <h2>Publishing an epoch</h2>
         <ol class="steps">
           <li>
-            <code>make multiasset-prices REGISTRY=0x…</code>
-            <span>Pull the conversion table and oracle round ids from the registry.</span>
+            <code>make zk-snapshot REGISTRY=0x…</code>
+            <span>Read the epoch context, approved reserves, prices and oracle round ids from the registry.</span>
           </li>
           <li>
-            <code>make multiasset-fixtures</code>
-            <span>Build the witness and each customer's inclusion proof from the ledger.</span>
+            <code>make zk-fixtures</code>
+            <span>Build the witness and each customer's inclusion proof, with the reserves as floors.</span>
           </li>
           <li>
-            <code>make multiasset-prove</code>
+            <code>make zk-prove</code>
             <span>Generate and locally verify the zero-knowledge proof.</span>
           </li>
           <li>
-            <code>make multiasset-demo</code>
-            <span>Submit on-chain. The contract re-reads the pinned rounds, verifies the proof against them, values the reserves and rejects the epoch unless they cover the liabilities.</span>
+            <code>make zk-demo</code>
+            <span>Submit on-chain. The contract checks reserves cover every floor, verifies the proof for this epoch, and records the USD value at the pinned rounds.</span>
           </li>
         </ol>
       </section>

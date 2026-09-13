@@ -3,7 +3,7 @@
 # shared/customers.csv, the common input every arm is measured on.
 #
 #   arms/published-ledger  publish the whole ledger, contract recomputes the root
-#   arms/zk-circuit        Noir/UltraHonk proof, multi-asset, prices as public inputs
+#   arms/zk-circuit        Noir/UltraHonk proof, per-asset solvency against public reserve floors
 #   arms/snarkless         KZG polynomial commitments, no circuit
 #   arms/single-asset      superseded by zk-circuit, kept for the gas comparison
 #
@@ -11,7 +11,7 @@
 
 .PHONY: build test integration check compare \
         ledger-demo \
-        zk-fixtures zk-check zk-prove zk-verifier zk-prices zk-circuit-test zk-demo demo-site \
+        zk-fixtures zk-check zk-prove zk-verifier zk-snapshot zk-circuit-test zk-demo demo-site \
         kzg-setup kzg-epoch \
         single-fixtures single-check single-proof single-prove single-verifier single-demo single-site
 
@@ -42,15 +42,16 @@ ledger-demo:
 	npx tsx arms/published-ledger/script/demo.ts
 
 # ---- arm: zk-circuit (multi-asset) --------------------------------------
-# publicInputs = [price0, price1, price2, rootHash, totalLiabilitiesUsd]
+# publicInputs = [floor0, floor1, floor2, context, rootHash]
 zk-circuit-test:
 	cd arms/zk-circuit/circuit && nargo test
 
-# refresh prices.json from a deployed registry: make zk-prices REGISTRY=0x...
-zk-prices:
-	npx tsx arms/zk-circuit/prover/fetchPrices.ts $(REGISTRY)
+# refresh snapshot.json (context, reserves, prices, rounds) from a deployed registry:
+# make zk-snapshot REGISTRY=0x...
+zk-snapshot:
+	npx tsx arms/zk-circuit/prover/fetchSnapshot.ts $(REGISTRY)
 
-# writes arms/zk-circuit/circuit/Prover.toml from customers.csv + prices.json
+# writes arms/zk-circuit/circuit/Prover.toml from customers.csv + snapshot.json
 zk-fixtures:
 	npx tsx arms/zk-circuit/prover/buildMultiAssetTree.ts
 

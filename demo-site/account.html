@@ -53,6 +53,11 @@
             check runs against what <em>you</em> enter, not what we claim.
           </p>
           <div id="holdings" class="holdings"></div>
+          <label>Account secret <input id="secret" inputmode="numeric" autocomplete="off" /></label>
+          <p class="note">
+            Given to you at signup and kept by you, not us. Demo secrets are the salt column of
+            <code>arms/zk-circuit/prover/customers.csv</code>.
+          </p>
           <button id="verifyBtn">Verify inclusion</button>
           <div id="verifyResult" class="result" hidden></div>
         </section>
@@ -62,10 +67,8 @@
           <dl class="kv">
             <dt>Published commitment</dt>
             <dd class="mono" id="rootHash"></dd>
-            <dt>Total liabilities</dt>
-            <dd id="liabilities"></dd>
-            <dt>Reserves</dt>
-            <dd id="assets"></dd>
+            <dt>Epoch</dt>
+            <dd id="epochId"></dd>
             <dt>Published</dt>
             <dd id="timestamp"></dd>
           </dl>

@@ -1,14 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   createPublicClient,
   createWalletClient,
   http,
   parseEther,
+  toHex,
   type Abi,
   type Account,
   type Address,
@@ -16,18 +19,14 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
-import { fetchPriceTable } from "../prover/fetchPrices.ts";
-import {
-  buildTree,
-  createProof,
-  parseHoldingsCsv,
-  verifyBundle,
-  type CustomerBundle,
-} from "../prover/multiAssetTree.ts";
+import { fetchSnapshot, type Snapshot } from "../prover/fetchSnapshot.ts";
+import { prepareEpoch } from "../prover/buildMultiAssetTree.ts";
+import { createBundle, epochContext, parseHoldingsCsv, verifyBundle, type Customer } from "../prover/multiAssetTree.ts";
 
 // Standard anvil dev accounts 0 and 1.
 const company = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 const auditor = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d");
+const CIRCUIT = "arms/zk-circuit/circuit";
 
 type LinkReferences = Record<string, Record<string, { start: number; length: number }[]>>;
 
@@ -63,12 +62,38 @@ async function freePort(): Promise<number> {
   return port;
 }
 
-test("Anvil: signed reserve, auditor approval, prover price fetch, on-chain epoch, customer verification", async () => {
+// Runs the real prover for this registry and epoch: nargo builds the witness, bb proves.
+// A fresh random seed each time, as a real exchange would use.
+function prove(proverToml: string, workDir: string): Hex {
+  const name = `e2e-${process.pid}-${Date.now()}`;
+  const toml = join(CIRCUIT, `${name}.toml`);
+  writeFileSync(toml, proverToml);
+  try {
+    execFileSync("nargo", ["execute", "--prover-name", name, name], { cwd: CIRCUIT, stdio: "ignore" });
+    const bb = (args: string[]) => execFileSync("bb", args, { cwd: CIRCUIT, stdio: "ignore" });
+    const vk = join(workDir, "vk");
+    if (!existsSync(join(vk, "vk"))) {
+      bb(["write_vk", "-s", "ultra_honk", "-b", "target/circuit_multiasset.json", "-o", vk, "--oracle_hash", "keccak"]);
+    }
+    const out = join(workDir, name);
+    bb([
+      "prove", "-s", "ultra_honk", "-b", "target/circuit_multiasset.json", "-w", `target/${name}.gz`,
+      "-o", out, "-k", join(vk, "vk"), "--oracle_hash", "keccak",
+    ]);
+    return toHex(readFileSync(join(out, "proof")));
+  } finally {
+    rmSync(toml, { force: true });
+    rmSync(join(CIRCUIT, "target", `${name}.gz`), { force: true });
+  }
+}
+
+test("Anvil: signed reserve, auditor approval, real proof per epoch, customer verification", async () => {
   const port = await freePort();
   const rpc = `http://127.0.0.1:${port}`;
   const anvil = spawn("anvil", ["--host", "127.0.0.1", "--port", String(port), "--silent"], { stdio: "ignore" });
   let spawnError: Error | undefined;
   anvil.on("error", (error) => (spawnError = error));
+  const workDir = mkdtempSync(join(tmpdir(), "zk-e2e-"));
 
   try {
     const publicClient = createPublicClient({ chain: foundry, transport: http(rpc) });
@@ -108,34 +133,32 @@ test("Anvil: signed reserve, auditor approval, prover price fetch, on-chain epoc
     const feeds = [
       await deploy("DemoMocks.sol", "MockAggregator", [8, 60_000n * 10n ** 8n]),
       await deploy("DemoMocks.sol", "MockAggregator", [8, 3_000n * 10n ** 8n]),
-      await deploy("DemoMocks.sol", "MockAggregator", [8, 10n ** 8n]),
+      await deploy("DemoMocks.sol", "MockAggregator", [8, 99_986_506n]), // USDC at $0.99986506
     ];
     const verifier = await deploy("MultiAssetHonkVerifier.sol", "HonkVerifier", [], {
       RelationsLib: await deploy("MultiAssetHonkVerifier.sol", "RelationsLib"),
       ZKTranscriptLib: await deploy("MultiAssetHonkVerifier.sol", "ZKTranscriptLib"),
     });
     const assets = [
-      { token: btc, feed: feeds[0], decimals: 8 },
-      { token: "0x0000000000000000000000000000000000000000", feed: feeds[1], decimals: 18 },
-      { token: usdc, feed: feeds[2], decimals: 6 },
+      { token: btc, feed: feeds[0], decimals: 8, maxPriceAge: 3600 },
+      { token: "0x0000000000000000000000000000000000000000", feed: feeds[1], decimals: 18, maxPriceAge: 3600 },
+      { token: usdc, feed: feeds[2], decimals: 6, maxPriceAge: 86400 },
     ];
     const registry = await deploy("MultiAssetSolvencyRegistry.sol", "MultiAssetSolvencyRegistry", [
       company.address,
       auditor.address,
       assets,
       verifier,
-      3600n,
     ]);
-
     const read = (functionName: string, args: unknown[] = []) =>
       publicClient.readContract({ address: registry, abi: registryAbi, functionName, args }) as Promise<any>;
 
-    // ---- reserve: a cold wallet with no gas, funded 3 BTC + 2 ETH + 1000 USDC = $187,000
+    // ---- reserve: a cold wallet with no gas, covering each asset on its own
     const reserve = privateKeyToAccount(generatePrivateKey());
     await send(company, btc, tokenAbi, "mint", [reserve.address, 3n * 10n ** 8n]);
-    await send(company, usdc, tokenAbi, "mint", [reserve.address, 1000n * 10n ** 6n]);
+    await send(company, usdc, tokenAbi, "mint", [reserve.address, 6000n * 10n ** 6n]);
     await publicClient.waitForTransactionReceipt({
-      hash: await wallet(company).sendTransaction({ to: reserve.address, value: parseEther("2") }),
+      hash: await wallet(company).sendTransaction({ to: reserve.address, value: parseEther("12") }),
     });
 
     await send(company, registry, registryAbi, "proposeReserve", [reserve.address]);
@@ -157,73 +180,78 @@ test("Anvil: signed reserve, auditor approval, prover price fetch, on-chain epoc
       message: { wallet: reserve.address, nonce: 0n, expiry },
     } as const;
 
-    const impostor = privateKeyToAccount(generatePrivateKey());
-    const forged = await impostor.signTypedData(typedData);
+    const forged = await privateKeyToAccount(generatePrivateKey()).signTypedData(typedData);
     await assert.rejects(
       send(company, registry, registryAbi, "proveReserve", [reserve.address, expiry, forged]),
       /InvalidSignature/,
     );
-    await send(company, registry, registryAbi, "proveReserve", [
-      reserve.address,
-      expiry,
-      await reserve.signTypedData(typedData),
-    ]);
+    const signature = await reserve.signTypedData(typedData);
+    await send(company, registry, registryAbi, "proveReserve", [reserve.address, expiry, signature]);
 
-    // ---- prover reads the table through the registry ----------------------
-    const { pricesUsd, roundIds } = await fetchPriceTable(rpc, registry);
-    assert.deepEqual(pricesUsd, [60_000n, 3_000n, 1n]);
-    assert.equal(await read("totalAssetsUsd", [pricesUsd]), 0n, "proven but unapproved reserves do not count");
-
+    assert.deepEqual(await read("reserveUnits"), [0n, 0n, 0n], "proven but unapproved reserves do not count");
     await assert.rejects(send(company, registry, registryAbi, "reviewReserve", [reserve.address, true]), /NotAuditor/);
     await send(auditor, registry, registryAbi, "reviewReserve", [reserve.address, true]);
-    assert.equal(await read("totalAssetsUsd", [pricesUsd]), 187_000n);
 
-    // ---- prover builds the tree; it must reproduce what the committed proof attests
+    // ---- epoch 0: snapshot through the registry, prove, submit with pinned rounds
     const holdings = parseHoldingsCsv(readFileSync("arms/zk-circuit/prover/customers.csv", "utf8"));
-    const { levels, root, holdings: padded } = buildTree(holdings, [...pricesUsd]);
-    const fixture = JSON.parse(readFileSync("arms/zk-circuit/fixtures/epoch.json", "utf8"));
-    assert.equal(root.hash, BigInt(fixture.rootHash), "customers.csv no longer matches fixtures/proof.bin");
-    assert.equal(root.sum, BigInt(fixture.totalLiabilitiesUsd));
+    const seed = () => toHex(crypto.getRandomValues(new Uint8Array(32)));
 
-    const proof = `0x${readFileSync("arms/zk-circuit/fixtures/proof.bin").toString("hex")}` as Hex;
-    await assert.rejects(
-      send(auditor, registry, registryAbi, "submitEpoch", [proof, root.hash, root.sum, roundIds]),
-      /NotCompany/,
-    );
-    await send(company, registry, registryAbi, "submitEpoch", [proof, root.hash, root.sum, roundIds]);
+    const snapshot: Snapshot = await fetchSnapshot(rpc, registry);
+    assert.deepEqual(snapshot.reserveUnits, [3n, 12n, 6000n]);
+    assert.equal(snapshot.pricesUsd[2], 99_986_506n, "sub-dollar prices keep their decimals");
+    assert.equal(snapshot.context, epochContext(31337n, registry, 0n), "TS and Solidity agree on the context");
 
-    const [epochRoot, epochLiabilities, epochAssets] = await read("currentEpoch");
-    assert.equal(epochRoot, root.hash);
-    assert.equal(epochLiabilities, 155_000n);
-    assert.equal(epochAssets, 187_000n);
-    for (let i = 0; i < 3; i++) assert.equal(await read("epochRoundIds", [BigInt(i)]), roundIds[i]);
+    const epoch0 = prepareEpoch(holdings, snapshot, seed());
+    const proof0 = prove(epoch0.proverToml, workDir);
+    const submit = (account: Account, proof: Hex, epoch: typeof epoch0, roundIds = snapshot.roundIds) =>
+      send(account, registry, registryAbi, "submitEpoch", [proof, epoch.rootHash, epoch.floors, roundIds]);
 
-    // ---- every customer verifies against the on-chain epoch, a tampered bundle does not
-    const usernames = [...new Set(holdings.map((h) => h.username))];
-    for (const username of usernames) {
-      const bundle: CustomerBundle = {
+    await assert.rejects(submit(auditor, proof0, epoch0), /NotCompany/);
+    await submit(company, proof0, epoch0);
+
+    const onChain = await read("getEpoch", [0n]);
+    assert.equal(onChain.rootHash, epoch0.rootHash);
+    assert.deepEqual(onChain.reserveUnits, [3n, 12n, 6000n]);
+    assert.deepEqual(onChain.roundIds, snapshot.roundIds);
+    // 3 * 60000 + 12 * 3000 + 6000 * 0.99986506, with 8 decimals
+    assert.equal(onChain.assetsUsd, 216_000n * 10n ** 8n + 6000n * 99_986_506n);
+
+    // ---- every customer verifies against the chain, with their own salt ---
+    for (const username of new Set(holdings.map((h) => h.username))) {
+      const own = holdings.filter((h) => h.username === username);
+      const customer: Customer = {
         username,
-        prices: pricesUsd.map(String),
-        parts: padded.flatMap((h, index) => (h.username === username ? [createProof(index, padded, levels)] : [])),
+        salt: own[0].salt,
+        expectedAmounts: new Map(own.map((h) => [h.assetId, h.amount])),
       };
-      const expected = new Map<number, bigint>();
-      for (const h of holdings.filter((h) => h.username === username)) {
-        expected.set(h.assetId, (expected.get(h.assetId) ?? 0n) + h.amount);
-      }
-      assert.ok(verifyBundle(bundle, expected, epochRoot, epochLiabilities), username);
+      const bundle = createBundle(username, epoch0.padded, epoch0.levels);
+      assert.ok(verifyBundle(bundle, customer, onChain.rootHash, onChain.context), username);
 
       const tampered = structuredClone(bundle);
       tampered.parts[0].holding.amount += 1n;
-      assert.equal(verifyBundle(tampered, expected, epochRoot, epochLiabilities), false, `${username} tampered`);
+      assert.equal(verifyBundle(tampered, customer, onChain.rootHash, onChain.context), false, `${username} tampered`);
+      assert.equal(
+        verifyBundle(bundle, { ...customer, salt: customer.salt + 1n }, onChain.rootHash, onChain.context),
+        false,
+        `${username} with someone else's salt`,
+      );
     }
 
-    // ---- the auditor pulls the reserve; the same epoch no longer clears ---
+    // ---- epoch 1: the old proof is refused, a new one lands, epoch 0 is kept
+    await assert.rejects(submit(company, proof0, epoch0));
+    const snapshot1 = await fetchSnapshot(rpc, registry);
+    assert.equal(snapshot1.epochId, 1n);
+    const epoch1 = prepareEpoch(holdings, snapshot1, seed());
+    await submit(company, prove(epoch1.proverToml, workDir), epoch1, snapshot1.roundIds);
+    assert.equal(await read("epochCount"), 2n);
+    assert.equal((await read("getEpoch", [0n])).rootHash, epoch0.rootHash);
+    assert.equal((await read("latestEpoch")).rootHash, epoch1.rootHash);
+
+    // ---- the auditor pulls the reserve; nothing clears ---------------------
     await send(auditor, registry, registryAbi, "removeReserve", [reserve.address]);
-    await assert.rejects(
-      send(company, registry, registryAbi, "submitEpoch", [proof, root.hash, root.sum, roundIds]),
-      /Insolvent/,
-    );
+    await assert.rejects(submit(company, proof0, epoch1), /Insolvent/);
   } finally {
+    rmSync(workDir, { recursive: true, force: true });
     anvil.kill("SIGTERM");
     if (anvil.exitCode === null) await new Promise((resolve) => anvil.once("exit", resolve));
   }

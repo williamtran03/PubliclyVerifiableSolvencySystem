@@ -20,9 +20,9 @@
       <div class="page-head">
         <h1>Proof of Solvency</h1>
         <p>
-          Each epoch we publish a zero-knowledge proof that our customer liabilities were computed
-          honestly from real balances, and that our reserves cover them. Everything on this page is
-          read from the blockchain — no wallet, and nothing you have to take on trust from us.
+          Each epoch we publish a zero-knowledge proof that, for every asset separately, what we owe
+          customers is covered by reserves we have proven we control. Everything on this page is read
+          from the blockchain — no wallet, and nothing you have to take on trust from us.
         </p>
       </div>
 
@@ -41,29 +41,27 @@
             <span class="label">Reserves</span><span class="value" id="assetsUsd">—</span>
           </div>
           <div class="figure">
-            <span class="label">Liabilities</span><span class="value" id="liabilitiesUsd">—</span>
+            <span class="label">Assets covered</span><span class="value" id="covered">—</span>
           </div>
           <div class="figure">
-            <span class="label">Surplus</span><span class="value" id="surplusUsd">—</span>
-          </div>
-          <div class="figure">
-            <span class="label">Coverage</span><span class="value" id="coverage">—</span>
+            <span class="label">Epoch</span><span class="value" id="epochId">—</span>
           </div>
         </div>
       </section>
 
       <section class="card" id="tableCard" hidden>
-        <h2>Conversion table</h2>
+        <h2>Per asset</h2>
         <table>
           <thead>
-            <tr><th>Asset</th><th>Price</th><th>Oracle round</th></tr>
+            <tr><th>Asset</th><th>Reserves</th><th>Floor</th><th>Price</th><th>Oracle round</th></tr>
           </thead>
-          <tbody id="priceRows"></tbody>
+          <tbody id="assetRows"></tbody>
         </table>
         <p class="note">
-          The contract pinned these oracle rounds, valued the reserves at them, and verified the
-          proof against them. A proof built on any other table is rejected. Anyone can refetch these
-          rounds and recompute the totals independently.
+          The proof shows customer liabilities in each asset are at most its floor; the contract
+          checked the approved reserves hold at least the floor. No price is involved, so a surplus
+          in one asset cannot hide a shortfall in another. Prices only value the reserves in USD, at
+          pinned oracle rounds anyone can refetch.
         </p>
       </section>
 
@@ -71,8 +69,8 @@
         <h2>Liability commitment</h2>
         <div class="mono" id="rootHash"></div>
         <p class="note">
-          Every customer balance is committed to inside this single value. Individual balances are
-          never published — <a href="/account.html">check your own account</a> to confirm yours is
+          Every customer balance is committed to inside this single value, bound to this epoch of
+          this registry. Neither individual balances nor the totals are published — <a href="/account.html">check your own account</a> to confirm yours is
           included in it.
         </p>
       </section>
@@ -89,7 +87,7 @@
     </main>
 
     <footer>
-      Northwind Exchange · demonstration system · totals and commitments are public on-chain
+      Northwind Exchange · demonstration system · reserves and commitments are public on-chain
     </footer>
 
     <script type="module" src="/src/main.ts"></script>

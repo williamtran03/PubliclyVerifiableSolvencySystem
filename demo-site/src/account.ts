@@ -1,5 +1,9 @@
-import { deserializeBundle, verifyBundle, type CustomerBundle } from "@arms/zk-circuit/prover/multiAssetTree.ts";
-import { $, ASSET_NAMES, loadSettings, readEpoch, usd, type Epoch } from "./chain.ts";
+import {
+  deserializeBundle,
+  verifyBundle,
+  type CustomerBundle,
+} from "@arms/zk-circuit/prover/multiAssetTree.ts";
+import { $, ASSET_NAMES, hex, loadSettings, readEpoch, type Epoch } from "./chain.ts";
 
 const SESSION_KEY = "northwind.account";
 
@@ -17,8 +21,6 @@ async function signIn(accountId: string) {
     return;
   }
 
-  // The dev server answers unknown paths with the app shell, so a missing bundle
-  // arrives as 200 HTML rather than a 404.
   let loaded: CustomerBundle;
   try {
     const response = await fetch(`/bundles/${encodeURIComponent(accountId)}.json`);
@@ -35,7 +37,6 @@ async function signIn(accountId: string) {
   try {
     sessionStorage.setItem(SESSION_KEY, accountId);
   } catch {
-    /* private browsing */
   }
 
   $("#loginView").hidden = true;
@@ -67,9 +68,8 @@ async function loadEpoch() {
   try {
     epoch = await readEpoch(loadSettings());
     error.hidden = true;
-    $("#rootHash").textContent = `0x${epoch.rootHash.toString(16).padStart(64, "0")}`;
-    $("#liabilities").textContent = usd(epoch.liabilitiesUsd);
-    $("#assets").textContent = usd(epoch.assetsUsd);
+    $("#rootHash").textContent = hex(epoch.rootHash);
+    $("#epochId").textContent = epoch.epochId.toString();
     $("#timestamp").textContent = new Date(Number(epoch.timestamp) * 1000).toLocaleString();
   } catch (cause) {
     epoch = null;
@@ -101,11 +101,19 @@ $<HTMLButtonElement>("#verifyBtn").addEventListener("click", () => {
     expected.set(Number(input.dataset.asset), BigInt(value));
   }
 
-  const valid = verifyBundle(bundle, expected, epoch.rootHash, epoch.liabilitiesUsd);
+  const secret = $<HTMLInputElement>("#secret").value.trim();
+  if (!/^\d+$/.test(secret)) {
+    result.className = "result bad";
+    result.textContent = "Enter the account secret you were given when you signed up.";
+    return;
+  }
+
+  const customer = { username: bundle.username, salt: BigInt(secret), expectedAmounts: expected };
+  const valid = verifyBundle(bundle, customer, epoch.rootHash, epoch.context);
   result.className = `result ${valid ? "ok" : "bad"}`;
   result.textContent = valid
-    ? "Included. These balances are committed to in the published commitment, and are counted in the liabilities total the reserves were checked against."
-    : "Not included. This proof does not reconstruct the published commitment for the balances entered — either a balance is wrong, or this epoch does not cover your account.";
+    ? "Included. These balances are committed to in this epoch's published commitment, and the proof checked them against reserves asset by asset."
+    : "Not included. This proof does not reconstruct the published commitment for the balances and secret entered — either one of them is wrong, or this epoch does not cover your account.";
 });
 
 $<HTMLButtonElement>("#signInBtn").addEventListener("click", () =>
@@ -121,7 +129,6 @@ $<HTMLButtonElement>("#signOutBtn").addEventListener("click", () => {
   try {
     sessionStorage.removeItem(SESSION_KEY);
   } catch {
-    /* private browsing */
   }
   $("#accountView").hidden = true;
   $("#loginView").hidden = false;
@@ -133,5 +140,4 @@ try {
   const remembered = sessionStorage.getItem(SESSION_KEY);
   if (remembered) signIn(remembered);
 } catch {
-  /* private browsing */
 }

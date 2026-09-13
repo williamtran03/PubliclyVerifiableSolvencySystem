@@ -1,4 +1,4 @@
-import { $, ASSET_NAMES, loadSettings, readEpoch, saveSettings, usd } from "./chain.ts";
+import { $, ASSET_NAMES, hex, loadSettings, readEpoch, saveSettings, usd } from "./chain.ts";
 
 const settings = loadSettings();
 $<HTMLInputElement>("#rpcUrl").value = settings.rpcUrl;
@@ -18,28 +18,23 @@ async function load() {
     const epoch = await readEpoch(next);
     saveSettings(next);
 
-    const solvent = epoch.assetsUsd >= epoch.liabilitiesUsd;
-    $("#verdictDot").className = `dot ${solvent ? "ok" : "bad"}`;
-    $("#verdict").textContent = solvent ? "Fully backed" : "Not fully backed";
-    $("#timestamp").textContent = `Last published ${new Date(
+    $("#verdictDot").className = "dot ok";
+    $("#verdict").textContent = "Fully backed, asset by asset";
+    $("#timestamp").textContent = `Epoch ${epoch.epochId} · published ${new Date(
       Number(epoch.timestamp) * 1000,
     ).toLocaleString()}`;
 
     $("#assetsUsd").textContent = usd(epoch.assetsUsd);
-    $("#liabilitiesUsd").textContent = usd(epoch.liabilitiesUsd);
-    $("#surplusUsd").textContent = usd(epoch.assetsUsd - epoch.liabilitiesUsd);
-    $("#coverage").textContent = epoch.liabilitiesUsd === 0n
-      ? "—"
-      : `${(Number(epoch.assetsUsd) / Number(epoch.liabilitiesUsd) * 100).toFixed(1)}%`;
+    $("#epochId").textContent = epoch.epochId.toString();
+    $("#covered").textContent = `${ASSET_NAMES.length} of ${ASSET_NAMES.length}`;
 
-    $("#priceRows").innerHTML = epoch.prices
-      .map(
-        (price, i) =>
-          `<tr><td>${ASSET_NAMES[i]}</td><td>${usd(price)}</td><td class="muted">#${epoch.roundIds[i]}</td></tr>`,
-      )
-      .join("");
+    $("#assetRows").innerHTML = ASSET_NAMES.map(
+      (name, i) =>
+        `<tr><td>${name}</td><td>${epoch.reserveUnits[i]}</td><td>${epoch.floors[i]}</td>` +
+        `<td>${usd(epoch.prices[i])}</td><td class="muted">#${epoch.roundIds[i]}</td></tr>`,
+    ).join("");
 
-    $("#rootHash").textContent = `0x${epoch.rootHash.toString(16).padStart(64, "0")}`;
+    $("#rootHash").textContent = hex(epoch.rootHash);
 
     for (const id of ["#summary", "#tableCard", "#commitmentCard"]) $(id).hidden = false;
     status.textContent = "Up to date.";

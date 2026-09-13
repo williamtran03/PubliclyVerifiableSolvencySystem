@@ -1,12 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  bindRoot,
   buildTree,
+  createBundle,
   createProof,
-  verifyProof,
-  verifyBundle,
-  serializeBundle,
   deserializeBundle,
+  epochContext,
+  liabilitiesOf,
+  parseHoldingsCsv,
+  rootOf,
+  serializeBundle,
+  verifyBundle,
+  FIELD_ORDER,
+  type Customer,
   type Holding,
 } from "./multiAssetTree.ts";
 
@@ -15,91 +22,104 @@ const holdings: Holding[] = [
   { username: "customer-456", salt: 19283746501928374650192837465019283746n, assetId: 1, amount: 10n },
   { username: "customer-789", salt: 55018273645019283746501928374650192837n, assetId: 2, amount: 5000n },
 ];
-const prices = [60000n, 3000n, 1n];
+const CONTEXT = 7n;
 
-// Locks the TS mirror to arms/zk-circuit/circuit/src/main.nr. If either side changes
-// its hashing or valuation, this fails instead of silently producing two roots.
-const CIRCUIT_ROOT = 0x081b46cea7fb102bf48512d1d816ab14f3e95a0734b37c5777afc882186ddafdn;
+const CIRCUIT_ROOT = 0x0c083286a0e73970b87241d9e37d86c6178fd3113e1f04045b603702225d3f06n;
 
-test("root and total match the Noir circuit exactly", () => {
-  const { root } = buildTree(holdings, prices);
-  assert.equal(root.hash, CIRCUIT_ROOT);
-  assert.equal(root.sum, 155000n);
+const customer = (h: Holding, amount = h.amount): Customer => ({
+  username: h.username,
+  salt: h.salt,
+  expectedAmounts: new Map([[h.assetId, amount]]),
 });
 
-test("valuing the same holdings at a different price table changes root and total", () => {
-  const { root } = buildTree(holdings, [30000n, 3000n, 1n]);
-  assert.notEqual(root.hash, CIRCUIT_ROOT);
-  assert.equal(root.sum, 95000n);
+function published() {
+  const tree = buildTree(holdings);
+  return { ...tree, root: bindRoot(tree.treeRoot, CONTEXT) };
+}
+
+test("the bound root matches the Noir circuit exactly", () => {
+  assert.equal(published().root, CIRCUIT_ROOT);
 });
 
-test("every holding produces a verifying inclusion proof", () => {
-  const { levels, root, holdings: padded } = buildTree(holdings, prices);
-  for (let i = 0; i < holdings.length; i++) {
-    const proof = createProof(i, padded, levels);
-    assert.equal(proof.rootHash, root.hash);
-    assert.ok(verifyProof(proof, prices));
+test("liabilities are totalled per asset, not converted to one currency", () => {
+  assert.deepEqual(liabilitiesOf(holdings), [2n, 10n, 5000n]);
+});
+
+test("the published root changes with the epoch context", () => {
+  const { treeRoot } = buildTree(holdings);
+  assert.notEqual(bindRoot(treeRoot, 7n), bindRoot(treeRoot, 8n));
+});
+
+test("the context mirrors the registry's keccak of chain, registry and epoch", () => {
+  const registry = "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6";
+  const context = epochContext(31337n, registry, 0n);
+  assert.ok(context < FIELD_ORDER);
+  assert.notEqual(context, epochContext(31337n, registry, 1n));
+  assert.notEqual(context, epochContext(1n, registry, 0n));
+});
+
+test("every customer verifies against the published root", () => {
+  const { levels, root, holdings: padded } = published();
+  for (const h of holdings) {
+    assert.ok(verifyBundle(createBundle(h.username, padded, levels), customer(h), root, CONTEXT), h.username);
   }
 });
 
-test("a tampered amount fails verification", () => {
-  const { levels, holdings: padded } = buildTree(holdings, prices);
-  const proof = createProof(0, padded, levels);
-  const tampered = { ...proof, holding: { ...proof.holding, amount: proof.holding.amount + 1n } };
-  assert.equal(verifyProof(tampered, prices), false);
+test("a bundle round-trips through JSON", () => {
+  const { levels, root, holdings: padded } = published();
+  const bundle = deserializeBundle(serializeBundle(createBundle("customer-456", padded, levels)));
+  assert.ok(verifyBundle(bundle, customer(holdings[1]), root, CONTEXT));
 });
 
-test("a proof verified against the wrong price table fails", () => {
-  const { levels, holdings: padded } = buildTree(holdings, prices);
-  const proof = createProof(0, padded, levels);
-  assert.equal(verifyProof(proof, [30000n, 3000n, 1n]), false);
+test("a wrong amount, context or root fails", () => {
+  const { levels, root, holdings: padded } = published();
+  const bundle = createBundle("customer-123", padded, levels);
+  assert.equal(verifyBundle(bundle, customer(holdings[0], 3n), root, CONTEXT), false);
+  assert.equal(verifyBundle(bundle, customer(holdings[0]), root, CONTEXT + 1n), false);
+  assert.equal(verifyBundle(bundle, customer(holdings[0]), root + 1n, CONTEXT), false);
+
+  const tampered = structuredClone(bundle);
+  tampered.parts[0].holding.amount += 1n;
+  assert.equal(verifyBundle(tampered, customer(holdings[0], 3n), root, CONTEXT), false);
 });
 
-test("a customer bundle round-trips and checks against expected amounts", () => {
-  const { levels, root, holdings: padded } = buildTree(holdings, prices);
-  const bundle = {
-    username: "customer-456",
-    prices: prices.map(String),
-    parts: [createProof(1, padded, levels)],
+test("two customers cannot be served one leaf: the salt comes from the customer", () => {
+  const { levels, root, holdings: padded } = published();
+  const shared = createBundle("customer-123", padded, levels);
+  const victim: Customer = {
+    username: "customer-123", // the exchange told both customers this ID
+    salt: 99n,
+    expectedAmounts: new Map([[0, 2n]]),
   };
-
-  const restored = deserializeBundle(serializeBundle(bundle));
-  const expected = new Map([[1, 10n]]);
-  assert.ok(verifyBundle(restored, expected, root.hash, root.sum));
-
-  const wrong = new Map([[1, 11n]]);
-  assert.equal(verifyBundle(restored, wrong, root.hash, root.sum), false);
-});
-
-test("a bundle claiming someone else's leaf is rejected", () => {
-  const { levels, root, holdings: padded } = buildTree(holdings, prices);
-  const bundle = {
-    username: "customer-456",
-    prices: prices.map(String),
-    parts: [createProof(0, padded, levels)],
-  };
-  assert.equal(verifyBundle(bundle, new Map([[0, 2n]]), root.hash, root.sum), false);
+  assert.equal(verifyBundle(shared, victim, root, CONTEXT), false);
 });
 
 test("one leaf cannot be counted twice by giving it a second path encoding", () => {
-  const { levels, root, holdings: padded } = buildTree(holdings, prices);
+  const { levels, root, holdings: padded } = published();
   const part = createProof(0, padded, levels);
   const alias = { ...part, pathIndices: [2, ...part.pathIndices.slice(1)] };
-  const bundle = { username: "customer-123", prices: prices.map(String), parts: [part, alias] };
+  const bundle = { username: "customer-123", parts: [part, alias] };
 
-  // customer-123 really holds one 2 BTC leaf; claiming 4 BTC must fail
-  assert.equal(verifyBundle(bundle, new Map([[0, 4n]]), root.hash, root.sum), false);
-  assert.equal(verifyProof(alias, prices), false);
+  assert.equal(verifyBundle(bundle, customer(holdings[0], 4n), root, CONTEXT), false);
+  assert.equal(rootOf(alias), null);
 });
 
 test("a proof with the wrong number of levels is rejected", () => {
-  const { levels, holdings: padded } = buildTree(holdings, prices);
+  const { levels, holdings: padded } = published();
   const proof = createProof(0, padded, levels);
-  const short = {
-    ...proof,
-    siblingHashes: proof.siblingHashes.slice(1),
-    siblingSums: proof.siblingSums.slice(1),
-    pathIndices: proof.pathIndices.slice(1),
-  };
-  assert.equal(verifyProof(short, prices), false);
+  assert.equal(rootOf({ ...proof, siblings: proof.siblings.slice(1), pathIndices: proof.pathIndices.slice(1) }), null);
+});
+
+test("a bundle claiming someone else's leaf is rejected", () => {
+  const { levels, root, holdings: padded } = published();
+  const bundle = { username: "customer-123", parts: [createProof(1, padded, levels)] };
+  assert.equal(verifyBundle(bundle, customer(holdings[0]), root, CONTEXT), false);
+});
+
+test("the holdings CSV rejects untracked assets, long names and a second salt per customer", () => {
+  const header = "username,salt,assetId,amount\n";
+  assert.throws(() => parseHoldingsCsv(header + "a,1,3,1"), /not tracked/);
+  assert.throws(() => parseHoldingsCsv(header + `${"x".repeat(32)},1,0,1`), /at most 31/);
+  assert.throws(() => parseHoldingsCsv(header + "a,1,0,1\na,2,1,1"), /two salts/);
+  assert.equal(parseHoldingsCsv(header + "a,1,0,1\na,1,1,1").length, 2);
 });

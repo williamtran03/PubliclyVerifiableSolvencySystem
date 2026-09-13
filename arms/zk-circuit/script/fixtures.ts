@@ -19,9 +19,9 @@ writeFileSync(
   "./arms/zk-circuit/fixtures/epoch.json",
   JSON.stringify(
     {
-      prices: words.slice(0, NUM_ASSETS).map(String),
-      rootHash: words[NUM_ASSETS].toString(),
-      totalLiabilitiesUsd: words[NUM_ASSETS + 1].toString(),
+      floors: words.slice(0, NUM_ASSETS).map(String),
+      context: words[NUM_ASSETS].toString(),
+      rootHash: words[NUM_ASSETS + 1].toString(),
     },
     null,
     2,

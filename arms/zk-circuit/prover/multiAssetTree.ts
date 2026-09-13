@@ -1,7 +1,10 @@
+import { encodeAbiParameters, keccak256 } from "viem";
 import { poseidon2Hash, usernameToBigInt, LEAF_CAPACITY } from "../../../shared/merkleSumTree.ts";
 
 export const NUM_ASSETS = 3;
 export const MAX_U64 = (1n << 64n) - 1n;
+export const FIELD_ORDER = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+const DEPTH = Math.log2(LEAF_CAPACITY);
 
 export type Holding = {
   username: string;
@@ -10,25 +13,30 @@ export type Holding = {
   amount: bigint;
 };
 
-export type Node = {
-  hash: bigint;
-  sum: bigint;
+export type InclusionProof = {
+  holding: Holding;
+  siblings: bigint[];
+  pathIndices: number[];
 };
 
-export type MultiAssetProof = {
-  rootHash: bigint;
-  rootSum: bigint;
-  holding: Holding;
-  siblingHashes: bigint[];
-  siblingSums: bigint[];
-  pathIndices: number[]; // 0: left child; 1: right child
+export type CustomerBundle = {
+  username: string;
+  parts: InclusionProof[];
 };
 
 export const PADDING: Holding = { username: "", salt: 0n, assetId: 0, amount: 0n };
 
-// Columns: username,salt,assetId,amount with a header row.
+export function epochContext(chainId: bigint, registry: `0x${string}`, epochId: bigint): bigint {
+  const encoded = encodeAbiParameters(
+    [{ type: "uint256" }, { type: "address" }, { type: "uint256" }],
+    [chainId, registry, epochId],
+  );
+  return BigInt(keccak256(encoded)) % FIELD_ORDER;
+}
+
 export function parseHoldingsCsv(csv: string): Holding[] {
   const [, ...rows] = csv.trim().split("\n");
+  const salts = new Map<string, bigint>();
   return rows.map((row) => {
     const [username, salt, assetId, amount] = row.split(",");
     const holding = {
@@ -37,129 +45,99 @@ export function parseHoldingsCsv(csv: string): Holding[] {
       assetId: Number(assetId.trim()),
       amount: BigInt(amount.trim()),
     };
+    usernameToBigInt(holding.username);
     if (!Number.isInteger(holding.assetId) || holding.assetId < 0 || holding.assetId >= NUM_ASSETS) {
-      throw new Error(`assetId ${holding.assetId} is outside the price table`);
+      throw new Error(`assetId ${holding.assetId} is not tracked by the registry`);
     }
     if (holding.amount < 0n || holding.amount > MAX_U64) {
       throw new Error(`amount ${holding.amount} does not fit in u64`);
     }
+    if (salts.has(holding.username) && salts.get(holding.username) !== holding.salt) {
+      throw new Error(`${holding.username} has two salts; a customer keeps one`);
+    }
+    salts.set(holding.username, holding.salt);
     return holding;
   });
 }
 
-function priceOf(assetId: number, prices: bigint[]): bigint {
-  if (!Number.isInteger(assetId) || assetId < 0 || assetId >= NUM_ASSETS) {
-    throw new Error(`assetId ${assetId} is outside the price table`);
+export function computeLeaf(holding: Holding): bigint {
+  if (!Number.isInteger(holding.assetId) || holding.assetId < 0 || holding.assetId >= NUM_ASSETS) {
+    throw new Error(`assetId ${holding.assetId} is not tracked by the registry`);
   }
-  return prices[assetId];
-}
-
-export function computeLeaf(holding: Holding, prices: bigint[]): Node {
   if (holding.amount < 0n || holding.amount > MAX_U64) {
     throw new Error(`amount ${holding.amount} does not fit in u64`);
   }
-  return {
-    hash: poseidon2Hash([
-      usernameToBigInt(holding.username),
-      holding.salt,
-      BigInt(holding.assetId),
-      holding.amount,
-    ]),
-    sum: holding.amount * priceOf(holding.assetId, prices),
-  };
+  return poseidon2Hash([usernameToBigInt(holding.username), holding.salt, BigInt(holding.assetId), holding.amount]);
 }
 
-function combineNodes(left: Node, right: Node): Node {
-  return {
-    hash: poseidon2Hash([left.hash, left.sum, right.hash, right.sum]),
-    sum: left.sum + right.sum,
-  };
+const combine = (left: bigint, right: bigint) => poseidon2Hash([left, right]);
+
+export function bindRoot(treeRoot: bigint, context: bigint): bigint {
+  return poseidon2Hash([treeRoot, context]);
 }
 
-export function buildTree(
-  holdings: Holding[],
-  prices: bigint[],
-  capacity: number = LEAF_CAPACITY,
-): { levels: Node[][]; root: Node; holdings: Holding[] } {
-  if (prices.length !== NUM_ASSETS) throw new Error(`expected ${NUM_ASSETS} prices`);
-  if (holdings.length > capacity) {
-    throw new Error(`${holdings.length} holdings exceeds capacity ${capacity}`);
+export function liabilitiesOf(holdings: Holding[]): bigint[] {
+  const totals = new Array<bigint>(NUM_ASSETS).fill(0n);
+  for (const h of holdings) totals[h.assetId] += h.amount;
+  return totals;
+}
+
+export function buildTree(holdings: Holding[]): { levels: bigint[][]; treeRoot: bigint; holdings: Holding[] } {
+  if (holdings.length > LEAF_CAPACITY) {
+    throw new Error(`${holdings.length} holdings exceeds capacity ${LEAF_CAPACITY}`);
   }
-  const depth = Math.log2(capacity);
-  if (!Number.isInteger(depth)) throw new Error("capacity must be a power of two");
-
   const padded = [...holdings];
-  while (padded.length < capacity) padded.push(PADDING);
+  while (padded.length < LEAF_CAPACITY) padded.push(PADDING);
 
-  const levels: Node[][] = [padded.map((holding) => computeLeaf(holding, prices))];
-  for (let level = 1; level <= depth; level++) {
+  const levels: bigint[][] = [padded.map(computeLeaf)];
+  for (let level = 1; level <= DEPTH; level++) {
     const previous = levels[level - 1];
-    const current: Node[] = [];
-    for (let i = 0; i < previous.length; i += 2) {
-      current.push(combineNodes(previous[i], previous[i + 1]));
-    }
+    const current: bigint[] = [];
+    for (let i = 0; i < previous.length; i += 2) current.push(combine(previous[i], previous[i + 1]));
     levels[level] = current;
   }
-
-  return { levels, root: levels[depth][0], holdings: padded };
+  return { levels, treeRoot: levels[DEPTH][0], holdings: padded };
 }
 
-export function createProof(index: number, holdings: Holding[], levels: Node[][]): MultiAssetProof {
-  const root = levels[levels.length - 1][0];
-  const siblingHashes: bigint[] = [];
-  const siblingSums: bigint[] = [];
+export function createProof(index: number, holdings: Holding[], levels: bigint[][]): InclusionProof {
+  if (!Number.isSafeInteger(index) || index < 0 || index >= holdings.length) {
+    throw new Error(`index ${index} is outside the tree`);
+  }
+  const siblings: bigint[] = [];
   const pathIndices: number[] = [];
-
   let i = index;
-  for (let level = 0; level < levels.length - 1; level++) {
+  for (let level = 0; level < DEPTH; level++) {
     const isRightChild = i % 2 === 1;
-    const sibling = levels[level][isRightChild ? i - 1 : i + 1];
+    siblings.push(levels[level][isRightChild ? i - 1 : i + 1]);
     pathIndices.push(isRightChild ? 1 : 0);
-    siblingHashes.push(sibling.hash);
-    siblingSums.push(sibling.sum);
     i = Math.floor(i / 2);
   }
-
-  return {
-    rootHash: root.hash,
-    rootSum: root.sum,
-    holding: holdings[index],
-    siblingHashes,
-    siblingSums,
-    pathIndices,
-  };
+  return { holding: holdings[index], siblings, pathIndices };
 }
 
-export function verifyProof(proof: MultiAssetProof, prices: bigint[]): boolean {
+export function createBundle(username: string, holdings: Holding[], levels: bigint[][]): CustomerBundle {
+  const parts = holdings.flatMap((h, index) => (h.username === username ? [createProof(index, holdings, levels)] : []));
+  return { username, parts };
+}
+
+export function rootOf(proof: InclusionProof): bigint | null {
   try {
-    // Exactly one bit per level. A direction other than 0 or 1 walks the same path
-    // as 0, so without this one leaf could be presented twice under two "positions".
-    const depth = Math.log2(LEAF_CAPACITY);
     if (
-      proof.siblingHashes.length !== depth ||
-      proof.siblingSums.length !== depth ||
-      proof.pathIndices.length !== depth ||
+      proof.siblings.length !== DEPTH ||
+      proof.pathIndices.length !== DEPTH ||
       proof.pathIndices.some((i) => i !== 0 && i !== 1)
     ) {
-      return false;
+      return null;
     }
-
-    let node = computeLeaf(proof.holding, prices);
-    for (let level = 0; level < proof.siblingHashes.length; level++) {
-      const sibling: Node = { hash: proof.siblingHashes[level], sum: proof.siblingSums[level] };
-      node = proof.pathIndices[level] === 1 ? combineNodes(sibling, node) : combineNodes(node, sibling);
+    let node = computeLeaf(proof.holding);
+    for (let level = 0; level < DEPTH; level++) {
+      node = proof.pathIndices[level] === 1 ? combine(proof.siblings[level], node) : combine(node, proof.siblings[level]);
     }
-    return node.hash === proof.rootHash && node.sum === proof.rootSum;
+    return node;
   } catch {
-    return false;
+    return null;
   }
 }
-
-export type CustomerBundle = {
-  username: string;
-  prices: string[];
-  parts: MultiAssetProof[];
-};
 
 export function serializeBundle(bundle: CustomerBundle): string {
   return JSON.stringify(bundle, (_key, value) => (typeof value === "bigint" ? value.toString() : value), 2);
@@ -169,52 +147,45 @@ export function deserializeBundle(json: string): CustomerBundle {
   const parsed = JSON.parse(json);
   return {
     username: parsed.username,
-    prices: parsed.prices,
     parts: parsed.parts.map((part: any) => ({
-      rootHash: BigInt(part.rootHash),
-      rootSum: BigInt(part.rootSum),
       holding: {
         username: part.holding.username,
         salt: BigInt(part.holding.salt),
         assetId: Number(part.holding.assetId),
         amount: BigInt(part.holding.amount),
       },
-      siblingHashes: part.siblingHashes.map(BigInt),
-      siblingSums: part.siblingSums.map(BigInt),
+      siblings: part.siblings.map(BigInt),
       pathIndices: part.pathIndices,
     })),
   };
 }
 
-// The customer supplies their own expected per-asset totals; the bundle is never
-// trusted to say what they should hold.
-export function verifyBundle(
-  bundle: CustomerBundle,
-  expectedAmounts: Map<number, bigint>,
-  rootHash: bigint,
-  rootSum: bigint,
-): boolean {
+export type Customer = {
+  username: string;
+  salt: bigint;
+  expectedAmounts: Map<number, bigint>;
+};
+
+export function verifyBundle(bundle: CustomerBundle, customer: Customer, publishedRoot: bigint, context: bigint): boolean {
   if (bundle.parts.length === 0) return false;
-  const prices = bundle.prices.map(BigInt);
-  if (prices.length !== NUM_ASSETS) return false;
 
-  const seen = new Set<string>();
+  const positions = new Set<string>();
   const totals = new Map<number, bigint>();
-
   for (const part of bundle.parts) {
-    if (part.holding.username !== bundle.username) return false;
-    if (part.rootHash !== rootHash || part.rootSum !== rootSum) return false;
+    if (part.holding.username !== customer.username || part.holding.salt !== customer.salt) return false;
+
+    const treeRoot = rootOf(part);
+    if (treeRoot === null || bindRoot(treeRoot, context) !== publishedRoot) return false;
 
     const position = part.pathIndices.join("");
-    if (seen.has(position)) return false;
-    seen.add(position);
+    if (positions.has(position)) return false;
+    positions.add(position);
 
-    if (!verifyProof(part, prices)) return false;
     totals.set(part.holding.assetId, (totals.get(part.holding.assetId) ?? 0n) + part.holding.amount);
   }
 
-  if (totals.size !== expectedAmounts.size) return false;
-  for (const [assetId, expected] of expectedAmounts) {
+  if (totals.size !== customer.expectedAmounts.size) return false;
+  for (const [assetId, expected] of customer.expectedAmounts) {
     if (totals.get(assetId) !== expected) return false;
   }
   return true;

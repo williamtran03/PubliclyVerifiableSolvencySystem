@@ -13,6 +13,7 @@ node_modules/
 # noir: build artifacts, and Prover.toml holds raw customer balances
 arms/*/circuit/target/
 arms/*/circuit/Prover.toml
+arms/*/circuit/e2e-*.toml
 
 # generated per-customer proofs and bundles
 arms/single-asset/fixtures/proof-*.json
