@@ -1,6 +1,7 @@
 [profile.default]
 src = "arms"
-test = "arms"
+# "." so shared/test/ runs too; lib/ is excluded as a library path
+test = "."
 script = "arms"
 out = "out"
 libs = ["lib"]
