@@ -1,12 +1,3 @@
-// Poseidon2 merkle-sum tree: the shared core for every arm that is proved in
-// a circuit. Pads to a fixed LEAF_CAPACITY because a circuit's array sizes are
-// compile-time constants.
-//
-// arms/published-ledger/prover/tree.ts is a deliberate sibling, not a stale
-// copy: it hashes a 2-field leaf with keccak and sizes itself to the ledger,
-// because MerkleSumRegistry.sol rebuilds it on-chain. This file's leaf
-// encoding and padding must byte-match the Noir circuits instead, so the two
-// are kept apart on purpose. Only the walk below is common to both.
 export type HashFn = (values: bigint[]) => bigint;
 
 export type Entry = {
@@ -26,7 +17,7 @@ export type MerkleSumProof = {
   entry: Entry;
   siblingHashes: bigint[];
   siblingSums: bigint[];
-  pathIndices: number[]; // 0: left child; 1: right child
+  pathIndices: number[];
 };
 
 export function serializeProof(proof: MerkleSumProof): string {
@@ -53,8 +44,13 @@ export function deserializeProof(json: string): MerkleSumProof {
   };
 }
 
+export const MAX_USERNAME_BYTES = 31;
+
 export function usernameToBigInt(username: string): bigint {
   const bytes = new TextEncoder().encode(username);
+  if (bytes.length > MAX_USERNAME_BYTES) {
+    throw new Error(`username is ${bytes.length} bytes; at most ${MAX_USERNAME_BYTES} fit the field`);
+  }
   if (bytes.length === 0) return 0n;
   let hex = "";
   for (const byte of bytes) hex += byte.toString(16).padStart(2, "0");
@@ -142,9 +138,6 @@ export function createProof(index: number, entries: Entry[], levels: Node[][]): 
   };
 }
 
-// Returns false rather than throwing on a malformed proof: this is the check a
-// customer runs against data the operator handed them, so every rejection path
-// has to look the same to the caller.
 export function verifyProof(proof: MerkleSumProof, hash: HashFn): boolean {
   try {
     if (

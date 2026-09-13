@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildTree, createProof, verifyProof, poseidon2Hash, type Entry } from "./merkleSumTree.ts";
+import {
+  buildTree,
+  createProof,
+  verifyProof,
+  poseidon2Hash,
+  usernameToBigInt,
+  type Entry,
+} from "./merkleSumTree.ts";
 
 const entries: Entry[] = [
   { username: "customer-123", balance: 12550n, salt: 111n },
@@ -57,4 +64,16 @@ test("a malformed proof returns false instead of throwing", () => {
 
   const negativeBalance = { ...proof, entry: { ...proof.entry, balance: -1n } };
   assert.equal(verifyProof(negativeBalance, poseidon2Hash), false);
+});
+
+test("usernames that would wrap the field are rejected", () => {
+  const p = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+  assert.ok(usernameToBigInt("x".repeat(31)) < p);
+  assert.throws(() => usernameToBigInt("x".repeat(32)), /at most 31/);
+  assert.throws(() => usernameToBigInt("é".repeat(16)), /at most 31/);
+
+  const { levels, entries: padded } = buildTree(entries, poseidon2Hash);
+  const proof = createProof(0, padded, levels);
+  const long = { ...proof, entry: { ...proof.entry, username: "x".repeat(40) } };
+  assert.equal(verifyProof(long, poseidon2Hash), false);
 });
