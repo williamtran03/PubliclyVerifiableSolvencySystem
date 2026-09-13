@@ -33,7 +33,7 @@ Tool versions are pinned locally via [mise](https://mise.jdx.dev).
 
 ```shell
 make build     # forge build
-make test      # forge test + every arm's Node tests
+make test      # forge test + every arm's Node tests + the Anvil end-to-end test
 make check     # tsc --noEmit + forge fmt --check
 make compare   # regenerate the gas figures in docs/comparison.md
 ```
