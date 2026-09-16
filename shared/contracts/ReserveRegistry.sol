@@ -31,8 +31,13 @@ abstract contract ReserveRegistry {
         Approved
     }
 
-    address public immutable company;
-    address public immutable auditor;
+    // Rotatable, because a registry whose company key is lost can never publish again.
+    // Each role rotates only itself: a company that could replace its own auditor would be
+    // approving its own reserves through a proxy.
+    address public company;
+    address public auditor;
+    address public pendingCompany;
+    address public pendingAuditor;
 
     bytes32 private immutable domainNameHash;
     address[] public reserves;
@@ -43,6 +48,8 @@ abstract contract ReserveRegistry {
     event ReserveProven(address indexed wallet, uint256 nonce);
     event ReserveReviewed(address indexed wallet, bool approved);
     event ReserveRemoved(address indexed wallet, address by);
+    event RoleTransferStarted(bytes32 indexed role, address indexed from, address indexed to);
+    event RoleTransferred(bytes32 indexed role, address indexed from, address indexed to);
 
     error NotCompany();
     error NotAuditor();
@@ -69,6 +76,33 @@ abstract contract ReserveRegistry {
     modifier onlyAuditor() {
         if (msg.sender != auditor) revert NotAuditor();
         _;
+    }
+
+    // Two steps, so a mistyped address cannot strand the role.
+    function transferCompany(address to) external onlyCompany {
+        pendingCompany = to;
+        emit RoleTransferStarted("company", company, to);
+    }
+
+    function transferAuditor(address to) external onlyAuditor {
+        pendingAuditor = to;
+        emit RoleTransferStarted("auditor", auditor, to);
+    }
+
+    function acceptCompany() external {
+        if (msg.sender != pendingCompany || msg.sender == address(0)) revert NotAuthorized();
+        if (msg.sender == auditor) revert BadRoles();
+        emit RoleTransferred("company", company, msg.sender);
+        company = msg.sender;
+        pendingCompany = address(0);
+    }
+
+    function acceptAuditor() external {
+        if (msg.sender != pendingAuditor || msg.sender == address(0)) revert NotAuthorized();
+        if (msg.sender == company) revert BadRoles();
+        emit RoleTransferred("auditor", auditor, msg.sender);
+        auditor = msg.sender;
+        pendingAuditor = address(0);
     }
 
     function reserveCount() external view returns (uint256) {

@@ -181,6 +181,95 @@ contract ReserveRegistryTest is Test {
         assertEq(registry.reserveBalance(address(0)), 1 ether);
     }
 
+    // ---- role rotation ------------------------------------------------------
+
+    function test_CompanyRotatesInTwoSteps() public {
+        address next = makeAddr("next company");
+
+        vm.prank(company);
+        registry.transferCompany(next);
+        assertEq(registry.pendingCompany(), next);
+        assertEq(registry.company(), company, "not transferred until accepted");
+
+        vm.prank(next);
+        registry.acceptCompany();
+        assertEq(registry.company(), next);
+        assertEq(registry.pendingCompany(), address(0));
+
+        vm.prank(next);
+        registry.proposeReserve(wallet);
+        vm.prank(company);
+        vm.expectRevert(ReserveRegistry.NotCompany.selector);
+        registry.proposeReserve(makeAddr("another"));
+    }
+
+    function test_AuditorRotatesInTwoSteps() public {
+        address next = makeAddr("next auditor");
+
+        vm.prank(auditor);
+        registry.transferAuditor(next);
+        vm.prank(next);
+        registry.acceptAuditor();
+        assertEq(registry.auditor(), next);
+
+        propose(wallet);
+        registry.proveReserve(wallet, block.timestamp, sign(wallet, key, block.timestamp));
+        vm.prank(auditor);
+        vm.expectRevert(ReserveRegistry.NotAuditor.selector);
+        registry.reviewReserve(wallet, true);
+        vm.prank(next);
+        registry.reviewReserve(wallet, true);
+    }
+
+    function test_NeitherRoleCanRotateTheOther() public {
+        vm.prank(company);
+        vm.expectRevert(ReserveRegistry.NotAuditor.selector);
+        registry.transferAuditor(makeAddr("puppet"));
+
+        vm.prank(auditor);
+        vm.expectRevert(ReserveRegistry.NotCompany.selector);
+        registry.transferCompany(makeAddr("puppet"));
+    }
+
+    function test_RotationCannotMergeTheRoles() public {
+        vm.prank(company);
+        registry.transferCompany(auditor);
+        vm.prank(auditor);
+        vm.expectRevert(ReserveRegistry.BadRoles.selector);
+        registry.acceptCompany();
+        assertEq(registry.company(), company);
+    }
+
+    function test_OnlyThePendingRoleCanAccept() public {
+        vm.prank(company);
+        registry.transferCompany(makeAddr("next"));
+
+        vm.prank(makeAddr("outsider"));
+        vm.expectRevert(ReserveRegistry.NotAuthorized.selector);
+        registry.acceptCompany();
+
+        vm.prank(makeAddr("outsider"));
+        vm.expectRevert(ReserveRegistry.NotAuthorized.selector);
+        registry.acceptAuditor();
+    }
+
+    function test_RotationCanBeRetargetedBeforeAcceptance() public {
+        address first = makeAddr("first");
+        address second = makeAddr("second");
+
+        vm.startPrank(company);
+        registry.transferCompany(first);
+        registry.transferCompany(second);
+        vm.stopPrank();
+
+        vm.prank(first);
+        vm.expectRevert(ReserveRegistry.NotAuthorized.selector);
+        registry.acceptCompany();
+        vm.prank(second);
+        registry.acceptCompany();
+        assertEq(registry.company(), second);
+    }
+
     // ---- the reserve cap ----------------------------------------------------
 
     function test_ApprovalStopsAtMaxReserves() public {
