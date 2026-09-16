@@ -12,7 +12,7 @@
 
 .PHONY: build test integration check compare \
         ledger-demo \
-        zk-fixtures zk-check zk-prove zk-verifier zk-snapshot zk-circuit-test zk-demo demo-site \
+        zk-fixtures zk-check zk-prove zk-verifier zk-snapshot zk-circuit-test zk-demo zk-bench demo-site \
         kzg-setup kzg-epoch \
         single-fixtures single-check single-proof single-prove single-verifier single-demo
 
@@ -73,6 +73,9 @@ zk-verifier: zk-prove
 # the script signs as anvil dev accounts 0 (company) and 1 (auditor)
 zk-demo: build
 	forge script arms/zk-circuit/script/Demo.s.sol --rpc-url http://127.0.0.1:8545 --broadcast
+
+zk-bench:
+	npx tsx arms/zk-circuit/bench/scale.ts
 
 # customer-facing demo site for this arm
 demo-site: zk-fixtures
