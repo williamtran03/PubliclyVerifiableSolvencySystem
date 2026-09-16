@@ -66,8 +66,8 @@ contract MultiAssetSolvencyRegistry is ReserveRegistry {
     error NoEpoch();
     error Insolvent(uint256 assetId, uint256 reserveUnits, uint256 floor);
 
-    constructor(address _company, address _auditor, Asset[] memory _assets, address _verifier)
-        ReserveRegistry("MultiAssetSolvencyRegistry", _company, _auditor)
+    constructor(address _company, address _auditor, Asset[] memory _assets, address _verifier, uint64 _maxEpochAge)
+        ReserveRegistry("MultiAssetSolvencyRegistry", _company, _auditor, _maxEpochAge)
     {
         if (_assets.length != NUM_ASSETS) revert BadAssetCount();
         for (uint256 i = 0; i < _assets.length; i++) {
@@ -183,6 +183,7 @@ contract MultiAssetSolvencyRegistry is ReserveRegistry {
         uint256[NUM_ASSETS] memory prices = readPricesAt(roundIds);
         uint256 assetsUsd = usdOf(raw, prices);
 
+        _recordEpoch();
         epochs[epochId] = Epoch(rootHash, context, floors, units, prices, roundIds, assetsUsd, uint64(block.timestamp));
         epochCount++;
         emit EpochSubmitted(epochId, rootHash, floors, units, assetsUsd, roundIds);

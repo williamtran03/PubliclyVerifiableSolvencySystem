@@ -26,6 +26,8 @@ contract KzgSolvencyRegistryTest is Test {
     KzgSolvencyRegistry.RangeProof range;
     string inclusion;
 
+    uint64 constant MAX_EPOCH_AGE = 1 days;
+
     function setUp() public {
         vm.warp(1_700_000_000);
         uint256 key;
@@ -35,7 +37,7 @@ contract KzgSolvencyRegistryTest is Test {
         KzgSolvencyRegistry.Srs memory srs =
             KzgSolvencyRegistry.Srs(g2(epoch, ".g2"), g2(epoch, ".tauG2"), g2(epoch, ".boundG2"));
         token = new UnitToken();
-        registry = new KzgSolvencyRegistry(company, auditor, address(token), 0, srs);
+        registry = new KzgSolvencyRegistry(company, auditor, address(token), 0, srs, MAX_EPOCH_AGE);
 
         token.set(reserve, 50_000); // liabilities are 49,550
         vm.prank(company);

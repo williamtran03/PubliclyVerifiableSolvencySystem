@@ -3,12 +3,8 @@ pragma solidity 0.8.28;
 
 import {ReserveRegistry} from "../../../shared/contracts/ReserveRegistry.sol";
 
-/// @notice Publishes pseudonymous partial balances, not a zero-knowledge proof.
-/// One merkle-sum tree per asset, rebuilt here from calldata, so every total is computed
-/// on-chain and compared with approved reserves of that same asset. Amounts are in each
-/// token's base units, so no price or rounding is involved.
 contract MerkleSumRegistry is ReserveRegistry {
-    uint256 public constant MAX_ENTRIES = 256; // per asset
+    uint256 public constant MAX_ENTRIES = 256;
     uint256 public constant MAX_ASSETS = 8;
 
     struct Epoch {
@@ -19,7 +15,7 @@ contract MerkleSumRegistry is ReserveRegistry {
         uint64 timestamp;
     }
 
-    address[] public assets; // address(0) = native ETH
+    address[] public assets;
     mapping(uint256 => Epoch) private epochs;
     uint256 public epochCount;
     mapping(bytes32 => bool) public usedSnapshots;
@@ -38,8 +34,8 @@ contract MerkleSumRegistry is ReserveRegistry {
     error NoEpoch();
     error Insolvent(uint256 assetId, uint256 reserves, uint256 liabilities);
 
-    constructor(address _company, address _auditor, address[] memory tokens)
-        ReserveRegistry("MerkleSumRegistry", _company, _auditor)
+    constructor(address _company, address _auditor, address[] memory tokens, uint64 _maxEpochAge)
+        ReserveRegistry("MerkleSumRegistry", _company, _auditor, _maxEpochAge)
     {
         if (tokens.length == 0 || tokens.length > MAX_ASSETS) revert BadAssets();
         for (uint256 i = 0; i < tokens.length; i++) {
@@ -64,8 +60,6 @@ contract MerkleSumRegistry is ReserveRegistry {
         return epochs[epochCount - 1];
     }
 
-    /// @param identities per asset id, the salted identity commitment of each part
-    /// @param amounts per asset id, the matching part amounts
     function submitLedger(bytes32 snapshotId, uint256[][] calldata identities, uint256[][] calldata amounts)
         external
         onlyCompany
@@ -84,13 +78,12 @@ contract MerkleSumRegistry is ReserveRegistry {
         }
 
         usedSnapshots[snapshotId] = true;
+        _recordEpoch();
         uint256 epochId = epochCount++;
         epochs[epochId] = Epoch(snapshotId, rootHashes, liabilities, reserves, uint64(block.timestamp));
         emit LedgerSubmitted(epochId, snapshotId, rootHashes, liabilities, reserves);
     }
 
-    /// @dev Same leaf/parent encoding and zero padding as arms/published-ledger/prover/tree.ts.
-    /// An asset nobody holds has an empty ledger, with root and total 0.
     function computeRoot(uint256[] calldata identities, uint256[] calldata amounts)
         public
         pure
@@ -112,7 +105,7 @@ contract MerkleSumRegistry is ReserveRegistry {
         while (size > 1) {
             for (uint256 i; i < size; i += 2) {
                 hashes[i / 2] = uint256(keccak256(abi.encode(hashes[i], sums[i], hashes[i + 1], sums[i + 1])));
-                sums[i / 2] = sums[i] + sums[i + 1]; // Solidity checked arithmetic
+                sums[i / 2] = sums[i] + sums[i + 1];
             }
             size /= 2;
         }

@@ -6,13 +6,14 @@ import {MerkleSumRegistry} from "../contracts/MerkleSumRegistry.sol";
 import {ReserveRegistry} from "../../../shared/contracts/ReserveRegistry.sol";
 import {MockToken} from "../contracts/mocks/MockToken.sol";
 
-// Reserve mechanics are tested in shared/test/ReserveRegistry.t.sol; this covers the arm.
 contract MerkleSumRegistryTest is Test {
     MerkleSumRegistry registry;
     MockToken token;
     address company = makeAddr("company");
     address auditor = makeAddr("auditor");
     address reserve;
+
+    uint64 constant MAX_EPOCH_AGE = 1 days;
 
     function setUp() public {
         uint256 key;
@@ -21,10 +22,10 @@ contract MerkleSumRegistryTest is Test {
         address[] memory tokens = new address[](2);
         tokens[0] = address(0);
         tokens[1] = address(token);
-        registry = new MerkleSumRegistry(company, auditor, tokens);
+        registry = new MerkleSumRegistry(company, auditor, tokens, MAX_EPOCH_AGE);
 
-        vm.deal(reserve, 120); // asset 0: liabilities 120 wei
-        token.mint(reserve, 5); // asset 1: liabilities 5
+        vm.deal(reserve, 120);
+        token.mint(reserve, 5);
         vm.prank(company);
         registry.proposeReserve(reserve);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, registry.reserveDigest(reserve, block.timestamp));
@@ -105,8 +106,8 @@ contract MerkleSumRegistryTest is Test {
 
     function test_RejectsAShortfallInOneAssetEvenIfAnotherHasSurplus() public {
         (uint256[][] memory ids, uint256[][] memory amounts) = inputs();
-        vm.deal(reserve, 1 ether); // plenty of ETH
-        amounts[1][0] = 6; // one token more than the reserve holds
+        vm.deal(reserve, 1 ether);
+        amounts[1][0] = 6;
         vm.prank(company);
         vm.expectRevert(abi.encodeWithSelector(MerkleSumRegistry.Insolvent.selector, 1, 5, 6));
         registry.submitLedger(bytes32(uint256(1)), ids, amounts);
@@ -154,8 +155,8 @@ contract MerkleSumRegistryTest is Test {
     function test_RejectsBadAssetLists() public {
         address[] memory duplicate = new address[](2);
         vm.expectRevert(MerkleSumRegistry.BadAssets.selector);
-        new MerkleSumRegistry(company, auditor, duplicate);
+        new MerkleSumRegistry(company, auditor, duplicate, MAX_EPOCH_AGE);
         vm.expectRevert(MerkleSumRegistry.BadAssets.selector);
-        new MerkleSumRegistry(company, auditor, new address[](0));
+        new MerkleSumRegistry(company, auditor, new address[](0), MAX_EPOCH_AGE);
     }
 }

@@ -9,9 +9,6 @@ interface IERC1271 {
     function isValidSignature(bytes32 digest, bytes calldata signature) external view returns (bytes4);
 }
 
-// The assets side every arm shares: who may act, and which wallets count as reserves.
-// Ownership is not eligibility: a wallet's signature proves control, the auditor's
-// approval decides whether it counts. Only Approved wallets are summed.
 abstract contract ReserveRegistry {
     bytes32 private constant DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
@@ -19,9 +16,6 @@ abstract contract ReserveRegistry {
         keccak256("ReserveControl(address wallet,uint256 nonce,uint256 expiry)");
     uint256 private constant SECP256K1_HALF_ORDER = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
 
-    // Reserves are summed live, in the same call as the solvency check, so the figure
-    // cannot drift between counting and submitting. That makes the sum a loop, and a loop
-    // in a critical path has to be bounded.
     uint256 public constant MAX_RESERVES = 64;
 
     enum ReserveStatus {
@@ -31,13 +25,13 @@ abstract contract ReserveRegistry {
         Approved
     }
 
-    // Rotatable, because a registry whose company key is lost can never publish again.
-    // Each role rotates only itself: a company that could replace its own auditor would be
-    // approving its own reserves through a proxy.
     address public company;
     address public auditor;
     address public pendingCompany;
     address public pendingAuditor;
+
+    uint64 public immutable maxEpochAge;
+    uint64 public lastEpochAt;
 
     bytes32 private immutable domainNameHash;
     address[] public reserves;
@@ -60,11 +54,12 @@ abstract contract ReserveRegistry {
     error SignatureExpired();
     error InvalidSignature();
 
-    constructor(string memory domainName, address _company, address _auditor) {
-        // An auditor who is also the company approves its own reserves, which is no check at all.
+    constructor(string memory domainName, address _company, address _auditor, uint64 _maxEpochAge) {
         if (_company == address(0) || _auditor == address(0) || _company == _auditor) revert BadRoles();
+        if (_maxEpochAge == 0) revert BadRoles();
         company = _company;
         auditor = _auditor;
+        maxEpochAge = _maxEpochAge;
         domainNameHash = keccak256(bytes(domainName));
     }
 
@@ -78,7 +73,6 @@ abstract contract ReserveRegistry {
         _;
     }
 
-    // Two steps, so a mistyped address cannot strand the role.
     function transferCompany(address to) external onlyCompany {
         pendingCompany = to;
         emit RoleTransferStarted("company", company, to);
@@ -105,11 +99,23 @@ abstract contract ReserveRegistry {
         pendingAuditor = address(0);
     }
 
+    function _recordEpoch() internal {
+        lastEpochAt = uint64(block.timestamp);
+    }
+
+    function epochAge() public view returns (uint64) {
+        if (lastEpochAt == 0) return type(uint64).max;
+        return uint64(block.timestamp) - lastEpochAt;
+    }
+
+    function isCurrent() public view returns (bool) {
+        return lastEpochAt != 0 && block.timestamp - lastEpochAt <= maxEpochAge;
+    }
+
     function reserveCount() external view returns (uint256) {
         return reserves.length;
     }
 
-    // Raw balance of `token` (address(0) = native ETH) across approved reserves.
     function reserveBalance(address token) public view returns (uint256 raw) {
         for (uint256 i = 0; i < reserves.length; i++) {
             raw += token == address(0) ? reserves[i].balance : IERC20Balance(token).balanceOf(reserves[i]);
@@ -122,10 +128,6 @@ abstract contract ReserveRegistry {
         emit ReserveProposed(wallet);
     }
 
-    // EIP-712, so a wallet shows what it is signing instead of an opaque hash. The chain id
-    // and this contract's address sit in the domain, so the signature cannot be replayed on
-    // another chain or into another registry; the nonce stops replay after a removal.
-    // Recomputed per call rather than cached, so it stays correct after a chain fork.
     function reserveDigest(address wallet, uint256 expiry) public view returns (bytes32) {
         bytes32 domain =
             keccak256(abi.encode(DOMAIN_TYPEHASH, domainNameHash, keccak256("1"), block.chainid, address(this)));
@@ -133,7 +135,6 @@ abstract contract ReserveRegistry {
         return keccak256(abi.encodePacked("\x19\x01", domain, message));
     }
 
-    // Anyone may relay the signature, so a cold wallet never needs gas or to send a transaction.
     function proveReserve(address wallet, uint256 expiry, bytes calldata signature) external {
         if (reserveStatus[wallet] != ReserveStatus.Proposed) revert BadReserve();
         if (block.timestamp > expiry) revert SignatureExpired();
@@ -156,8 +157,6 @@ abstract contract ReserveRegistry {
         emit ReserveReviewed(wallet, approved);
     }
 
-    // Either role may drop a reserve at any stage. Removal can only lower the assets
-    // figure, so unlike adding one it needs no second sign-off.
     function removeReserve(address wallet) external {
         if (msg.sender != company && msg.sender != auditor) revert NotAuthorized();
         if (reserveStatus[wallet] == ReserveStatus.None) revert BadReserve();
@@ -171,14 +170,11 @@ abstract contract ReserveRegistry {
                 }
             }
         }
-        // Also invalidates a signature collected while the wallet was only proposed.
         reserveNonce[wallet]++;
         reserveStatus[wallet] = ReserveStatus.None;
         emit ReserveRemoved(wallet, msg.sender);
     }
 
-    // Exchanges commonly hold reserves in multisigs, which cannot produce an ECDSA
-    // signature, so a wallet with code is asked through ERC-1271 instead.
     function signedBy(address wallet, bytes32 digest, bytes calldata signature) private view returns (bool) {
         if (wallet.code.length > 0) {
             try IERC1271(wallet).isValidSignature(digest, signature) returns (bytes4 magic) {
@@ -192,9 +188,7 @@ abstract contract ReserveRegistry {
         bytes32 r = bytes32(signature[0:32]);
         bytes32 s = bytes32(signature[32:64]);
         uint8 v = uint8(signature[64]);
-        // A high-s twin of a valid signature would also recover; accept only one encoding.
         if (uint256(s) > SECP256K1_HALF_ORDER) return false;
-        // wallet is never address(0), so ecrecover's failure value cannot match it.
         return ecrecover(digest, v, r, s) == wallet;
     }
 }

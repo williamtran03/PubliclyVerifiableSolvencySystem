@@ -7,12 +7,9 @@ import {HonkVerifier} from "../contracts/MultiAssetHonkVerifier.sol";
 import {MockAggregator, MockToken} from "../contracts/mocks/DemoMocks.sol";
 
 contract MultiAssetDemo is Script {
-    // Standard anvil dev accounts 0 and 1; public keys, local chain only.
     uint256 constant COMPANY_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
     uint256 constant AUDITOR_KEY = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
-    // A cold wallet with no ETH for gas: it only signs, the company relays.
     uint256 constant RESERVE_KEY = uint256(keccak256("northwind cold wallet"));
-    // The committed proof is bound to this address on chain 31337 (see fixtures/epoch.json).
     address constant FIXTURE_REGISTRY = 0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6;
 
     address company;
@@ -46,8 +43,6 @@ contract MultiAssetDemo is Script {
         submit();
         vm.stopBroadcast();
 
-        // Outside the broadcast on purpose: these attempts are meant to revert, and a
-        // reverting broadcast transaction aborts the whole run before anything lands.
         showReplayIsRejected();
         showPerAssetCheck();
     }
@@ -65,7 +60,7 @@ contract MultiAssetDemo is Script {
         assets[1] = MultiAssetSolvencyRegistry.Asset(address(0), address(ethFeed), 18, 1 hours);
         assets[2] = MultiAssetSolvencyRegistry.Asset(address(usdc), address(usdcFeed), 6, 1 days);
 
-        registry = new MultiAssetSolvencyRegistry(company, auditor, assets, address(new HonkVerifier()));
+        registry = new MultiAssetSolvencyRegistry(company, auditor, assets, address(new HonkVerifier()), 1 days);
         require(address(registry) == FIXTURE_REGISTRY, "run against a fresh anvil: the proof is bound to the address");
         console.log("==> registry deployed at", address(registry));
         console.log("    company:", company);
@@ -100,8 +95,6 @@ contract MultiAssetDemo is Script {
         proof = vm.readFileBinary("arms/zk-circuit/fixtures/proof.bin");
     }
 
-    // The rounds the prover fetched, not whatever is latest now, so a feed update between
-    // fetching and submitting cannot change the recorded USD figure.
     function pinnedRounds() internal view returns (uint80[3] memory roundIds) {
         string memory json = vm.readFile("arms/zk-circuit/prover/snapshot.json");
         uint256[] memory parsed = vm.parseJsonUintArray(json, ".roundIds");

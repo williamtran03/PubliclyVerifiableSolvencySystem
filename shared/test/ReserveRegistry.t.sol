@@ -5,7 +5,17 @@ import {Test} from "forge-std/Test.sol";
 import {ReserveRegistry} from "../contracts/ReserveRegistry.sol";
 
 contract Registry is ReserveRegistry {
-    constructor(address company, address auditor) ReserveRegistry("Registry", company, auditor) {}
+    constructor(address company, address auditor) ReserveRegistry("Registry", company, auditor, 1 days) {}
+
+    function recordEpoch() external {
+        _recordEpoch();
+    }
+}
+
+contract BoundedRegistry is ReserveRegistry {
+    constructor(address company, address auditor, uint64 maxAge)
+        ReserveRegistry("Registry", company, auditor, maxAge)
+    {}
 }
 
 contract MockToken {
@@ -268,6 +278,34 @@ contract ReserveRegistryTest is Test {
         vm.prank(second);
         registry.acceptCompany();
         assertEq(registry.company(), second);
+    }
+
+    // ---- liveness -----------------------------------------------------------
+
+    function test_NoEpochIsNeverCurrent() public view {
+        assertFalse(registry.isCurrent());
+        assertEq(registry.epochAge(), type(uint64).max);
+    }
+
+    function test_EpochGoesStaleAtTheBound() public {
+        registry.recordEpoch();
+        assertTrue(registry.isCurrent());
+        assertEq(registry.epochAge(), 0);
+
+        vm.warp(block.timestamp + 1 days);
+        assertEq(registry.epochAge(), 1 days);
+        assertTrue(registry.isCurrent(), "exactly at the bound is still current");
+
+        vm.warp(block.timestamp + 1);
+        assertFalse(registry.isCurrent(), "one second past the bound is not");
+
+        registry.recordEpoch();
+        assertTrue(registry.isCurrent(), "publishing again restores it");
+    }
+
+    function test_RejectsAZeroEpochBound() public {
+        vm.expectRevert(ReserveRegistry.BadRoles.selector);
+        new BoundedRegistry(company, auditor, 0);
     }
 
     // ---- the reserve cap ----------------------------------------------------

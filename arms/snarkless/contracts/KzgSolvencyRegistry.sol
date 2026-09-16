@@ -60,9 +60,14 @@ contract KzgSolvencyRegistry is ReserveRegistry {
     error InvalidRangeProof();
     error NoEpoch();
 
-    constructor(address _company, address _auditor, address _token, uint8 _decimals, Srs memory _srs)
-        ReserveRegistry("KzgSolvencyRegistry", _company, _auditor)
-    {
+    constructor(
+        address _company,
+        address _auditor,
+        address _token,
+        uint8 _decimals,
+        Srs memory _srs,
+        uint64 _maxEpochAge
+    ) ReserveRegistry("KzgSolvencyRegistry", _company, _auditor, _maxEpochAge) {
         token = _token;
         decimals = _decimals;
         srs = _srs;
@@ -93,6 +98,7 @@ contract KzgSolvencyRegistry is ReserveRegistry {
         // Every balance in [0, 2^64), so the field sum n·p(0) is the integer sum.
         if (!verifyRange(sum.balanceCommitment, range)) revert InvalidRangeProof();
 
+        _recordEpoch();
         epochs[epochCount] =
             Epoch(sum.balanceCommitment, sum.identityCommitment, sum.totalLiabilities, units, uint64(block.timestamp));
         emit EpochSubmitted(epochCount, sum.totalLiabilities, units);

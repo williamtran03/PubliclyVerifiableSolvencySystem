@@ -31,6 +31,8 @@ contract MultiAssetSolvencyRegistryTest is Test {
     uint256 context;
     uint64[3] floors;
 
+    uint64 constant MAX_EPOCH_AGE = 1 days;
+
     function setUp() public {
         vm.chainId(31337);
         vm.warp(1_700_000_000);
@@ -49,7 +51,7 @@ contract MultiAssetSolvencyRegistryTest is Test {
         verifier = new HonkVerifier();
         deployCodeTo(
             "MultiAssetSolvencyRegistry.sol:MultiAssetSolvencyRegistry",
-            abi.encode(company, auditor, assets, address(verifier)),
+            abi.encode(company, auditor, assets, address(verifier), MAX_EPOCH_AGE),
             FIXTURE_REGISTRY
         );
         registry = MultiAssetSolvencyRegistry(FIXTURE_REGISTRY);
@@ -90,6 +92,23 @@ contract MultiAssetSolvencyRegistryTest is Test {
     function submit(uint80[3] memory roundIds) internal {
         vm.prank(company);
         registry.submitEpoch(proof, rootHash, floors, roundIds);
+    }
+
+    // ---- liveness -----------------------------------------------------------
+
+    function test_RegistryIsNotCurrentBeforeAnyEpoch() public view {
+        assertFalse(registry.isCurrent());
+        assertEq(registry.epochAge(), type(uint64).max);
+    }
+
+    function test_PublishingMakesTheRegistryCurrentUntilTheBoundPasses() public {
+        submit(latestRounds());
+        assertTrue(registry.isCurrent());
+        assertEq(registry.epochAge(), 0);
+
+        vm.warp(block.timestamp + MAX_EPOCH_AGE + 1);
+        assertFalse(registry.isCurrent(), "an unrefreshed epoch goes stale on its own");
+        assertEq(registry.epochAge(), MAX_EPOCH_AGE + 1);
     }
 
     // ---- epochs -------------------------------------------------------------
@@ -141,7 +160,8 @@ contract MultiAssetSolvencyRegistryTest is Test {
     }
 
     function test_ProofIsBoundToTheRegistryItWasBuiltFor() public {
-        MultiAssetSolvencyRegistry other = new MultiAssetSolvencyRegistry(company, auditor, assets, address(verifier));
+        MultiAssetSolvencyRegistry other =
+            new MultiAssetSolvencyRegistry(company, auditor, assets, address(verifier), MAX_EPOCH_AGE);
         approveReserve(other, reserve, reserveKey);
 
         uint80[3] memory roundIds = latestRounds();
@@ -215,7 +235,8 @@ contract MultiAssetSolvencyRegistryTest is Test {
     function test_NormalisesFeedDecimals() public {
         MultiAssetSolvencyRegistry.Asset[] memory wide = assets;
         wide[1].feed = address(new MockAggregator(18, 3_000e18));
-        MultiAssetSolvencyRegistry other = new MultiAssetSolvencyRegistry(company, auditor, wide, address(verifier));
+        MultiAssetSolvencyRegistry other =
+            new MultiAssetSolvencyRegistry(company, auditor, wide, address(verifier), MAX_EPOCH_AGE);
 
         (uint256[3] memory prices,) = other.readPrices();
         assertEq(prices[1], 3_000e8);

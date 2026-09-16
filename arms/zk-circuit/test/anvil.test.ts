@@ -23,6 +23,8 @@ import { fetchSnapshot, type Snapshot } from "../prover/fetchSnapshot.ts";
 import { prepareEpoch } from "../prover/buildMultiAssetTree.ts";
 import { createBundle, epochContext, parseHoldingsCsv, verifyBundle, type Customer } from "../prover/multiAssetTree.ts";
 
+const MAX_EPOCH_AGE = 86_400n; // a day: how long a published epoch stays current
+
 // Standard anvil dev accounts 0 and 1.
 const company = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 const auditor = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d");
@@ -149,6 +151,7 @@ test("Anvil: signed reserve, auditor approval, real proof per epoch, customer ve
       auditor.address,
       assets,
       verifier,
+      MAX_EPOCH_AGE,
     ]);
     const read = (functionName: string, args: unknown[] = []) =>
       publicClient.readContract({ address: registry, abi: registryAbi, functionName, args }) as Promise<any>;
@@ -244,6 +247,8 @@ test("Anvil: signed reserve, auditor approval, real proof per epoch, customer ve
     const epoch1 = prepareEpoch(holdings, snapshot1, seed());
     await submit(company, prove(epoch1.proverToml, workDir), epoch1, snapshot1.roundIds);
     assert.equal(await read("epochCount"), 2n);
+    assert.equal(await read("isCurrent"), true);
+    assert.ok((await read("epochAge")) < MAX_EPOCH_AGE);
     assert.equal((await read("getEpoch", [0n])).rootHash, epoch0.rootHash);
     assert.equal((await read("latestEpoch")).rootHash, epoch1.rootHash);
 
