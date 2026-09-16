@@ -6,6 +6,7 @@ contract MockAggregator {
     uint80 public latestRound;
     mapping(uint80 => int256) public answers;
     mapping(uint80 => uint256) public updatedAts;
+    mapping(uint80 => uint80) public answeredInOverride;
 
     constructor(uint8 _decimals, int256 _answer) {
         decimals = _decimals;
@@ -14,6 +15,15 @@ contract MockAggregator {
 
     function set(int256 _answer, uint256 _updatedAt) external {
         _push(_answer, _updatedAt);
+    }
+
+    function setAnsweredInRound(uint80 roundId, uint80 answeredIn) external {
+        answeredInOverride[roundId] = answeredIn;
+    }
+
+    function answeredIn(uint80 roundId) public view returns (uint80) {
+        uint80 stored = answeredInOverride[roundId];
+        return stored == 0 ? roundId : stored;
     }
 
     function _push(int256 _answer, uint256 _updatedAt) internal {
@@ -27,7 +37,7 @@ contract MockAggregator {
     }
 
     function getRoundData(uint80 roundId) external view returns (uint80, int256, uint256, uint256, uint80) {
-        return (roundId, answers[roundId], updatedAts[roundId], updatedAts[roundId], roundId);
+        return (roundId, answers[roundId], updatedAts[roundId], updatedAts[roundId], answeredIn(roundId));
     }
 }
 

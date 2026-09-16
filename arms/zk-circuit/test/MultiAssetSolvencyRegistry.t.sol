@@ -94,6 +94,18 @@ contract MultiAssetSolvencyRegistryTest is Test {
         registry.submitEpoch(proof, rootHash, floors, roundIds);
     }
 
+    // ---- configuration ------------------------------------------------------
+
+    function test_RejectsTheSameTokenUnderTwoAssetIds() public {
+        MultiAssetSolvencyRegistry.Asset[] memory duplicate = new MultiAssetSolvencyRegistry.Asset[](3);
+        duplicate[0] = MultiAssetSolvencyRegistry.Asset(address(btc), address(btcFeed), 8, 1 hours);
+        duplicate[1] = MultiAssetSolvencyRegistry.Asset(address(btc), address(ethFeed), 18, 1 hours);
+        duplicate[2] = MultiAssetSolvencyRegistry.Asset(address(usdc), address(usdcFeed), 6, 1 days);
+
+        vm.expectRevert(MultiAssetSolvencyRegistry.DuplicateAsset.selector);
+        new MultiAssetSolvencyRegistry(company, auditor, duplicate, address(verifier), MAX_EPOCH_AGE);
+    }
+
     // ---- liveness -----------------------------------------------------------
 
     function test_RegistryIsNotCurrentBeforeAnyEpoch() public view {
@@ -109,6 +121,18 @@ contract MultiAssetSolvencyRegistryTest is Test {
         vm.warp(block.timestamp + MAX_EPOCH_AGE + 1);
         assertFalse(registry.isCurrent(), "an unrefreshed epoch goes stale on its own");
         assertEq(registry.epochAge(), MAX_EPOCH_AGE + 1);
+    }
+
+    // ---- oracle rounds ------------------------------------------------------
+
+    function test_RejectsARoundThatCarriedAnOlderAnswer() public {
+        btcFeed.set(60_000e8, block.timestamp); // a second round, so there is an earlier one to carry
+        uint80[3] memory roundIds = latestRounds();
+        btcFeed.setAnsweredInRound(roundIds[0], roundIds[0] - 1);
+
+        vm.prank(company);
+        vm.expectRevert(MultiAssetSolvencyRegistry.StaleRound.selector);
+        registry.submitEpoch(proof, rootHash, floors, roundIds);
     }
 
     // ---- epochs -------------------------------------------------------------

@@ -60,6 +60,8 @@ contract MultiAssetSolvencyRegistry is ReserveRegistry {
     );
 
     error BadAssetCount();
+    error DuplicateAsset();
+    error StaleRound();
     error BadPrice();
     error StalePrice();
     error InvalidProof();
@@ -71,6 +73,11 @@ contract MultiAssetSolvencyRegistry is ReserveRegistry {
     {
         if (_assets.length != NUM_ASSETS) revert BadAssetCount();
         for (uint256 i = 0; i < _assets.length; i++) {
+            // One token under two ids would be counted twice, letting one asset's balance
+            // cover the other's shortfall.
+            for (uint256 j = 0; j < i; j++) {
+                if (_assets[i].token == _assets[j].token) revert DuplicateAsset();
+            }
             assets.push(_assets[i]);
         }
         verifier = IVerifier(_verifier);
@@ -126,8 +133,10 @@ contract MultiAssetSolvencyRegistry is ReserveRegistry {
     function readPricesAt(uint80[NUM_ASSETS] memory roundIds) public view returns (uint256[NUM_ASSETS] memory prices) {
         for (uint256 i = 0; i < NUM_ASSETS; i++) {
             IAggregatorV3 feed = IAggregatorV3(assets[i].feed);
-            (, int256 answer,, uint256 updatedAt,) = feed.getRoundData(roundIds[i]);
+            (, int256 answer,, uint256 updatedAt, uint80 answeredInRound) = feed.getRoundData(roundIds[i]);
             if (answer <= 0) revert BadPrice();
+            // An answer carried over from an earlier round is not a fresh observation.
+            if (answeredInRound < roundIds[i]) revert StaleRound();
             if (block.timestamp - updatedAt > assets[i].maxPriceAge) revert StalePrice();
 
             uint8 feedDecimals = feed.decimals();
