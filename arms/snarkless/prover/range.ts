@@ -42,8 +42,10 @@ function bitPolynomials(balances: bigint[], bits: number, n: number): Poly[] {
 function challenges(
   balanceCommitment: G1Point,
   bitCommitments: G1Point[],
+  context: bigint,
 ): { transcript: Transcript; gamma: bigint } {
   const transcript = new Transcript("solvency/range/v1");
+  transcript.absorbScalar(context);
   transcript.absorbPoint(balanceCommitment);
   for (const commitment of bitCommitments) transcript.absorbPoint(commitment);
   return { transcript, gamma: transcript.challenge() };
@@ -57,6 +59,7 @@ export function proveRange(
   srs: Srs,
   balancePoly: Poly,
   balances: bigint[],
+  context: bigint,
   bits: number = BALANCE_BITS,
 ): RangeProof {
   for (const balance of balances) {
@@ -70,9 +73,8 @@ export function proveRange(
   const balanceCommitment = commit(srs, balancePoly);
   const bitCommitments = bitPolys.map((poly) => commit(srs, poly));
 
-  const { transcript, gamma } = challenges(balanceCommitment, bitCommitments);
+  const { transcript, gamma } = challenges(balanceCommitment, bitCommitments, context);
 
-  // sum_k gamma^k (b_k^2 - b_k) + gamma^bits (sum_k 2^k b_k - p)
   let folded: Poly = [Fr.ZERO];
   let gammaPower = Fr.ONE;
   let reconstructed: Poly = [Fr.ZERO];
@@ -103,11 +105,12 @@ export function verifyRange(
   balanceCommitment: G1Point,
   n: number,
   proof: RangeProof,
+  context: bigint,
 ): boolean {
   if (proof.bitCommitments.length !== proof.bits) return false;
   if (proof.values.length !== proof.bits + 2) return false;
 
-  const { transcript, gamma } = challenges(balanceCommitment, proof.bitCommitments);
+  const { transcript, gamma } = challenges(balanceCommitment, proof.bitCommitments, context);
   transcript.absorbPoint(proof.quotientCommitment);
   const zeta = transcript.challenge();
   if (isDegenerate(zeta, n)) return false;
@@ -118,7 +121,6 @@ export function verifyRange(
   const bitsAt = proof.values.slice(1, 1 + proof.bits);
   const quotientAt = proof.values[proof.values.length - 1];
 
-  // sum_k gamma^k (b_k^2 - b_k) + gamma^bits (sum_k 2^k b_k - p)
   let left = Fr.ZERO;
   let gammaPower = Fr.ONE;
   let reconstructed = Fr.ZERO;

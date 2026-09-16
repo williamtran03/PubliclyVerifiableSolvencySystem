@@ -4,23 +4,18 @@ pragma solidity 0.8.28;
 import {KzgVerifier} from "./KzgVerifier.sol";
 import {ReserveRegistry} from "../../../shared/contracts/ReserveRegistry.sol";
 
-// The snarkless arm on-chain: the published total is checked with a degree bound and an
-// opening at 0, every balance is range-checked by verifying the KZG range argument here,
-// and customers check their own slot through a gasless view. Single asset.
 contract KzgSolvencyRegistry is ReserveRegistry {
-    // must equal LEAF_CAPACITY in shared/merkleSumTree.ts
     uint256 public constant DOMAIN_SIZE = 8;
     uint256 public constant BALANCE_BITS = 64;
     uint256 private constant FR = KzgVerifier.FR;
     uint256 private constant DOMAIN_SIZE_INVERSE =
         19152212512859365819465605027100115702479818850364030050735928663253832433665;
-    // 5^((r − 1) / 8): the domain generator arms/snarkless/prover/field.ts uses
     uint256 private constant OMEGA = 19540430494807482326159819597004422086093766032135589407132600596362845576832;
 
     struct Srs {
         KzgVerifier.G2Point g2;
         KzgVerifier.G2Point tauG2;
-        KzgVerifier.G2Point boundG2; // [τ^(D − (DOMAIN_SIZE − 1))]₂
+        KzgVerifier.G2Point boundG2;
     }
 
     struct GrandSum {
@@ -28,13 +23,13 @@ contract KzgSolvencyRegistry is ReserveRegistry {
         KzgVerifier.G1Point shiftedCommitment;
         KzgVerifier.G1Point identityCommitment;
         uint256 totalLiabilities;
-        KzgVerifier.G1Point sumProof; // opening of the balance polynomial at 0
+        KzgVerifier.G1Point sumProof;
     }
 
     struct RangeProof {
         KzgVerifier.G1Point[] bitCommitments;
         KzgVerifier.G1Point quotientCommitment;
-        uint256[] values; // balance, bits…, quotient, all at ζ
+        uint256[] values;
         KzgVerifier.G1Point batchProof;
     }
 
@@ -46,7 +41,7 @@ contract KzgSolvencyRegistry is ReserveRegistry {
         uint64 timestamp;
     }
 
-    address public immutable token; // address(0) = native ETH
+    address public immutable token;
     uint8 public immutable decimals;
     Srs private srs;
     mapping(uint256 => Epoch) private epochs;
@@ -78,6 +73,10 @@ contract KzgSolvencyRegistry is ReserveRegistry {
         return epochs[epochId];
     }
 
+    function epochContext(uint256 epochId) public view returns (uint256) {
+        return uint256(keccak256(abi.encode(block.chainid, address(this), epochId))) % FR;
+    }
+
     function reserveUnits() public view returns (uint256) {
         return reserveBalance(token) / (10 ** decimals);
     }
@@ -86,7 +85,6 @@ contract KzgSolvencyRegistry is ReserveRegistry {
         uint256 units = reserveUnits();
         if (units < sum.totalLiabilities) revert Insolvent(units, sum.totalLiabilities);
 
-        // Without the bound, p + c·Z_H has the same balances but a total lower by n·c.
         if (!KzgVerifier.verifyDegreeBound(sum.balanceCommitment, sum.shiftedCommitment, srs.g2, srs.boundG2)) {
             revert DegreeTooHigh();
         }
@@ -95,8 +93,7 @@ contract KzgSolvencyRegistry is ReserveRegistry {
         if (!KzgVerifier.verifyOpening(sum.balanceCommitment, 0, constantTerm, sum.sumProof, srs.g2, srs.tauG2)) {
             revert InvalidOpening();
         }
-        // Every balance in [0, 2^64), so the field sum n·p(0) is the integer sum.
-        if (!verifyRange(sum.balanceCommitment, range)) revert InvalidRangeProof();
+        if (!verifyRange(sum.balanceCommitment, range, epochContext(epochCount))) revert InvalidRangeProof();
 
         _recordEpoch();
         epochs[epochCount] =
@@ -105,8 +102,6 @@ contract KzgSolvencyRegistry is ReserveRegistry {
         epochCount++;
     }
 
-    // Gasless check a customer runs for their slot. identity is Poseidon2(username, salt),
-    // computed off-chain with the customer's own salt.
     function verifyInclusion(
         uint256 epochId,
         uint256 index,
@@ -125,6 +120,7 @@ contract KzgSolvencyRegistry is ReserveRegistry {
         }
 
         bytes32 state = keccak256("solvency/inclusion/v1");
+        state = absorbScalar(state, epochContext(epochId));
         state = absorbPoint(state, epoch.identityCommitment);
         state = absorbPoint(state, epoch.balanceCommitment);
         state = absorbScalar(state, z);
@@ -138,9 +134,7 @@ contract KzgSolvencyRegistry is ReserveRegistry {
         return KzgVerifier.verifyOpening(folded, z, value, proof, srs.g2, srs.tauG2);
     }
 
-    // ---- range argument, mirroring arms/snarkless/prover/range.ts verifyRange ----
-
-    function verifyRange(KzgVerifier.G1Point memory balanceCommitment, RangeProof calldata proof)
+    function verifyRange(KzgVerifier.G1Point memory balanceCommitment, RangeProof calldata proof, uint256 context)
         private
         view
         returns (bool)
@@ -150,7 +144,7 @@ contract KzgSolvencyRegistry is ReserveRegistry {
             if (proof.values[i] >= FR) return false;
         }
 
-        (uint256 gamma, uint256 zeta, uint256 nu) = rangeChallenges(balanceCommitment, proof);
+        (uint256 gamma, uint256 zeta, uint256 nu) = rangeChallenges(balanceCommitment, proof, context);
         uint256 vanishing = addmod(power(zeta, DOMAIN_SIZE), FR - 1, FR);
         if (zeta == 0 || vanishing == 0) return false;
         if (!rangeIdentityHolds(proof.values, gamma, vanishing)) return false;
@@ -159,12 +153,13 @@ contract KzgSolvencyRegistry is ReserveRegistry {
         return KzgVerifier.verifyOpening(folded, zeta, foldedValue, proof.batchProof, srs.g2, srs.tauG2);
     }
 
-    function rangeChallenges(KzgVerifier.G1Point memory balanceCommitment, RangeProof calldata proof)
+    function rangeChallenges(KzgVerifier.G1Point memory balanceCommitment, RangeProof calldata proof, uint256 context)
         private
         pure
         returns (uint256 gamma, uint256 zeta, uint256 nu)
     {
         bytes32 state = keccak256("solvency/range/v1");
+        state = absorbScalar(state, context);
         state = absorbPoint(state, balanceCommitment);
         for (uint256 k = 0; k < BALANCE_BITS; k++) {
             state = absorbPoint(state, proof.bitCommitments[k]);
@@ -178,7 +173,6 @@ contract KzgSolvencyRegistry is ReserveRegistry {
         (, nu) = challenge(state);
     }
 
-    // sum_k gamma^k (b_k^2 − b_k) + gamma^bits (sum_k 2^k b_k − p) = Z_H(ζ)·q(ζ)
     function rangeIdentityHolds(uint256[] calldata values, uint256 gamma, uint256 vanishing)
         private
         pure
@@ -197,7 +191,6 @@ contract KzgSolvencyRegistry is ReserveRegistry {
         return left == mulmod(vanishing, values[BALANCE_BITS + 1], FR);
     }
 
-    // Σ nu^i·C_i and Σ nu^i·v_i over (balance, bits…, quotient)
     function foldRange(KzgVerifier.G1Point memory balanceCommitment, RangeProof calldata proof, uint256 nu)
         private
         view
@@ -215,8 +208,6 @@ contract KzgSolvencyRegistry is ReserveRegistry {
             foldedValue = addmod(foldedValue, mulmod(proof.values[1 + k], nuPower, FR), FR);
         }
     }
-
-    // ---- transcript, byte-identical to arms/snarkless/prover/transcript.ts ----
 
     function absorbPoint(bytes32 state, KzgVerifier.G1Point memory point) private pure returns (bytes32) {
         return keccak256(abi.encodePacked(state, point.x, point.y));

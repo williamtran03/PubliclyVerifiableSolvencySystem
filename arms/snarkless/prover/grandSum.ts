@@ -1,3 +1,4 @@
+import { encodeAbiParameters, keccak256 } from "viem";
 import { interpolate, nthRootOfUnity, Fr } from "./field.ts";
 import { batchOpen, batchVerify, commit, commitShifted, open, verify, verifyDegreeBound, type Opening } from "./commit.ts";
 import type { G1Point, Srs } from "./srs.ts";
@@ -7,23 +8,29 @@ import { LEAF_CAPACITY, poseidon2Hash, usernameToBigInt } from "../../../shared/
 
 const GRAND_SUM_CAPACITY = LEAF_CAPACITY;
 
-// The salt is the customer's own, kept from signup, so an identity cannot be reused for
-// a second customer; the verifier takes it from the customer, never from the exchange.
 export type Account = { username: string; salt: bigint; balance: bigint };
 
 export type GrandSumEpoch = {
-  balanceCommitment: G1Point; // p(ω^i) = balance of slot i
-  shiftedCommitment: G1Point; // proves deg p < n, without which n·p(0) is not the sum
-  identityCommitment: G1Point; // u(ω^i) = H(username, salt) of slot i
-  opening: Opening; // p at 0
+  balanceCommitment: G1Point;
+  shiftedCommitment: G1Point;
+  identityCommitment: G1Point;
+  opening: Opening;
   totalLiabilities: bigint;
   balancePoly: Poly;
   identityPoly: Poly;
-  balances: bigint[]; // padded to the domain
+  balances: bigint[];
   identities: bigint[];
 };
 
 export type InclusionProof = { index: number; proof: G1Point };
+
+export function epochContext(chainId: bigint, registry: `0x${string}`, epochId: bigint): bigint {
+  const encoded = encodeAbiParameters(
+    [{ type: "uint256" }, { type: "address" }, { type: "uint256" }],
+    [chainId, registry, epochId],
+  );
+  return BigInt(keccak256(encoded)) % Fr.ORDER;
+}
 
 export function identityOf(username: string, salt: bigint): bigint {
   return poseidon2Hash([usernameToBigInt(username), salt]);
@@ -36,8 +43,6 @@ export function buildGrandSumEpoch(srs: Srs, accounts: Account[]): GrandSumEpoch
   }
   if (srs.boundedDegree !== n - 1) throw new Error(`the SRS must bound degree ${n - 1}`);
 
-  // Padding slots hold zero under identity zero. Neither is ever opened to anyone but the
-  // slot's owner, and there is no owner.
   const balances = [...accounts.map((a) => a.balance), ...new Array(n - accounts.length).fill(0n)];
   const identities = [
     ...accounts.map((a) => identityOf(a.username, a.salt)),
@@ -65,9 +70,6 @@ export function buildGrandSumEpoch(srs: Srs, accounts: Account[]): GrandSumEpoch
   };
 }
 
-// What anyone checks about the published total. The degree bound is not optional: a
-// commitment to p + c·Z_H has the same balances on the domain but a constant term smaller
-// by c, so without it the total can be understated by any amount.
 export function verifyGrandSum(
   srs: Srs,
   balanceCommitment: G1Point,
@@ -84,15 +86,16 @@ export function verifyGrandSum(
   );
 }
 
-// Mirrors KzgSolvencyRegistry.inclusionChallenge.
 function inclusionChallenge(
   identityCommitment: G1Point,
   balanceCommitment: G1Point,
   z: bigint,
   identity: bigint,
   balance: bigint,
+  context: bigint,
 ): bigint {
   const transcript = new Transcript("solvency/inclusion/v1");
+  transcript.absorbScalar(context);
   transcript.absorbPoint(identityCommitment);
   transcript.absorbPoint(balanceCommitment);
   transcript.absorbScalar(z);
@@ -101,8 +104,7 @@ function inclusionChallenge(
   return transcript.challenge();
 }
 
-// One batched opening of (identity, balance) at the slot's point ω^index.
-export function proveInclusion(srs: Srs, epoch: GrandSumEpoch, index: number): InclusionProof {
+export function proveInclusion(srs: Srs, epoch: GrandSumEpoch, index: number, context: bigint): InclusionProof {
   if (!Number.isInteger(index) || index < 0 || index >= GRAND_SUM_CAPACITY) throw new Error("index outside the domain");
   const z = Fr.pow(nthRootOfUnity(GRAND_SUM_CAPACITY), BigInt(index));
   const nu = inclusionChallenge(
@@ -111,6 +113,7 @@ export function proveInclusion(srs: Srs, epoch: GrandSumEpoch, index: number): I
     z,
     epoch.identities[index],
     epoch.balances[index],
+    context,
   );
   const { values, proof } = batchOpen(srs, [epoch.identityPoly, epoch.balancePoly], z, nu);
   if (values[0] !== epoch.identities[index] || values[1] !== epoch.balances[index]) {
@@ -124,6 +127,7 @@ export function verifyInclusion(
   commitments: { identityCommitment: G1Point; balanceCommitment: G1Point },
   customer: Account,
   inclusion: InclusionProof,
+  context: bigint,
 ): boolean {
   try {
     const { index } = inclusion;
@@ -132,7 +136,7 @@ export function verifyInclusion(
     const z = Fr.pow(nthRootOfUnity(GRAND_SUM_CAPACITY), BigInt(index));
     const identity = identityOf(customer.username, customer.salt);
     const { identityCommitment, balanceCommitment } = commitments;
-    const nu = inclusionChallenge(identityCommitment, balanceCommitment, z, identity, customer.balance);
+    const nu = inclusionChallenge(identityCommitment, balanceCommitment, z, identity, customer.balance, context);
     return batchVerify(srs, [identityCommitment, balanceCommitment], [identity, customer.balance], z, nu, inclusion.proof);
   } catch {
     return false;

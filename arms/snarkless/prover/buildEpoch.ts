@@ -1,12 +1,19 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { loadSrs, g2ForPrecompile, type G1Point, type G2Point } from "./srs.ts";
-import { buildGrandSumEpoch, identityOf, proveInclusion, verifyGrandSum, verifyInclusion, type Account } from "./grandSum.ts";
+import {
+  buildGrandSumEpoch,
+  epochContext,
+  identityOf,
+  proveInclusion,
+  verifyGrandSum,
+  verifyInclusion,
+  type Account,
+} from "./grandSum.ts";
 import { proveRange, verifyRange } from "./range.ts";
 import { commit, open } from "./commit.ts";
 import { Fr } from "./field.ts";
 import { add, mul } from "./poly.ts";
 
-// Columns: username,balance,salt with a header row. The salt is the customer's own.
 function parseCustomersCsv(path: string): Account[] {
   const content = readFileSync(path, "utf8").trim();
   const [, ...rows] = content.split("\n");
@@ -29,19 +36,24 @@ const g2Json = (p: G2Point) => {
 const srs = loadSrs("./arms/snarkless/fixtures/srs.json");
 const accounts = parseCustomersCsv("./shared/customers.csv");
 
+const snapshot = JSON.parse(readFileSync("./arms/snarkless/prover/snapshot.json", "utf8"));
+const context = epochContext(BigInt(snapshot.chainId), snapshot.registry, BigInt(snapshot.epochId));
+
 const epoch = buildGrandSumEpoch(srs, accounts);
 if (!verifyGrandSum(srs, epoch.balanceCommitment, epoch.shiftedCommitment, epoch.opening, epoch.totalLiabilities)) {
   throw new Error("grand sum failed to verify");
 }
 
-const rangeProof = proveRange(srs, epoch.balancePoly, epoch.balances);
-if (!verifyRange(srs, epoch.balanceCommitment, epoch.balances.length, rangeProof)) {
+const rangeProof = proveRange(srs, epoch.balancePoly, epoch.balances, context);
+if (!verifyRange(srs, epoch.balanceCommitment, epoch.balances.length, rangeProof, context)) {
   throw new Error("range proof failed to verify");
 }
 
 const inclusions = accounts.map((account, index) => {
-  const inclusion = proveInclusion(srs, epoch, index);
-  if (!verifyInclusion(srs, epoch, account, inclusion)) throw new Error(`${account.username} failed inclusion`);
+  const inclusion = proveInclusion(srs, epoch, index, context);
+  if (!verifyInclusion(srs, epoch, account, inclusion, context)) {
+    throw new Error(`${account.username} failed inclusion`);
+  }
   return {
     username: account.username,
     index,
@@ -57,6 +69,10 @@ const write = (name: string, value: unknown) =>
 
 write("epoch.json", {
   domainSize: epoch.balances.length,
+  registry: snapshot.registry,
+  chainId: snapshot.chainId,
+  epochId: snapshot.epochId,
+  context: context.toString(),
   totalLiabilities: epoch.totalLiabilities.toString(),
   balanceCommitment: point(epoch.balanceCommitment),
   shiftedCommitment: point(epoch.shiftedCommitment),
@@ -76,12 +92,10 @@ write("range-proof.json", {
 });
 write("inclusion.json", inclusions);
 
-// The degree-bound attack, kept as a fixture so the registry test can show it is refused:
-// p + 5000·Z_H has the same balances on the domain but a constant term 5000 lower.
 const vanishing = [Fr.neg(Fr.ONE), ...new Array(epoch.balances.length - 1).fill(0n), Fr.ONE];
 const cheat = add(epoch.balancePoly, mul(vanishing, [5000n]));
 const cheatOpening = open(srs, cheat, 0n);
-const cheatRange = proveRange(srs, cheat, epoch.balances); // still verifies: same balances on the domain
+const cheatRange = proveRange(srs, cheat, epoch.balances, context);
 write("attack.json", {
   balanceCommitment: point(commit(srs, cheat)),
   sumProof: point(cheatOpening.proof),

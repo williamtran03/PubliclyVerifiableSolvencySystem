@@ -14,8 +14,9 @@ contract UnitToken {
     }
 }
 
-// Reserve mechanics are tested in shared/test/ReserveRegistry.t.sol; this covers the arm.
 contract KzgSolvencyRegistryTest is Test {
+    address constant FIXTURE_REGISTRY = 0x34A1D3fff3958843C43aD80F30b94c510645C316;
+
     KzgSolvencyRegistry registry;
     UnitToken token;
     address company = makeAddr("company");
@@ -29,6 +30,7 @@ contract KzgSolvencyRegistryTest is Test {
     uint64 constant MAX_EPOCH_AGE = 1 days;
 
     function setUp() public {
+        vm.chainId(31337);
         vm.warp(1_700_000_000);
         uint256 key;
         (reserve, key) = makeAddrAndKey("reserve");
@@ -37,9 +39,14 @@ contract KzgSolvencyRegistryTest is Test {
         KzgSolvencyRegistry.Srs memory srs =
             KzgSolvencyRegistry.Srs(g2(epoch, ".g2"), g2(epoch, ".tauG2"), g2(epoch, ".boundG2"));
         token = new UnitToken();
-        registry = new KzgSolvencyRegistry(company, auditor, address(token), 0, srs, MAX_EPOCH_AGE);
+        deployCodeTo(
+            "KzgSolvencyRegistry.sol:KzgSolvencyRegistry",
+            abi.encode(company, auditor, address(token), uint8(0), srs, MAX_EPOCH_AGE),
+            FIXTURE_REGISTRY
+        );
+        registry = KzgSolvencyRegistry(FIXTURE_REGISTRY);
 
-        token.set(reserve, 50_000); // liabilities are 49,550
+        token.set(reserve, 50_000);
         vm.prank(company);
         registry.proposeReserve(reserve);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, registry.reserveDigest(reserve, block.timestamp));
@@ -91,8 +98,6 @@ contract KzgSolvencyRegistryTest is Test {
         registry.submitEpoch(sum, range);
     }
 
-    // ---- epochs -------------------------------------------------------------
-
     function test_SubmitEpoch() public {
         submit();
         KzgSolvencyRegistry.Epoch memory epoch = registry.getEpoch(0);
@@ -102,8 +107,6 @@ contract KzgSolvencyRegistryTest is Test {
         assertEq(registry.epochCount(), 1);
     }
 
-    // The figure docs/comparison.md quotes. The gas report cannot supply it: its max
-    // column includes the reverting calls.
     function test_GasForASuccessfulSubmission() public {
         vm.prank(company);
         uint256 before = gasleft();
@@ -111,6 +114,15 @@ contract KzgSolvencyRegistryTest is Test {
         uint256 used = before - gasleft();
         emit log_named_uint("kzg submitEpoch gas", used);
         assertLt(used, 2_500_000, "a regression beyond the figure the comparison quotes");
+    }
+
+    function test_AProofDoesNotCarryToTheNextEpoch() public {
+        submit();
+        assertEq(registry.epochCount(), 1);
+
+        vm.prank(company);
+        vm.expectRevert(KzgSolvencyRegistry.InvalidRangeProof.selector);
+        registry.submitEpoch(sum, range);
     }
 
     function test_OnlyTheCompanySubmits() public {
@@ -131,8 +143,6 @@ contract KzgSolvencyRegistryTest is Test {
         registry.getEpoch(0);
     }
 
-    // ---- the published total ------------------------------------------------
-
     function test_RejectsAnUnderstatedTotal() public {
         sum.totalLiabilities = 49_549;
         vm.prank(company);
@@ -141,21 +151,17 @@ contract KzgSolvencyRegistryTest is Test {
     }
 
     function test_RefusesTheVanishingPolynomialAttack() public {
-        // p + 5000·Z_H: same balances on the domain, total 9,550 instead of 49,550.
         string memory attack = vm.readFile("arms/snarkless/fixtures/attack.json");
         KzgVerifier.G1Point memory cheat = g1(attack, ".balanceCommitment");
         KzgVerifier.G1Point memory cheatProof = g1(attack, ".sumProof");
         string memory epoch = vm.readFile("arms/snarkless/fixtures/epoch.json");
 
-        // The opening at 0 alone, which was the whole check before, accepts it.
         assertTrue(
             KzgVerifier.verifyOpening(
                 cheat, 0, vm.parseJsonUint(attack, ".constantTerm"), cheatProof, g2(epoch, ".g2"), g2(epoch, ".tauG2")
             )
         );
 
-        // A range proof for the cheating commitment verifies too: the balances on the domain
-        // are real. Only the degree bound is left to catch it.
         loadRange(attack, ".range");
         sum.balanceCommitment = cheat;
         sum.sumProof = cheatProof;
@@ -165,8 +171,6 @@ contract KzgSolvencyRegistryTest is Test {
         vm.expectRevert(KzgSolvencyRegistry.DegreeTooHigh.selector);
         registry.submitEpoch(sum, range);
     }
-
-    // ---- range argument -----------------------------------------------------
 
     function test_RejectsATamperedRangeValue() public {
         range.values[5] = addmod(range.values[5], 1, KzgVerifier.FR);
@@ -188,8 +192,6 @@ contract KzgSolvencyRegistryTest is Test {
         vm.expectRevert(KzgSolvencyRegistry.InvalidRangeProof.selector);
         registry.submitEpoch(sum, range);
     }
-
-    // ---- inclusion ----------------------------------------------------------
 
     function customerAt(uint256 i)
         internal
