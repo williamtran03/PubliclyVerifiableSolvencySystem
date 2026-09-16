@@ -6,6 +6,6 @@ export function client(connection: Connection) {
 }
 
 export function assertEpoch(count: bigint): bigint {
-  if (count === 0n) throw new Error("Dieses Register hat noch keinen Snapshot veröffentlicht.");
+  if (count === 0n) throw new Error("This registry has not published a snapshot yet.");
   return count - 1n;
 }

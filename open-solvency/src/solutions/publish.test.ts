@@ -28,7 +28,7 @@ test("published ledger submission uses recomputed entries", async () => {
     assert.equal(decoded.functionName, "submitLedger");
     assert.deepEqual(decoded.args?.[1], [[12n]]);
     raw.assets[0].entries[0].balance = "51";
-    await assert.rejects(publicationCall("published-ledger", { rpc, registry }, JSON.stringify(raw), undefined, ""), /Root und Summe/);
+    await assert.rejects(publicationCall("published-ledger", { rpc, registry }, JSON.stringify(raw), undefined, ""), /root and total/);
   });
 });
 

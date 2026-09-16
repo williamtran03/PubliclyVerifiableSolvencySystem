@@ -12,9 +12,9 @@ const abi = parseAbi([
 export const zk: Solution = {
   id: "zk-circuit",
   name: "Zero-Knowledge-Circuit",
-  description: "Private Verbindlichkeiten, öffentliche Reserve-Untergrenzen je Asset.",
-  disclosure: "Die individuellen Beträge und Gesamtschulden bleiben privat. Der Circuit ist auf drei Assets ausgelegt.",
-  publication: ["Snapshot und Reserve-Kontext aus dem Register holen: make zk-snapshot REGISTRY=0x…", "Witness und Kunden-Bundles erzeugen: make zk-fixtures", "Proof erzeugen und prüfen: make zk-prove", "Proof mit dem Company-Key veröffentlichen: make zk-demo (lokale Demo)"],
+  description: "Private liabilities with public reserve floors for each asset.",
+  disclosure: "Individual balances and total liabilities remain private. The circuit supports three assets.",
+  publication: ["Fetch the snapshot and reserve context: make zk-snapshot REGISTRY=0x…", "Build the witness and customer bundles: make zk-fixtures", "Generate and verify the proof: make zk-prove", "Publish with the company key: make zk-demo (local demo)"],
   async read(connection) {
     const c = client(connection);
     const epoch = assertEpoch(await c.readContract({ address: connection.registry, abi, functionName: "epochCount" }));
@@ -26,10 +26,10 @@ export const zk: Solution = {
     };
   },
   async verify(_connection, snapshot, file, account, expected, secret) {
-    if (!/^\d+$/.test(secret)) throw new Error("Für diesen Nachweis wird dein numerisches Account-Secret benötigt.");
+    if (!/^\d+$/.test(secret)) throw new Error("This proof requires your numeric account secret.");
     const bundle = deserializeBundle(file);
     const data = snapshot.data as { root: bigint; context: bigint };
     const valid = bundle.username === account && verifyBundle(bundle, { username: account, salt: BigInt(secret), expectedAmounts: expected }, data.root, data.context);
-    return { valid, message: valid ? "Deine eingegebenen Guthaben sind im veröffentlichten Commitment enthalten." : "Bundle, Guthaben oder Secret passen nicht zum aktuellen Snapshot." };
+    return { valid, message: valid ? "Your entered balances are included in the published commitment." : "The bundle, balances, or secret do not match the current snapshot." };
   },
 };

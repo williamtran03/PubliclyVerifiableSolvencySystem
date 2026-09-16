@@ -16,9 +16,9 @@ type KzgBundle = { username: string; index: number; identity: string; balance: s
 export const kzg: Solution = {
   id: "snarkless",
   name: "KZG ohne Circuit",
-  description: "Polynomial-Commitments und On-Chain-Prüfung der Kundeneinbeziehung.",
-  disclosure: "Aktuell ein Asset und acht Kontoplätze. Die Gesamtverbindlichkeit ist öffentlich.",
-  publication: ["Einmalig SRS vorbereiten: make kzg-setup", "Epoch-Daten, Range-Proof und Kundenöffnungen erzeugen: make kzg-epoch", "Artefakte vor dem Signieren prüfen.", "submitEpoch mit dem Company-Key ausführen und Kundenöffnungen einzeln zustellen."],
+  description: "Polynomial commitments with on-chain verification of customer inclusion.",
+  disclosure: "Currently supports one asset and eight account slots. Total liabilities are public.",
+  publication: ["Prepare the SRS once: make kzg-setup", "Generate epoch data, the range proof, and customer openings: make kzg-epoch", "Review the artifacts before signing.", "Call submitEpoch with the company key and deliver each customer opening privately."],
   async read(connection) {
     const c = client(connection);
     const epoch = assertEpoch(await c.readContract({ address: connection.registry, abi, functionName: "epochCount" }));
@@ -31,17 +31,17 @@ export const kzg: Solution = {
     };
   },
   async verify(connection, snapshot, file, account, expected, secret) {
-    if (!/^\d+$/.test(secret)) throw new Error("Für diesen Nachweis wird dein numerisches Account-Secret benötigt.");
-    if (expected.size !== 1 || !expected.has(0)) throw new Error("KZG erwartet genau Asset 0.");
+    if (!/^\d+$/.test(secret)) throw new Error("This proof requires your numeric account secret.");
+    if (expected.size !== 1 || !expected.has(0)) throw new Error("KZG requires exactly asset 0.");
     const bundle = JSON.parse(file) as KzgBundle;
-    if (bundle.username !== account || !Number.isSafeInteger(bundle.index) || bundle.index < 0 || bundle.index >= 8) return { valid: false, message: "Konto oder Proof-Index passt nicht." };
+    if (bundle.username !== account || !Number.isSafeInteger(bundle.index) || bundle.index < 0 || bundle.index >= 8) return { valid: false, message: "The account or proof index does not match." };
     const identity = poseidon2Hash([usernameToBigInt(account), BigInt(secret)]);
     const balance = expected.get(0)!;
-    if (BigInt(bundle.identity) !== identity || BigInt(bundle.balance) !== balance) return { valid: false, message: "Guthaben oder Secret passt nicht zum Kunden-Proof." };
+    if (BigInt(bundle.identity) !== identity || BigInt(bundle.balance) !== balance) return { valid: false, message: "The balance or secret does not match the customer proof." };
     const valid = await client(connection).readContract({
       address: connection.registry, abi, functionName: "verifyInclusion",
       args: [snapshot.epoch, BigInt(bundle.index), identity, balance, { x: BigInt(bundle.proof.x), y: BigInt(bundle.proof.y) }],
     });
-    return { valid, message: valid ? "Der Contract bestätigt deine Einbeziehung in diesen Snapshot." : "Der Contract lehnt den Kunden-Proof ab." };
+    return { valid, message: valid ? "The contract confirms your inclusion in this snapshot." : "The contract rejected the customer proof." };
   },
 };
