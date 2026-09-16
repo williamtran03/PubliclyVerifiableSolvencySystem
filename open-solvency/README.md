@@ -1,0 +1,30 @@
+# OpenSolvency website
+
+Start with `npm run web` from the repository root. Run `npm run web:build` for a static production build in `open-solvency/dist/`.
+
+The site has a public customer view and a company view. Select **published ledger**, **ZK circuit**, or **KZG** first; each adapter reads the matching registry contract. The RPC and registry address are remembered in local storage. They are user supplied because the three registries are separate contracts and deployments.
+
+## Customer
+
+1. Select the implementation and load the current on-chain snapshot.
+2. Obtain your own JSON inclusion proof through a private channel. Enter your account ID and balances in base units from independent account records.
+3. For ZK or KZG, enter your account secret. For KZG, save only your own object from `inclusion.json` as a JSON file, not the full array.
+4. Select the file and run the check. The site reads the current epoch again before verifying, so a changed epoch requires a reload.
+
+ZK and published-ledger verification runs in the browser. KZG invokes the registry's `verifyInclusion` through the configured RPC: identity commitment, claimed balance, proof point and index are visible to the RPC operator. The JSON file itself is never uploaded by the site. No wallet is required for customers.
+
+## Company
+
+Generate the ledger and proofs with the arm's existing CLI or Foundry workflow. The website does not ingest raw customer records or generate ZK/KZG proofs. The **compare** action checks an already published epoch artifact against the current on-chain snapshot. To publish the next epoch, select the new artifact and the required supporting proof:
+
+| Arm | New artifact | Supporting input |
+| --- | --- | --- |
+| Published ledger | `ledger.json` from `npm run ledger -- build` | none |
+| ZK circuit | `epoch.json` from `make zk-fixtures` | `proof.bin` from `make zk-prove`; three oracle round IDs |
+| KZG | `epoch.json` from `make kzg-epoch` | `range-proof.json` |
+
+The site checks the artifact against the selected register where possible, simulates the contract call and requests confirmation from the browser wallet. The wallet must be on the same chain as the RPC and hold the contract's company role. A successful wallet response is a **submitted transaction**, not a confirmed epoch; reload after it is mined. Do not add private bundles, witness files, account salts or internal ledgers to the static site.
+
+## Limits
+
+These implementations prove claims about submitted records and reserve balances at a point in time. They do not detect omitted liabilities, prove that reserves remain available later, or substitute for an independent financial audit. The company interface relies on the smart contract's `onlyCompany` restriction and a wallet; it has no browser-side password.

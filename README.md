@@ -48,5 +48,6 @@ full list.
 - `arms/` — one directory per implementation
 - `shared/` — the reserve registry base, the tree core and the common customer set
 - `demo-site/` — customer-facing site for the `zk-circuit` arm
+- `open-solvency/` — shared customer and company website for the three current arms (`npm run web`)
 - `docs/` — the cross-arm comparison
 - `lib/` — vendored deps
