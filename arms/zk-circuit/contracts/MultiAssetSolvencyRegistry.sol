@@ -17,23 +17,19 @@ interface IAggregatorV3 {
 }
 
 contract MultiAssetSolvencyRegistry is ReserveRegistry {
-    // must equal NUM_ASSETS in arms/zk-circuit/circuit; the verifier expects NUM_ASSETS + 2 public inputs
     uint256 public constant NUM_ASSETS = 3;
     uint256 public constant PRICE_DECIMALS = 8;
+    uint256 public constant BASE_DECIMALS = 8;
     uint256 private constant FIELD_ORDER =
         21888242871839275222246405745257275088548364400416034343698204186575808495617;
 
     struct Asset {
-        address token; // address(0) = native ETH
+        address token;
         address feed;
         uint8 decimals;
-        // Per feed, because heartbeats differ: USDC/USD updates about daily, BTC/USD hourly.
         uint32 maxPriceAge;
     }
 
-    // Everything an auditor needs to recheck the epoch later: the floors the proof was
-    // checked against, the reserves that covered them, and the exact oracle rounds used
-    // for the USD figure.
     struct Epoch {
         uint256 rootHash;
         uint256 context;
@@ -73,8 +69,6 @@ contract MultiAssetSolvencyRegistry is ReserveRegistry {
     {
         if (_assets.length != NUM_ASSETS) revert BadAssetCount();
         for (uint256 i = 0; i < _assets.length; i++) {
-            // One token under two ids would be counted twice, letting one asset's balance
-            // cover the other's shortfall.
             for (uint256 j = 0; j < i; j++) {
                 if (_assets[i].token == _assets[j].token) revert DuplicateAsset();
             }
@@ -93,32 +87,27 @@ contract MultiAssetSolvencyRegistry is ReserveRegistry {
         return epochs[epochCount - 1];
     }
 
-    // Bound into the published root, so a proof built for one epoch of one deployment on
-    // one chain verifies nowhere else. The prover reads it before proving.
     function epochContext(uint256 epochId) public view returns (uint256) {
         return uint256(keccak256(abi.encode(block.chainid, address(this), epochId))) % FIELD_ORDER;
     }
 
-    // Read once and reused: each call walks every approved wallet.
     function reserveRaw() public view returns (uint256[NUM_ASSETS] memory raw) {
         for (uint256 i = 0; i < NUM_ASSETS; i++) {
             raw[i] = reserveBalance(assets[i].token);
         }
     }
 
-    // Approved reserves per asset, in the whole units the circuit counts liabilities in.
-    // Truncating division rounds reserves down, so the check errs against the exchange.
     function reserveUnits() public view returns (uint256[NUM_ASSETS] memory units) {
         return unitsOf(reserveRaw());
     }
 
     function unitsOf(uint256[NUM_ASSETS] memory raw) internal view returns (uint256[NUM_ASSETS] memory units) {
         for (uint256 i = 0; i < NUM_ASSETS; i++) {
-            units[i] = raw[i] / (10 ** assets[i].decimals);
+            uint8 d = assets[i].decimals;
+            units[i] = d > BASE_DECIMALS ? raw[i] / 10 ** (d - BASE_DECIMALS) : raw[i] * 10 ** (BASE_DECIMALS - d);
         }
     }
 
-    // The latest round of each feed, plus the round ids to pin at submission.
     function readPrices() public view returns (uint256[NUM_ASSETS] memory prices, uint80[NUM_ASSETS] memory roundIds) {
         for (uint256 i = 0; i < NUM_ASSETS; i++) {
             (uint80 roundId,,,,) = IAggregatorV3(assets[i].feed).latestRoundData();
@@ -127,15 +116,11 @@ contract MultiAssetSolvencyRegistry is ReserveRegistry {
         prices = readPricesAt(roundIds);
     }
 
-    // Prices with PRICE_DECIMALS decimals, pinned to explicit rounds so an auditor can
-    // refetch exactly what the epoch used. Kept at full precision: dividing to whole
-    // dollars turned USDC at $0.9998 into 0.
     function readPricesAt(uint80[NUM_ASSETS] memory roundIds) public view returns (uint256[NUM_ASSETS] memory prices) {
         for (uint256 i = 0; i < NUM_ASSETS; i++) {
             IAggregatorV3 feed = IAggregatorV3(assets[i].feed);
             (, int256 answer,, uint256 updatedAt, uint80 answeredInRound) = feed.getRoundData(roundIds[i]);
             if (answer <= 0) revert BadPrice();
-            // An answer carried over from an earlier round is not a fresh observation.
             if (answeredInRound < roundIds[i]) revert StaleRound();
             if (block.timestamp - updatedAt > assets[i].maxPriceAge) revert StalePrice();
 
@@ -146,8 +131,6 @@ contract MultiAssetSolvencyRegistry is ReserveRegistry {
         }
     }
 
-    // USD value of approved reserves, with PRICE_DECIMALS decimals. Informational: solvency
-    // is decided per asset in submitEpoch, where no price is involved.
     function reservesUsd(uint256[NUM_ASSETS] memory prices) public view returns (uint256) {
         return usdOf(reserveRaw(), prices);
     }
@@ -162,17 +145,12 @@ contract MultiAssetSolvencyRegistry is ReserveRegistry {
         }
     }
 
-    // floors are chosen by the exchange: set to its reserves they reveal nothing that is
-    // not already on-chain; set to its liabilities they publish the totals, as Summa does.
-    // Either way the proof shows every asset's liabilities are at most its floor.
     function submitEpoch(
         bytes calldata proof,
         uint256 rootHash,
         uint64[NUM_ASSETS] calldata floors,
         uint80[NUM_ASSETS] calldata roundIds
     ) external onlyCompany {
-        // A floor rather than the live balance as the public input, so a 1 wei deposit to a
-        // reserve between proving and submission cannot invalidate the proof.
         uint256[NUM_ASSETS] memory raw = reserveRaw();
         uint256[NUM_ASSETS] memory units = unitsOf(raw);
         for (uint256 i = 0; i < NUM_ASSETS; i++) {

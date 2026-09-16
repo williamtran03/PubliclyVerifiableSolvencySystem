@@ -23,9 +23,8 @@ import { fetchSnapshot, type Snapshot } from "../prover/fetchSnapshot.ts";
 import { prepareEpoch } from "../prover/buildMultiAssetTree.ts";
 import { createBundle, epochContext, parseHoldingsCsv, verifyBundle, type Customer } from "../prover/multiAssetTree.ts";
 
-const MAX_EPOCH_AGE = 86_400n; // a day: how long a published epoch stays current
+const MAX_EPOCH_AGE = 86_400n;
 
-// Standard anvil dev accounts 0 and 1.
 const company = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 const auditor = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d");
 const CIRCUIT = "arms/zk-circuit/circuit";
@@ -64,8 +63,6 @@ async function freePort(): Promise<number> {
   return port;
 }
 
-// Runs the real prover for this registry and epoch: nargo builds the witness, bb proves.
-// A fresh random seed each time, as a real exchange would use.
 function prove(proverToml: string, workDir: string): Hex {
   const name = `e2e-${process.pid}-${Date.now()}`;
   const toml = join(CIRCUIT, `${name}.toml`);
@@ -129,7 +126,6 @@ test("Anvil: signed reserve, auditor approval, real proof per epoch, customer ve
       assert.equal(receipt.status, "success", functionName);
     }
 
-    // ---- deploy -----------------------------------------------------------
     const btc = await deploy("DemoMocks.sol", "MockToken");
     const usdc = await deploy("DemoMocks.sol", "MockToken");
     const feeds = [
@@ -156,7 +152,6 @@ test("Anvil: signed reserve, auditor approval, real proof per epoch, customer ve
     const read = (functionName: string, args: unknown[] = []) =>
       publicClient.readContract({ address: registry, abi: registryAbi, functionName, args }) as Promise<any>;
 
-    // ---- reserve: a cold wallet with no gas, covering each asset on its own
     const reserve = privateKeyToAccount(generatePrivateKey());
     await send(company, btc, tokenAbi, "mint", [reserve.address, 3n * 10n ** 8n]);
     await send(company, usdc, tokenAbi, "mint", [reserve.address, 6000n * 10n ** 6n]);
@@ -167,8 +162,6 @@ test("Anvil: signed reserve, auditor approval, real proof per epoch, customer ve
     await send(company, registry, registryAbi, "proposeReserve", [reserve.address]);
     await assert.rejects(send(auditor, registry, registryAbi, "reviewReserve", [reserve.address, true]), /BadReserve/);
 
-    // Signed with viem's EIP-712 implementation, not the contract's own digest helper,
-    // so a wrong type string or domain field in Solidity fails here.
     const expiry = BigInt(Math.floor(Date.now() / 1000) + 3600);
     const typedData = {
       domain: { name: "MultiAssetSolvencyRegistry", version: "1", chainId: foundry.id, verifyingContract: registry },
@@ -195,12 +188,11 @@ test("Anvil: signed reserve, auditor approval, real proof per epoch, customer ve
     await assert.rejects(send(company, registry, registryAbi, "reviewReserve", [reserve.address, true]), /NotAuditor/);
     await send(auditor, registry, registryAbi, "reviewReserve", [reserve.address, true]);
 
-    // ---- epoch 0: snapshot through the registry, prove, submit with pinned rounds
     const holdings = parseHoldingsCsv(readFileSync("arms/zk-circuit/prover/customers.csv", "utf8"));
     const seed = () => toHex(crypto.getRandomValues(new Uint8Array(32)));
 
     const snapshot: Snapshot = await fetchSnapshot(rpc, registry);
-    assert.deepEqual(snapshot.reserveUnits, [3n, 12n, 6000n]);
+    assert.deepEqual(snapshot.reserveUnits, [3_00000000n, 12_00000000n, 6000_00000000n], "base units, 8 decimals");
     assert.equal(snapshot.pricesUsd[2], 99_986_506n, "sub-dollar prices keep their decimals");
     assert.equal(snapshot.context, epochContext(31337n, registry, 0n), "TS and Solidity agree on the context");
 
@@ -214,12 +206,10 @@ test("Anvil: signed reserve, auditor approval, real proof per epoch, customer ve
 
     const onChain = await read("getEpoch", [0n]);
     assert.equal(onChain.rootHash, epoch0.rootHash);
-    assert.deepEqual(onChain.reserveUnits, [3n, 12n, 6000n]);
+    assert.deepEqual(onChain.reserveUnits, [3_00000000n, 12_00000000n, 6000_00000000n]);
     assert.deepEqual(onChain.roundIds, snapshot.roundIds);
-    // 3 * 60000 + 12 * 3000 + 6000 * 0.99986506, with 8 decimals
     assert.equal(onChain.assetsUsd, 216_000n * 10n ** 8n + 6000n * 99_986_506n);
 
-    // ---- every customer verifies against the chain, with their own salt ---
     for (const username of new Set(holdings.map((h) => h.username))) {
       const own = holdings.filter((h) => h.username === username);
       const customer: Customer = {
@@ -240,7 +230,6 @@ test("Anvil: signed reserve, auditor approval, real proof per epoch, customer ve
       );
     }
 
-    // ---- epoch 1: the old proof is refused, a new one lands, epoch 0 is kept
     await assert.rejects(submit(company, proof0, epoch0));
     const snapshot1 = await fetchSnapshot(rpc, registry);
     assert.equal(snapshot1.epochId, 1n);
@@ -252,7 +241,6 @@ test("Anvil: signed reserve, auditor approval, real proof per epoch, customer ve
     assert.equal((await read("getEpoch", [0n])).rootHash, epoch0.rootHash);
     assert.equal((await read("latestEpoch")).rootHash, epoch1.rootHash);
 
-    // ---- the auditor pulls the reserve; nothing clears ---------------------
     await send(auditor, registry, registryAbi, "removeReserve", [reserve.address]);
     await assert.rejects(submit(company, proof0, epoch1), /Insolvent/);
   } finally {

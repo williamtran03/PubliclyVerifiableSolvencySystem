@@ -7,10 +7,7 @@ import {ReserveRegistry} from "../../../shared/contracts/ReserveRegistry.sol";
 import {HonkVerifier} from "../contracts/MultiAssetHonkVerifier.sol";
 import {MockAggregator, MockToken} from "../contracts/mocks/DemoMocks.sol";
 
-// Reserve mechanics are tested in shared/test/ReserveRegistry.t.sol; this covers the arm.
 contract MultiAssetSolvencyRegistryTest is Test {
-    // The committed proof binds chain id, registry address and epoch 0, so the registry
-    // is placed where arms/zk-circuit/script/Demo.s.sol deploys it on a fresh anvil.
     address constant FIXTURE_REGISTRY = 0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6;
 
     MultiAssetSolvencyRegistry registry;
@@ -56,7 +53,6 @@ contract MultiAssetSolvencyRegistryTest is Test {
         );
         registry = MultiAssetSolvencyRegistry(FIXTURE_REGISTRY);
 
-        // Liabilities are 2 BTC, 10 ETH, 5000 USDC; every asset is covered on its own.
         btc.mint(reserve, 3e8);
         vm.deal(reserve, 12 ether);
         usdc.mint(reserve, 6000e6);
@@ -81,8 +77,6 @@ contract MultiAssetSolvencyRegistryTest is Test {
         target.reviewReserve(wallet, true);
     }
 
-    // Read straight off the mocks so the negative tests do not go through the
-    // validating path before the call under test.
     function latestRounds() internal view returns (uint80[3] memory roundIds) {
         roundIds[0] = btcFeed.latestRound();
         roundIds[1] = ethFeed.latestRound();
@@ -94,8 +88,6 @@ contract MultiAssetSolvencyRegistryTest is Test {
         registry.submitEpoch(proof, rootHash, floors, roundIds);
     }
 
-    // ---- configuration ------------------------------------------------------
-
     function test_RejectsTheSameTokenUnderTwoAssetIds() public {
         MultiAssetSolvencyRegistry.Asset[] memory duplicate = new MultiAssetSolvencyRegistry.Asset[](3);
         duplicate[0] = MultiAssetSolvencyRegistry.Asset(address(btc), address(btcFeed), 8, 1 hours);
@@ -106,8 +98,6 @@ contract MultiAssetSolvencyRegistryTest is Test {
         new MultiAssetSolvencyRegistry(company, auditor, duplicate, address(verifier), MAX_EPOCH_AGE);
     }
 
-    // The figure docs/comparison.md quotes. The gas report cannot supply it: the registry
-    // is placed at a fixed address, which it does not track.
     function test_GasForASuccessfulSubmission() public {
         uint80[3] memory roundIds = latestRounds();
         vm.prank(company);
@@ -117,8 +107,6 @@ contract MultiAssetSolvencyRegistryTest is Test {
         emit log_named_uint("zk submitEpoch gas", used);
         assertLt(used, 4_200_000, "a regression beyond the figure the comparison quotes");
     }
-
-    // ---- liveness -----------------------------------------------------------
 
     function test_RegistryIsNotCurrentBeforeAnyEpoch() public view {
         assertFalse(registry.isCurrent());
@@ -135,10 +123,8 @@ contract MultiAssetSolvencyRegistryTest is Test {
         assertEq(registry.epochAge(), MAX_EPOCH_AGE + 1);
     }
 
-    // ---- oracle rounds ------------------------------------------------------
-
     function test_RejectsARoundThatCarriedAnOlderAnswer() public {
-        btcFeed.set(60_000e8, block.timestamp); // a second round, so there is an earlier one to carry
+        btcFeed.set(60_000e8, block.timestamp);
         uint80[3] memory roundIds = latestRounds();
         btcFeed.setAnsweredInRound(roundIds[0], roundIds[0] - 1);
 
@@ -146,8 +132,6 @@ contract MultiAssetSolvencyRegistryTest is Test {
         vm.expectRevert(MultiAssetSolvencyRegistry.StaleRound.selector);
         registry.submitEpoch(proof, rootHash, floors, roundIds);
     }
-
-    // ---- epochs -------------------------------------------------------------
 
     function test_FixtureWasProvedForThisRegistry() public view {
         assertEq(registry.epochContext(0), context);
@@ -159,13 +143,12 @@ contract MultiAssetSolvencyRegistryTest is Test {
         MultiAssetSolvencyRegistry.Epoch memory epoch = registry.latestEpoch();
         assertEq(epoch.rootHash, rootHash);
         assertEq(epoch.context, context);
-        assertEq(epoch.floors[1], 12);
-        assertEq(epoch.reserveUnits[0], 3);
-        assertEq(epoch.reserveUnits[1], 12);
-        assertEq(epoch.reserveUnits[2], 6000);
+        assertEq(epoch.floors[1], 12e8);
+        assertEq(epoch.reserveUnits[0], 3e8);
+        assertEq(epoch.reserveUnits[1], 12e8);
+        assertEq(epoch.reserveUnits[2], 6000e8);
         assertEq(epoch.prices[0], 60_000e8);
         assertEq(epoch.roundIds[0], 1);
-        // 3 * 60000 + 12 * 3000 + 6000 * 1, with 8 decimals
         assertEq(epoch.assetsUsd, 222_000e8);
         assertEq(epoch.timestamp, block.timestamp);
         assertEq(registry.epochCount(), 1);
@@ -191,7 +174,7 @@ contract MultiAssetSolvencyRegistryTest is Test {
 
         uint80[3] memory roundIds = latestRounds();
         vm.prank(company);
-        vm.expectRevert(); // epoch 1 has a different context, so the verifier rejects the proof
+        vm.expectRevert();
         registry.submitEpoch(proof, rootHash, floors, roundIds);
     }
 
@@ -215,16 +198,12 @@ contract MultiAssetSolvencyRegistryTest is Test {
         registry.submitEpoch(proof, rootHash, lower, roundIds);
     }
 
-    // ---- per-asset solvency -------------------------------------------------
-
     function test_RejectsAShortfallInOneAssetEvenWhenUsdCoversIt() public {
-        // 3 BTC + 2 ETH + 6000 USDC is $192,000 against $155,000 of liabilities, which the
-        // old USD-aggregate check accepted. Customers are owed 10 ETH and there are 2.
         vm.deal(reserve, 2 ether);
 
         uint80[3] memory roundIds = latestRounds();
         vm.prank(company);
-        vm.expectRevert(abi.encodeWithSelector(MultiAssetSolvencyRegistry.Insolvent.selector, 1, 2, 12));
+        vm.expectRevert(abi.encodeWithSelector(MultiAssetSolvencyRegistry.Insolvent.selector, 1, 2e8, 12e8));
         registry.submitEpoch(proof, rootHash, floors, roundIds);
     }
 
@@ -234,7 +213,7 @@ contract MultiAssetSolvencyRegistryTest is Test {
 
         uint80[3] memory roundIds = latestRounds();
         vm.prank(company);
-        vm.expectRevert(abi.encodeWithSelector(MultiAssetSolvencyRegistry.Insolvent.selector, 0, 0, 3));
+        vm.expectRevert(abi.encodeWithSelector(MultiAssetSolvencyRegistry.Insolvent.selector, 0, 0, 3e8));
         registry.submitEpoch(proof, rootHash, floors, roundIds);
     }
 
@@ -246,21 +225,18 @@ contract MultiAssetSolvencyRegistryTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, registry.reserveDigest(wallet, block.timestamp));
         registry.proveReserve(wallet, block.timestamp, abi.encodePacked(r, s, v));
 
-        assertEq(registry.reserveUnits()[0], 3);
+        assertEq(registry.reserveUnits()[0], 3e8);
     }
 
     function test_ADepositToAReserveDoesNotInvalidateTheProof() public {
-        // The public input is the floor, not the live balance, so dust cannot grief a submission.
         vm.deal(reserve, 12 ether + 1);
         btc.mint(reserve, 1);
         submit(latestRounds());
         assertEq(registry.epochCount(), 1);
     }
 
-    // ---- oracle -------------------------------------------------------------
-
     function test_KeepsSubDollarPrices() public {
-        usdcFeed.set(99_986_506, block.timestamp); // live Sepolia USDC/USD, $0.99986506
+        usdcFeed.set(99_986_506, block.timestamp);
         (uint256[3] memory prices,) = registry.readPrices();
         assertEq(prices[2], 99_986_506);
 
@@ -282,7 +258,7 @@ contract MultiAssetSolvencyRegistryTest is Test {
         vm.warp(block.timestamp + 2 hours);
         btcFeed.set(60_000e8, block.timestamp);
         ethFeed.set(3_000e8, block.timestamp);
-        registry.readPrices(); // USDC is 2 hours old, inside its 1 day bound
+        registry.readPrices();
 
         vm.warp(block.timestamp + 23 hours);
         btcFeed.set(60_000e8, block.timestamp);
@@ -293,7 +269,7 @@ contract MultiAssetSolvencyRegistryTest is Test {
 
     function test_PinnedRoundsSurviveAFeedUpdate() public {
         uint80[3] memory pinned = latestRounds();
-        btcFeed.set(59_000e8, block.timestamp); // lands between fetching and submitting
+        btcFeed.set(59_000e8, block.timestamp);
 
         submit(pinned);
         MultiAssetSolvencyRegistry.Epoch memory epoch = registry.latestEpoch();
