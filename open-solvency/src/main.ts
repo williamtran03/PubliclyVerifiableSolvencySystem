@@ -39,7 +39,7 @@ function renderSolutions() {
   el<HTMLElement>("secretLabel").hidden = selected.id === "published-ledger";
   el<HTMLElement>("supplementLabel").hidden = selected.id === "published-ledger";
   el<HTMLElement>("roundsLabel").hidden = selected.id !== "zk-circuit";
-  el<HTMLElement>("nextLabel").firstChild!.textContent = selected.id === "published-ledger" ? "Neuer öffentlicher Ledger (ledger.json)" : "Neues Epoch-Artefakt (epoch.json)";
+  el<HTMLElement>("nextLabel").firstChild!.textContent = selected.id === "published-ledger" ? "Merkle-Sum Ledger (ledger.json)" : "Neues Epoch-Artefakt (epoch.json)";
   el<HTMLElement>("supplementLabel").firstChild!.textContent = selected.id === "snarkless" ? "Range-Proof (range-proof.json)" : "ZK-Proof (proof.bin)";
   renderBalances();
   document.querySelectorAll<HTMLButtonElement>(".solution").forEach((button) => button.addEventListener("click", () => {

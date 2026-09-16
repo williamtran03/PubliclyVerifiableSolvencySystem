@@ -31,9 +31,9 @@ function identity(bundle: Bundle, assetId: number, partIndex: number, salt: Hex)
 
 export const ledger: Solution = {
   id: "published-ledger",
-  name: "Veröffentlichter Ledger",
-  description: "Der Contract berechnet Roots und Summen aus veröffentlichten, pseudonymen Teilbeträgen.",
-  disclosure: "Teilbeträge sind öffentlich. Splitting und Pseudonyme garantieren keine Anonymität.",
+  name: "Merkle-Sum Tree",
+  description: "Ein Merkle-Sum Tree pro Asset; der Contract berechnet Root und Summe aus dem öffentlichen Ledger.",
+  disclosure: "Kunden prüfen ihre privaten Merkle-Pfade lokal. Teilbeträge sind öffentlich; Splitting und Pseudonyme garantieren keine Anonymität.",
   publication: ["Kundendaten lokal vorbereiten.", "Ledger und private Kunden-Bundles erzeugen: npm run ledger -- build <input> <neues-verzeichnis> <asset-anzahl>", "Öffentlichen Ledger prüfen: npm run ledger -- audit <verzeichnis>/ledger.json", "Ledger mit dem Company-Key über submitLedger veröffentlichen; private Bundles einzeln zustellen."],
   async read(connection) {
     const c = client(connection);

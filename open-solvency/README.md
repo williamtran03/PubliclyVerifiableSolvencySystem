@@ -2,7 +2,7 @@
 
 Start with `npm run web` from the repository root. Run `npm run web:build` for a static production build in `open-solvency/dist/`.
 
-The site has a public customer view and a company view. Select **published ledger**, **ZK circuit**, or **KZG** first; each adapter reads the matching registry contract. The RPC and registry address are remembered in local storage. They are user supplied because the three registries are separate contracts and deployments.
+The site has a public customer view and a company view. Select **Merkle-Sum Tree** (`arms/published-ledger`), **ZK circuit**, or **KZG** first; each adapter reads the matching registry contract. The Merkle-Sum implementation uses one tree per asset and publishes the pseudonymous ledger so the contract can recompute every root and sum. The RPC and registry address are remembered in local storage. They are user supplied because the three registries are separate contracts and deployments.
 
 ## Customer
 
@@ -19,7 +19,7 @@ Generate the ledger and proofs with the arm's existing CLI or Foundry workflow. 
 
 | Arm | New artifact | Supporting input |
 | --- | --- | --- |
-| Published ledger | `ledger.json` from `npm run ledger -- build` | none |
+| Merkle-Sum Tree | `ledger.json` from `npm run ledger -- build` | none |
 | ZK circuit | `epoch.json` from `make zk-fixtures` | `proof.bin` from `make zk-prove`; three oracle round IDs |
 | KZG | `epoch.json` from `make kzg-epoch` | `range-proof.json` |
 
