@@ -6,7 +6,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 import { buildSplitLiabilities, verifyCustomer, type Customer } from "../prover/splitLiabilities.ts";
 
-const transport = http("http://127.0.0.1:8545");
+const transport = http(process.env.RPC_URL ?? "http://127.0.0.1:8545");
 const publicClient = createPublicClient({ chain: foundry, transport });
 assert.equal(await publicClient.getChainId(), 31337, "local Anvil only");
 const company = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
@@ -32,7 +32,8 @@ async function send(account: Account, address: Address, contractAbi: Abi, functi
 }
 
 const token = await deploy(tokenArtifact, []);
-const address = await deploy(registryArtifact, [company.address, auditor.address, ["0x0000000000000000000000000000000000000000", token]]);
+const maxEpochAge = 86_400n; // a day: how long a published epoch stays current
+const address = await deploy(registryArtifact, [company.address, auditor.address, ["0x0000000000000000000000000000000000000000", token], maxEpochAge]);
 console.log(`Registry: ${address}`);
 
 await send(company, token, tokenArtifact.abi, "mint", [reserve.address, 3n]);
