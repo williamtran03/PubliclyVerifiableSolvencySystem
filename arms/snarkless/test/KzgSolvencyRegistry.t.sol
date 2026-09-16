@@ -102,6 +102,17 @@ contract KzgSolvencyRegistryTest is Test {
         assertEq(registry.epochCount(), 1);
     }
 
+    // The figure docs/comparison.md quotes. The gas report cannot supply it: its max
+    // column includes the reverting calls.
+    function test_GasForASuccessfulSubmission() public {
+        vm.prank(company);
+        uint256 before = gasleft();
+        registry.submitEpoch(sum, range);
+        uint256 used = before - gasleft();
+        emit log_named_uint("kzg submitEpoch gas", used);
+        assertLt(used, 2_500_000, "a regression beyond the figure the comparison quotes");
+    }
+
     function test_OnlyTheCompanySubmits() public {
         vm.prank(auditor);
         vm.expectRevert(ReserveRegistry.NotCompany.selector);
