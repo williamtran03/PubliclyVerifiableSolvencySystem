@@ -72,8 +72,6 @@ contract ReserveRegistryTest is Test {
         registry.reviewReserve(target, true);
     }
 
-    // ---- roles --------------------------------------------------------------
-
     function test_RejectsMissingOrMergedRoles() public {
         vm.expectRevert(ReserveRegistry.BadRoles.selector);
         new Registry(address(0), auditor);
@@ -104,8 +102,6 @@ contract ReserveRegistryTest is Test {
         vm.expectRevert(ReserveRegistry.NotAuthorized.selector);
         registry.removeReserve(wallet);
     }
-
-    // ---- lifecycle ----------------------------------------------------------
 
     function test_Lifecycle() public {
         propose(wallet);
@@ -190,8 +186,6 @@ contract ReserveRegistryTest is Test {
         assertEq(registry.reserveBalance(address(token)), 5);
         assertEq(registry.reserveBalance(address(0)), 1 ether);
     }
-
-    // ---- role rotation ------------------------------------------------------
 
     function test_CompanyRotatesInTwoSteps() public {
         address next = makeAddr("next company");
@@ -280,8 +274,6 @@ contract ReserveRegistryTest is Test {
         assertEq(registry.company(), second);
     }
 
-    // ---- liveness -----------------------------------------------------------
-
     function test_NoEpochIsNeverCurrent() public view {
         assertFalse(registry.isCurrent());
         assertEq(registry.epochAge(), type(uint64).max);
@@ -308,8 +300,6 @@ contract ReserveRegistryTest is Test {
         new BoundedRegistry(company, auditor, 0);
     }
 
-    // ---- the reserve cap ----------------------------------------------------
-
     function test_ApprovalStopsAtMaxReserves() public {
         uint256 cap = registry.MAX_RESERVES();
         for (uint256 i = 0; i < cap; i++) {
@@ -325,7 +315,7 @@ contract ReserveRegistryTest is Test {
         vm.expectRevert(ReserveRegistry.TooManyReserves.selector);
         registry.reviewReserve(extra, true);
 
-        address dropped = registry.reserves(0); // read first: vm.prank applies to the next call
+        address dropped = registry.reserves(0);
         vm.prank(company);
         registry.removeReserve(dropped);
         vm.prank(auditor);
@@ -333,7 +323,46 @@ contract ReserveRegistryTest is Test {
         assertEq(registry.reserveCount(), cap);
     }
 
-    // ---- signatures ---------------------------------------------------------
+    function testFuzz_ReserveBalanceSumsExactlyTheApproved(uint96 a, uint96 b, bool approveSecond) public {
+        MockToken token = new MockToken();
+        (address other, uint256 otherKey) = makeAddrAndKey("fuzz other");
+        token.mint(wallet, a);
+        token.mint(other, b);
+
+        approve(wallet, key);
+        propose(other);
+        registry.proveReserve(other, block.timestamp, sign(other, otherKey, block.timestamp));
+        vm.prank(auditor);
+        registry.reviewReserve(other, approveSecond);
+
+        assertEq(registry.reserveBalance(address(token)), approveSecond ? uint256(a) + b : uint256(a));
+    }
+
+    function testFuzz_OnlyTheNamedSuccessorCanAccept(address next, address caller) public {
+        vm.assume(next != address(0) && next != company && next != auditor);
+        vm.assume(caller != next);
+
+        vm.prank(company);
+        registry.transferCompany(next);
+        vm.prank(caller);
+        vm.expectRevert(ReserveRegistry.NotAuthorized.selector);
+        registry.acceptCompany();
+        assertEq(registry.company(), company);
+    }
+
+    function testFuzz_RemovalInvalidatesAnOldSignature(uint32 expiryOffset) public {
+        uint256 expiry = block.timestamp + uint256(expiryOffset);
+        propose(wallet);
+        bytes memory signature = sign(wallet, key, expiry);
+        registry.proveReserve(wallet, expiry, signature);
+
+        vm.prank(company);
+        registry.removeReserve(wallet);
+
+        propose(wallet);
+        vm.expectRevert(ReserveRegistry.InvalidSignature.selector);
+        registry.proveReserve(wallet, expiry, signature);
+    }
 
     function test_RejectsASignatureFromAnotherKey() public {
         (, uint256 wrongKey) = makeAddrAndKey("attacker");
@@ -350,7 +379,6 @@ contract ReserveRegistryTest is Test {
         vm.expectRevert(ReserveRegistry.InvalidSignature.selector);
         registry.proveReserve(wallet, block.timestamp, hex"00");
 
-        // (r, n - s, v') recovers the same key, but is a second encoding of one signature.
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, registry.reserveDigest(wallet, block.timestamp));
         uint256 n = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141;
         bytes memory twin = abi.encodePacked(r, bytes32(n - uint256(s)), v == 27 ? uint8(28) : uint8(27));
