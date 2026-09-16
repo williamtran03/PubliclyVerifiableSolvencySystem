@@ -20,6 +20,7 @@ arms/single-asset/fixtures/proof-*.json
 arms/single-asset/site/public/proofs/
 arms/*/site/dist/
 demo-site/dist/
+open-solvency/dist/
 demo-site/public/bundles/
 
 # private split-liability inputs and outputs
