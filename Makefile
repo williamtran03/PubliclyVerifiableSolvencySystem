@@ -1,5 +1,6 @@
 # Four arms live under arms/. Each is self-contained: contracts/, prover/,
-# test/, script/, fixtures/. Shared code is only shared/merkleSumTree.ts and
+# test/, script/, fixtures/. Shared code is shared/contracts/ReserveRegistry.sol
+# (roles, signed reserves, epoch freshness), shared/merkleSumTree.ts and
 # shared/customers.csv, the common input every arm is measured on.
 #
 #   arms/published-ledger  publish the whole ledger, contract recomputes the root
@@ -13,7 +14,7 @@
         ledger-demo \
         zk-fixtures zk-check zk-prove zk-verifier zk-snapshot zk-circuit-test zk-demo demo-site \
         kzg-setup kzg-epoch \
-        single-fixtures single-check single-proof single-prove single-verifier single-demo single-site
+        single-fixtures single-check single-proof single-prove single-verifier single-demo
 
 # ---- all arms ------------------------------------------------------------
 build:
@@ -109,6 +110,3 @@ single-verifier: single-prove
 
 single-demo: build
 	@npx tsx arms/single-asset/script/demo.ts
-
-single-site: single-fixtures
-	npx vite
