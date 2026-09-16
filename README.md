@@ -13,14 +13,15 @@ Each directory under `arms/` is self-contained — `contracts/`, `prover/`,
 
 | Arm | Core idea |
 | --- | --- |
-| `arms/published-ledger` | Publish the whole anonymised ledger on-chain; anyone recomputes the root |
-| `arms/zk-circuit` | Noir/UltraHonk proof that the public total was honestly built from private balances, multi-asset |
-| `arms/snarkless` | KZG polynomial commitments; the total is one pairing check, no circuit |
+| `arms/published-ledger` | Publish every anonymised part on-chain, one merkle-sum tree per asset; the contract recomputes every total |
+| `arms/zk-circuit` | Noir/UltraHonk proof that each asset's liabilities stay under a public reserve floor; liabilities stay private |
+| `arms/snarkless` | KZG polynomial commitments: total, non-negativity and customer inclusion verified on-chain, no circuit |
 | `arms/single-asset` | Superseded by `zk-circuit`; kept because the comparison quotes its gas and bytecode |
 
-Only two things are shared, deliberately: `shared/merkleSumTree.ts` (the tree
-structure three arms build on) and `shared/customers.csv` (the common input
-every arm is measured against).
+Shared, deliberately: `shared/contracts/ReserveRegistry.sol` (company and auditor
+roles, and reserve wallets that prove control by signature, used by every registry),
+`shared/merkleSumTree.ts` (the Poseidon2 tree core and username encoding) and
+`shared/customers.csv` (the common input the single-asset and snarkless arms use).
 
 `docs/comparison.md` is the deliverable that reads across all four.
 
@@ -45,7 +46,7 @@ full list.
 ## Layout
 
 - `arms/` — one directory per implementation
-- `shared/` — the tree core and the common customer set
+- `shared/` — the reserve registry base, the tree core and the common customer set
 - `demo-site/` — customer-facing site for the `zk-circuit` arm
 - `docs/` — the cross-arm comparison
 - `lib/` — vendored deps
