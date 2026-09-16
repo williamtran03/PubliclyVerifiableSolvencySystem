@@ -19,6 +19,11 @@ abstract contract ReserveRegistry {
         keccak256("ReserveControl(address wallet,uint256 nonce,uint256 expiry)");
     uint256 private constant SECP256K1_HALF_ORDER = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
 
+    // Reserves are summed live, in the same call as the solvency check, so the figure
+    // cannot drift between counting and submitting. That makes the sum a loop, and a loop
+    // in a critical path has to be bounded.
+    uint256 public constant MAX_RESERVES = 64;
+
     enum ReserveStatus {
         None,
         Proposed,
@@ -28,6 +33,7 @@ abstract contract ReserveRegistry {
 
     address public immutable company;
     address public immutable auditor;
+
     bytes32 private immutable domainNameHash;
     address[] public reserves;
     mapping(address => ReserveStatus) public reserveStatus;
@@ -43,6 +49,7 @@ abstract contract ReserveRegistry {
     error NotAuthorized();
     error BadRoles();
     error BadReserve();
+    error TooManyReserves();
     error SignatureExpired();
     error InvalidSignature();
 
@@ -106,6 +113,7 @@ abstract contract ReserveRegistry {
     function reviewReserve(address wallet, bool approved) external onlyAuditor {
         if (reserveStatus[wallet] != ReserveStatus.Proven) revert BadReserve();
         if (approved) {
+            if (reserves.length >= MAX_RESERVES) revert TooManyReserves();
             reserves.push(wallet);
             reserveStatus[wallet] = ReserveStatus.Approved;
         } else {

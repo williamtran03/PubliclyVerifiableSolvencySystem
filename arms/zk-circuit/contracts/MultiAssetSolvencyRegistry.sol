@@ -92,11 +92,22 @@ contract MultiAssetSolvencyRegistry is ReserveRegistry {
         return uint256(keccak256(abi.encode(block.chainid, address(this), epochId))) % FIELD_ORDER;
     }
 
+    // Read once and reused: each call walks every approved wallet.
+    function reserveRaw() public view returns (uint256[NUM_ASSETS] memory raw) {
+        for (uint256 i = 0; i < NUM_ASSETS; i++) {
+            raw[i] = reserveBalance(assets[i].token);
+        }
+    }
+
     // Approved reserves per asset, in the whole units the circuit counts liabilities in.
     // Truncating division rounds reserves down, so the check errs against the exchange.
     function reserveUnits() public view returns (uint256[NUM_ASSETS] memory units) {
+        return unitsOf(reserveRaw());
+    }
+
+    function unitsOf(uint256[NUM_ASSETS] memory raw) internal view returns (uint256[NUM_ASSETS] memory units) {
         for (uint256 i = 0; i < NUM_ASSETS; i++) {
-            units[i] = reserveBalance(assets[i].token) / (10 ** assets[i].decimals);
+            units[i] = raw[i] / (10 ** assets[i].decimals);
         }
     }
 
@@ -128,9 +139,17 @@ contract MultiAssetSolvencyRegistry is ReserveRegistry {
 
     // USD value of approved reserves, with PRICE_DECIMALS decimals. Informational: solvency
     // is decided per asset in submitEpoch, where no price is involved.
-    function reservesUsd(uint256[NUM_ASSETS] memory prices) public view returns (uint256 total) {
+    function reservesUsd(uint256[NUM_ASSETS] memory prices) public view returns (uint256) {
+        return usdOf(reserveRaw(), prices);
+    }
+
+    function usdOf(uint256[NUM_ASSETS] memory raw, uint256[NUM_ASSETS] memory prices)
+        internal
+        view
+        returns (uint256 total)
+    {
         for (uint256 i = 0; i < NUM_ASSETS; i++) {
-            total += reserveBalance(assets[i].token) * prices[i] / (10 ** assets[i].decimals);
+            total += raw[i] * prices[i] / (10 ** assets[i].decimals);
         }
     }
 
@@ -145,7 +164,8 @@ contract MultiAssetSolvencyRegistry is ReserveRegistry {
     ) external onlyCompany {
         // A floor rather than the live balance as the public input, so a 1 wei deposit to a
         // reserve between proving and submission cannot invalidate the proof.
-        uint256[NUM_ASSETS] memory units = reserveUnits();
+        uint256[NUM_ASSETS] memory raw = reserveRaw();
+        uint256[NUM_ASSETS] memory units = unitsOf(raw);
         for (uint256 i = 0; i < NUM_ASSETS; i++) {
             if (units[i] < floors[i]) revert Insolvent(i, units[i], floors[i]);
         }
@@ -161,7 +181,7 @@ contract MultiAssetSolvencyRegistry is ReserveRegistry {
         if (!verifier.verify(proof, publicInputs)) revert InvalidProof();
 
         uint256[NUM_ASSETS] memory prices = readPricesAt(roundIds);
-        uint256 assetsUsd = reservesUsd(prices);
+        uint256 assetsUsd = usdOf(raw, prices);
 
         epochs[epochId] = Epoch(rootHash, context, floors, units, prices, roundIds, assetsUsd, uint64(block.timestamp));
         epochCount++;

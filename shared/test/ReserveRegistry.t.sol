@@ -55,6 +55,13 @@ contract ReserveRegistryTest is Test {
         return uint256(registry.reserveStatus(target));
     }
 
+    function approve(address target, uint256 targetKey) internal {
+        propose(target);
+        registry.proveReserve(target, block.timestamp, sign(target, targetKey, block.timestamp));
+        vm.prank(auditor);
+        registry.reviewReserve(target, true);
+    }
+
     // ---- roles --------------------------------------------------------------
 
     function test_RejectsMissingOrMergedRoles() public {
@@ -172,6 +179,31 @@ contract ReserveRegistryTest is Test {
 
         assertEq(registry.reserveBalance(address(token)), 5);
         assertEq(registry.reserveBalance(address(0)), 1 ether);
+    }
+
+    // ---- the reserve cap ----------------------------------------------------
+
+    function test_ApprovalStopsAtMaxReserves() public {
+        uint256 cap = registry.MAX_RESERVES();
+        for (uint256 i = 0; i < cap; i++) {
+            (address w, uint256 k) = makeAddrAndKey(string.concat("capped", vm.toString(i)));
+            approve(w, k);
+        }
+        assertEq(registry.reserveCount(), cap);
+
+        (address extra, uint256 extraKey) = makeAddrAndKey("one too many");
+        propose(extra);
+        registry.proveReserve(extra, block.timestamp, sign(extra, extraKey, block.timestamp));
+        vm.prank(auditor);
+        vm.expectRevert(ReserveRegistry.TooManyReserves.selector);
+        registry.reviewReserve(extra, true);
+
+        address dropped = registry.reserves(0); // read first: vm.prank applies to the next call
+        vm.prank(company);
+        registry.removeReserve(dropped);
+        vm.prank(auditor);
+        registry.reviewReserve(extra, true);
+        assertEq(registry.reserveCount(), cap);
     }
 
     // ---- signatures ---------------------------------------------------------
