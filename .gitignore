@@ -22,9 +22,6 @@ arms/*/site/dist/
 open-solvency/dist/
 arms/zk-circuit/fixtures/generated/
 
-# per-deployment KZG artifacts from kzg-demo; the committed fixtures stay put
-arms/snarkless/fixtures/demo/
-
 # private split-liability inputs and outputs
 merkle-output/
 *.private.json
