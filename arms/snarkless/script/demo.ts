@@ -28,14 +28,15 @@ export async function runKzgDemo(rpc: string, output: string) {
   });
   const epoch = buildGrandSumEpoch(srs, accounts);
   const sum = { balanceCommitment: point(epoch.balanceCommitment), shiftedCommitment: point(epoch.shiftedCommitment), identityCommitment: point(epoch.identityCommitment), totalLiabilities: epoch.totalLiabilities, sumProof: point(epoch.opening.proof) };
+  const rangeArtifactOf = (range: ReturnType<typeof proveRange>) => ({ bitCommitments: range.bitCommitments.map(point), quotientCommitment: point(range.quotientCommitment), values: range.values, batchProof: point(range.batchProof) });
+  let submitted: ReturnType<typeof rangeArtifactOf> | undefined;
   for (const epochId of [0n, 1n]) {
     const context = epochContext(BigInt(chain.id), registry, epochId);
-    const range = proveRange(srs, epoch.balancePoly, epoch.balances, context);
-    const rangeArtifact = { bitCommitments: range.bitCommitments.map(point), quotientCommitment: point(range.quotientCommitment), values: range.values, batchProof: point(range.batchProof) };
+    const rangeArtifact = rangeArtifactOf(proveRange(srs, epoch.balancePoly, epoch.balances, context));
     const suffix = epochId === 0n ? "" : "-next";
     writeJson(output, `kzg${suffix}-epoch.json`, { ...sum, registry, chainId: chain.id, epochId, context });
     writeJson(output, `kzg${suffix}-range-proof.json`, rangeArtifact);
-    if (epochId === 0n) await send(company, registry, abi, "submitEpoch", [sum, rangeArtifact]);
+    if (epochId === 0n) { submitted = rangeArtifact; await send(company, registry, abi, "submitEpoch", [sum, rangeArtifact]); }
     for (const [index, account] of accounts.entries()) {
       const proof = point(proveInclusion(srs, epoch, index, context).proof);
       const identity = identityOf(account.username, account.salt);
@@ -46,6 +47,7 @@ export async function runKzgDemo(rpc: string, output: string) {
       }
     }
   }
+  await assert.rejects(send(company, registry, abi, "submitEpoch", [sum, submitted!]), /reverted|InvalidRangeProof/, "the transcript binds to the epoch, so epoch 0's proof is not a valid epoch 1");
   const connection = { rpc, registry, chainId: chain.id };
   writeJson(output, "kzg-connection.json", connection);
   console.log(`KZG: ${rpc} · ${registry}\nArtifacts: ${output}`);

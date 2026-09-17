@@ -29,6 +29,8 @@ export async function runLedgerDemo(rpc: string, output: string) {
   await send(company, registry, abi, "submitLedger", calldata(ledger));
   const epoch = await client.readContract({ address: registry, abi, functionName: "latestEpoch" }) as any;
   assert.deepEqual(epoch.rootHashes, ledger.assets.map(a => a.rootHash));
+  assert.deepEqual(epoch.liabilities, ledger.assets.map(a => a.totalLiabilities));
+  assert.deepEqual(epoch.liabilities, [120n, 3n], "the funded reserves exactly cover the fixture's liabilities");
   const published = { snapshotId: epoch.snapshotId, assets: epoch.rootHashes.map((rootHash: bigint, i: number) => ({ rootHash, totalLiabilities: epoch.liabilities[i] })) };
   for (const [i, customer] of customers.entries()) {
     const expected = new Map<number, bigint>();
