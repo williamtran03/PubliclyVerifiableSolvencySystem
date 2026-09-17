@@ -92,7 +92,6 @@ kzg-epoch:
 
 # live demo; needs a local anvil first: anvil --silent --port 8547 &
 # deploys, binds the transcript to the deployed address, then proves and submits
-# override the node with RPC_URL=…; artifacts go to DEMO_OUTPUT, outside the repo
 kzg-demo: build
 	node --import tsx arms/snarkless/script/demo.ts
 
