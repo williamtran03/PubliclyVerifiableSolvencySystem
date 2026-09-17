@@ -33,10 +33,15 @@ const g2Json = (p: G2Point) => {
   return { xImag, xReal, yImag, yReal };
 };
 
+// Optional positional arguments let a deployment bind its proofs to its own
+// registry address; both default to the committed fixtures the tests read.
+const [snapshotPath = "./arms/snarkless/prover/snapshot.json", outDir = "./arms/snarkless/fixtures"] =
+  process.argv.slice(2);
+
 const srs = loadSrs("./arms/snarkless/fixtures/srs.json");
 const accounts = parseCustomersCsv("./shared/customers.csv");
 
-const snapshot = JSON.parse(readFileSync("./arms/snarkless/prover/snapshot.json", "utf8"));
+const snapshot = JSON.parse(readFileSync(snapshotPath, "utf8"));
 const context = epochContext(BigInt(snapshot.chainId), snapshot.registry, BigInt(snapshot.epochId));
 
 const epoch = buildGrandSumEpoch(srs, accounts);
@@ -63,9 +68,9 @@ const inclusions = accounts.map((account, index) => {
   };
 });
 
-mkdirSync("./arms/snarkless/fixtures", { recursive: true });
+mkdirSync(outDir, { recursive: true });
 const write = (name: string, value: unknown) =>
-  writeFileSync(`./arms/snarkless/fixtures/${name}`, JSON.stringify(value, null, 2) + "\n");
+  writeFileSync(`${outDir}/${name}`, JSON.stringify(value, null, 2) + "\n");
 
 write("epoch.json", {
   domainSize: epoch.balances.length,
@@ -109,6 +114,7 @@ write("attack.json", {
   },
 });
 
-console.log(`Wrote arms/snarkless/fixtures/epoch.json (total ${epoch.totalLiabilities}, domain ${epoch.balances.length})`);
-console.log(`Wrote arms/snarkless/fixtures/range-proof.json (${rangeProof.bits} bit polynomials)`);
-console.log(`Wrote arms/snarkless/fixtures/inclusion.json (${inclusions.length} customers)`);
+console.log(`Wrote ${outDir}/epoch.json (total ${epoch.totalLiabilities}, domain ${epoch.balances.length})`);
+console.log(`Wrote ${outDir}/range-proof.json (${rangeProof.bits} bit polynomials)`);
+console.log(`Wrote ${outDir}/inclusion.json (${inclusions.length} customers)`);
+console.log(`Wrote ${outDir}/attack.json (degree-bound forgery the tests must reject)`);

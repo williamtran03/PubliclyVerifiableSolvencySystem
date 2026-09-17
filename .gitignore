@@ -23,6 +23,9 @@ demo-site/dist/
 open-solvency/dist/
 demo-site/public/bundles/
 
+# per-deployment KZG artifacts from kzg-demo; the committed fixtures stay put
+arms/snarkless/fixtures/demo/
+
 # private split-liability inputs and outputs
 merkle-output/
 *.private.json

@@ -13,7 +13,7 @@
 .PHONY: build test integration check compare \
         ledger-demo \
         zk-fixtures zk-check zk-prove zk-verifier zk-snapshot zk-circuit-test zk-demo zk-bench demo-site \
-        kzg-setup kzg-epoch \
+        kzg-setup kzg-epoch kzg-demo \
         single-fixtures single-check single-proof single-prove single-verifier single-demo
 
 # ---- all arms ------------------------------------------------------------
@@ -87,8 +87,17 @@ kzg-setup:
 	npx tsx arms/snarkless/script/setup.ts
 
 # per-epoch prover, the counterpart to zk-prove; same shared/customers.csv
+# writes epoch.json, range-proof.json, inclusion.json and attack.json, all bound
+# to the registry in the snapshot; srs.json comes from kzg-setup and is left alone.
+# Both default to the committed fixtures, which the Foundry tests read:
+#   make kzg-epoch SNAPSHOT=path/to/snapshot.json OUT=path/to/directory
 kzg-epoch:
-	npx tsx arms/snarkless/prover/buildEpoch.ts
+	npx tsx arms/snarkless/prover/buildEpoch.ts $(SNAPSHOT) $(OUT)
+
+# live demo; needs a local anvil first: anvil --silent &
+# deploys, binds the transcript to the deployed address, then proves and submits
+kzg-demo: build
+	npx tsx arms/snarkless/script/demo.ts
 
 # ---- arm: single-asset (superseded) -------------------------------------
 # writes arms/single-asset/fixtures/epoch.json + circuit/Prover.toml

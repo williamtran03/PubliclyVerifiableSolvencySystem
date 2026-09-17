@@ -15,10 +15,10 @@ type KzgBundle = { username: string; index: number; identity: string; balance: s
 
 export const kzg: Solution = {
   id: "snarkless",
-  name: "KZG ohne Circuit",
+  name: "KZG without a circuit",
   description: "Polynomial commitments with on-chain verification of customer inclusion.",
   disclosure: "Currently supports one asset and eight account slots. Total liabilities are public.",
-  publication: ["Prepare the SRS once: make kzg-setup", "Generate epoch data, the range proof, and customer openings: make kzg-epoch", "Review the artifacts before signing.", "Call submitEpoch with the company key and deliver each customer opening privately."],
+  publication: ["Prepare the SRS once: make kzg-setup. It is not rebuilt per epoch, so keep srs.json; regenerating it invalidates every earlier proof.", "Deploy the registry first, then record its address, chain ID and next epoch ID in a snapshot.json. The proof transcript binds to that address.", "Build the epoch: make kzg-epoch SNAPSHOT=<snapshot.json> OUT=<directory>. This writes four files: epoch.json, range-proof.json, inclusion.json and attack.json. Omitting both variables overwrites the committed fixtures.", "Review the artifacts before signing.", "Call submitEpoch with the company key and deliver each customer opening from inclusion.json privately.", "For a local end-to-end run of all of the above: make kzg-demo"],
   async read(connection) {
     const c = client(connection);
     const epoch = assertEpoch(await c.readContract({ address: connection.registry, abi, functionName: "epochCount" }));
