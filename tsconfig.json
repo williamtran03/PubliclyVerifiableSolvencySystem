@@ -13,5 +13,5 @@
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "exclude": ["node_modules", "lib", "out", "arms/*/circuit/target", "arms/*/site/dist", "demo-site/dist"]
+  "exclude": ["node_modules", "lib", "out", "arms/*/circuit/target", "arms/*/site/dist", "open-solvency/dist", "arms/zk-circuit/fixtures/generated"]
 }
