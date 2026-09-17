@@ -16,21 +16,44 @@ let role: "customer" | "company" = "customer";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
-  <header class="topbar"><div class="shell topbar-inner"><a class="wordmark" href="/">Open<span>Solvency</span></a><span class="top-note">Verifiable solvency · Demo interface</span></div></header>
-  <main class="shell">
-    <div class="hero"><span class="eyebrow">One interface. Three proof methods.</span><h1>Make solvency verifiable.</h1><p>Select a method and check a published snapshot directly against its smart contract.</p></div>
-    <div class="role-switch" role="tablist" aria-label="View"><button id="customerTab" class="active" role="tab" aria-selected="true">For customers</button><button id="companyTab" role="tab" aria-selected="false">For companies</button></div>
-    <section class="panel selector"><div class="section-heading"><div><span class="eyebrow">01 · Method</span><h2>Select a proof method</h2></div><span class="pill">Modular</span></div><div id="solutions" class="solution-grid"></div><p id="disclosure" class="hint"></p></section>
-    <section class="panel"><div class="section-heading"><div><span class="eyebrow">02 · Blockchain</span><h2>Load a snapshot</h2></div></div><div class="form-grid"><label>RPC endpoint<input id="rpc" type="url" placeholder="https://…" value="${escapeHtml(stored.rpc ?? "http://127.0.0.1:8545")}" /></label><label>Registry address<input id="registry" spellcheck="false" placeholder="0x…" value="${escapeHtml(stored.registry ?? "")}" /></label></div><div class="actions"><button id="load" class="primary">Load latest snapshot</button><span id="loadStatus" role="status"></span></div><div id="snapshot" class="snapshot" hidden></div></section>
-    <section id="customerView" class="panel"><div class="section-heading"><div><span class="eyebrow">03 · Customer verification</span><h2>Verify my balances</h2></div><span class="pill">No wallet needed</span></div><p id="customerHelp" class="hint"></p><div class="form-grid"><label>Customer ID<input id="account" autocomplete="off" placeholder="e.g. customer-123" /></label><label>Private customer proof (.json)<input id="proof" type="file" accept=".json,application/json" /></label></div><div id="balances" class="balances"></div><label id="secretLabel">Account secret<input id="secret" autocomplete="off" placeholder="ZK and KZG only" /></label><div class="actions"><button id="verify" class="primary">Verify proof</button><span id="verifyStatus" role="status"></span></div></section>
-    <section id="companyView" class="panel" hidden><div class="section-heading"><div><span class="eyebrow">03 · Company workflow</span><h2>Publish a snapshot</h2></div><span class="pill">Company wallet</span></div><p class="hint">Generate proofs with the existing CLI tools. Load the artifacts locally, then publish the next epoch with an authorized company wallet. Keep private customer bundles out of the website and public builds.</p><ol id="publication" class="steps"></ol><div class="company-callout"><strong>Review the current epoch</strong><p id="companyCheck">Load the registry above to review its epoch and reserves.</p></div><div class="artifact"><label>Compare an already published artifact<input id="artifact" type="file" accept=".json,application/json" /></label><button id="inspect" class="secondary">Compare with registry</button><p id="inspectStatus" role="status" class="hint"></p></div><div class="publish"><h3>Submit the next epoch</h3><div class="form-grid"><label id="nextLabel">New artifact<input id="nextArtifact" type="file" accept=".json,application/json" /></label><label id="supplementLabel">Additional proof<input id="supplement" type="file" /></label></div><label id="roundsLabel">Oracle round IDs (three comma-separated values)<input id="rounds" placeholder="123, 456, 789" /></label><div class="actions"><button id="publish" class="primary">Publish with company wallet</button><span id="publishStatus" role="status"></span></div></div></section>
-  </main><footer class="shell">A valid customer proof confirms inclusion in the published snapshot. It cannot reveal undisclosed liabilities or lock reserves.</footer>`;
+  <header class="masthead"><div class="masthead-inner"><span class="mark">OpenSolvency <span>proof of reserves</span></span><div class="roles" role="tablist" aria-label="View"><button id="customerTab" role="tab" aria-selected="true">Customer</button><button id="companyTab" role="tab" aria-selected="false">Company</button></div></div></header>
+  <div class="workspace">
+    <aside class="rail">
+      <section class="rail-block"><h2 class="rail-title">Proof method</h2><div id="solutions" class="methods"></div><p id="disclosure" class="note"></p></section>
+      <section class="rail-block"><h2 class="rail-title">Registry</h2><label>RPC endpoint<input id="rpc" type="url" placeholder="https://…" value="${escapeHtml(stored.rpc ?? "http://127.0.0.1:8545")}" /></label><label>Contract address<input id="registry" spellcheck="false" placeholder="0x…" value="${escapeHtml(stored.registry ?? "")}" /></label><div class="actions"><button id="load" class="btn btn-primary">Load snapshot</button></div><p id="loadStatus" class="status" role="status"></p></section>
+    </aside>
+    <main>
+      <section id="snapshot" class="card" hidden></section>
+      <section id="customerView" class="card">
+        <div class="card-head"><h2>Verify your balances</h2><p>No wallet required</p></div>
+        <div class="card-body"><p id="customerHelp" class="note"></p><div class="field-grid"><label>Customer ID<input id="account" autocomplete="off" placeholder="e.g. customer-123" /></label><label>Inclusion proof (.json)<input id="proof" type="file" accept=".json,application/json" /></label></div><div id="balances" class="balances"></div><label id="secretLabel">Account secret<input id="secret" autocomplete="off" placeholder="ZK and KZG only" /></label><div class="actions"><button id="verify" class="btn btn-primary">Verify proof</button></div><p id="verifyStatus" class="status" role="status"></p></div>
+      </section>
+      <section id="companyView" class="card" hidden>
+        <div class="card-head"><h2>Publish a snapshot</h2><p>Requires the company wallet</p></div>
+        <div class="card-body">
+          <p class="note">Generate proofs with the existing CLI tools, then load the artifacts here. Keep private customer bundles out of the website and out of public builds.</p>
+          <ol id="publication" class="steps"></ol>
+          <p id="companyCheck" class="callout">Load the registry to review its current epoch and reserves.</p>
+          <h3 class="subhead">Compare a published artifact</h3>
+          <div class="field-grid"><label>Epoch artifact (.json)<input id="artifact" type="file" accept=".json,application/json" /></label></div>
+          <div class="actions"><button id="inspect" class="btn">Compare with registry</button></div>
+          <p id="inspectStatus" class="status" role="status"></p>
+          <h3 class="subhead">Submit the next epoch</h3>
+          <div class="field-grid"><label id="nextLabel">New artifact<input id="nextArtifact" type="file" accept=".json,application/json" /></label><label id="supplementLabel">Additional proof<input id="supplement" type="file" /></label></div>
+          <label id="roundsLabel">Oracle round IDs (three comma-separated values)<input id="rounds" placeholder="123, 456, 789" /></label>
+          <div class="actions"><button id="publish" class="btn btn-primary">Publish with company wallet</button></div>
+          <p id="publishStatus" class="status" role="status"></p>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div class="footer-wrap"><footer>A valid customer proof confirms inclusion in the published snapshot. It cannot reveal undisclosed liabilities or lock reserves.</footer></div>`;
 
 function escapeHtml(value: string): string { return value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!); }
 function el<T extends HTMLElement>(id: string): T { return document.getElementById(id) as T; }
-function setStatus(id: string, message: string, ok?: boolean) { const node = el<HTMLElement>(id); node.textContent = message; node.className = ok === undefined ? "" : ok ? "good" : "error"; }
+function setStatus(id: string, message: string, ok?: boolean) { const node = el<HTMLElement>(id); node.textContent = message; node.className = `status${ok === undefined ? "" : ok ? " ok" : " bad"}`; }
 function renderSolutions() {
-  el<HTMLDivElement>("solutions").innerHTML = solutions.map((s, i) => `<button class="solution ${s.id === selected.id ? "selected" : ""}" data-id="${s.id}" aria-pressed="${s.id === selected.id}"><span class="solution-number">0${i + 1}</span><strong>${s.name}</strong><small>${s.description}</small></button>`).join("");
+  el<HTMLDivElement>("solutions").innerHTML = solutions.map((s) => `<button class="method" data-id="${s.id}" aria-pressed="${s.id === selected.id}"><span class="method-name">${escapeHtml(s.name)}</span><span class="method-desc">${escapeHtml(s.description)}</span></button>`).join("");
   el<HTMLElement>("disclosure").textContent = selected.disclosure;
   el<HTMLElement>("customerHelp").textContent = selected.id === "snarkless"
     ? "Use the balance from your own records. The JSON file stays local; KZG sends the identity commitment, balance, and opening to your RPC endpoint for verifyInclusion."
@@ -42,7 +65,7 @@ function renderSolutions() {
   el<HTMLElement>("nextLabel").firstChild!.textContent = selected.id === "published-ledger" ? "Merkle-sum ledger (ledger.json)" : "New epoch artifact (epoch.json)";
   el<HTMLElement>("supplementLabel").firstChild!.textContent = selected.id === "snarkless" ? "Range proof (range-proof.json)" : "ZK proof (proof.bin)";
   renderBalances();
-  document.querySelectorAll<HTMLButtonElement>(".solution").forEach((button) => button.addEventListener("click", () => {
+  document.querySelectorAll<HTMLButtonElement>(".method").forEach((button) => button.addEventListener("click", () => {
     selected = solutions.find((s) => s.id === button.dataset.id as SolutionId)!;
     snapshot = null;
     snapshotConnection = null;
@@ -59,7 +82,7 @@ function renderSolutions() {
 }
 function renderBalances() {
   const count = snapshot?.assets.length ?? (selected.id === "zk-circuit" ? 3 : 1);
-  el<HTMLElement>("balances").innerHTML = Array.from({ length: count }, (_, i) => `<label>${escapeHtml(snapshot?.assets[i]?.label ?? `Asset ${i}`)} · Balance in base units<input class="balance" data-asset="${i}" inputmode="numeric" placeholder="0" /></label>`).join("");
+  el<HTMLElement>("balances").innerHTML = Array.from({ length: count }, (_, i) => `<label>${escapeHtml(snapshot?.assets[i]?.label ?? `Asset ${i}`)}<input class="balance" data-asset="${i}" inputmode="numeric" placeholder="balance in base units" /></label>`).join("");
 }
 function save() {
   try { localStorage.setItem("opensolvency.settings", JSON.stringify({ solution: selected.id, rpc: el<HTMLInputElement>("rpc").value.trim(), registry: el<HTMLInputElement>("registry").value.trim() })); } catch { /* storage optional */ }
@@ -74,7 +97,7 @@ function connection(): Connection {
 function renderSnapshot(value: Snapshot) {
   const rows = value.assets.map((asset) => `<tr><td>${escapeHtml(asset.label)}</td><td>${asset.reserves}</td><td>${asset.liabilities ?? "private"}</td><td>${asset.floor ?? "—"}</td></tr>`).join("");
   const panel = el<HTMLElement>("snapshot");
-  panel.innerHTML = `<div class="snapshot-meta"><div><span>Epoch</span><strong>${value.epoch}</strong></div><div><span>Published</span><strong>${new Date(Number(value.timestamp) * 1000).toLocaleString("en-GB")}</strong></div></div><div class="commitment"><span>Commitment / snapshot ID</span><code>${escapeHtml(value.commitment)}</code></div><div class="table-wrap"><table><thead><tr><th>Asset</th><th>Reserves</th><th>Liabilities</th><th>Reserve floor</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  panel.innerHTML = `<div class="card-head"><h2>Published snapshot</h2><p>Read from the contract</p></div><dl class="readout"><div><dt>Epoch</dt><dd>${value.epoch}</dd></div><div><dt>Published</dt><dd>${escapeHtml(new Date(Number(value.timestamp) * 1000).toLocaleString("en-GB"))}</dd></div><div class="wide"><dt>Commitment</dt><dd class="small">${escapeHtml(value.commitment)}</dd></div></dl><div class="table-wrap"><table><thead><tr><th>Asset</th><th>Reserves</th><th>Liabilities</th><th>Reserve floor</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   panel.hidden = false;
   el<HTMLElement>("companyCheck").textContent = `Current snapshot: epoch ${value.epoch}, published ${new Date(Number(value.timestamp) * 1000).toLocaleString("en-GB")}. Compare these figures with your internal records before creating a new proof.`;
   renderBalances();

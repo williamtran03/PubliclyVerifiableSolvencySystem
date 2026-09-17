@@ -11,7 +11,7 @@ const abi = parseAbi([
 
 export const zk: Solution = {
   id: "zk-circuit",
-  name: "Zero-Knowledge-Circuit",
+  name: "Zero-knowledge circuit",
   description: "Private liabilities with public reserve floors for each asset.",
   disclosure: "Individual balances and total liabilities remain private. The circuit supports three assets.",
   publication: ["Fetch the snapshot and reserve context: make zk-snapshot REGISTRY=0x…", "Build the witness and customer bundles: make zk-fixtures", "Generate and verify the proof: make zk-prove", "Publish with the company key: make zk-demo (local demo)"],
