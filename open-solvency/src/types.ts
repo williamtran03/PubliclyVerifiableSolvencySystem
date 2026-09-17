@@ -1,12 +1,14 @@
 export type SolutionId = "published-ledger" | "zk-circuit" | "snarkless";
 export type Connection = { rpc: string; registry: `0x${string}` };
-export type Asset = { label: string; liabilities?: bigint; floor?: bigint; reserves: bigint };
+export type Asset = { label: string; token?: string; unitDecimals?: number; unitDescription?: string; liabilities?: bigint; floor?: bigint; reserves: bigint };
+export type Freshness = { current: boolean; age: bigint; maxAge: bigint };
 export type Snapshot = {
   epoch: bigint;
   timestamp: bigint;
   assets: Asset[];
   commitment: string;
   data: unknown;
+  freshness?: Freshness;
 };
 export type Check = { valid: boolean; message: string };
 export type Solution = {

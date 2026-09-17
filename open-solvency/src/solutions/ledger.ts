@@ -1,12 +1,13 @@
 import { encodeAbiParameters, keccak256, parseAbi, type Hex } from "viem";
 import { verifyProof, keccakHash, type MerkleSumProof } from "@arms/published-ledger/prover/tree.ts";
-import { assertEpoch, client } from "./common.ts";
+import { assertEpoch, client, readFreshness, tokenMetadata } from "./common.ts";
 import type { Solution } from "../types.ts";
 
 const abi = parseAbi([
   "struct Epoch { bytes32 snapshotId; uint256[] rootHashes; uint256[] liabilities; uint256[] reserves; uint64 timestamp; }",
   "function epochCount() view returns (uint256)",
-  "function latestEpoch() view returns (Epoch)",
+  "function getEpoch(uint256) view returns (Epoch)",
+  "function assets(uint256) view returns (address)",
 ]);
 
 type Bundle = { snapshotId: Hex; customerId: string; name: string; dateOfBirth: string; parts: {
@@ -37,11 +38,17 @@ export const ledger: Solution = {
   publication: ["Prepare customer data locally.", "Build the ledger and private customer bundles: npm run ledger -- build <input> <new-directory> <asset-count>", "Audit the public ledger: npm run ledger -- audit <directory>/ledger.json", "Publish through submitLedger with the company key; deliver each private bundle separately."],
   async read(connection) {
     const c = client(connection);
-    const epoch = assertEpoch(await c.readContract({ address: connection.registry, abi, functionName: "epochCount" }));
-    const value = await c.readContract({ address: connection.registry, abi, functionName: "latestEpoch" });
+    const blockNumber = await c.getBlockNumber({ cacheTime: 0 });
+    const epoch = assertEpoch(await c.readContract({ address: connection.registry, abi, functionName: "epochCount", blockNumber }));
+    const value = await c.readContract({ address: connection.registry, abi, functionName: "getEpoch", args: [epoch], blockNumber });
+    const assets = await Promise.all(value.reserves.map(async (reserves, i) => {
+      const token = await c.readContract({ address: connection.registry, abi, functionName: "assets", args: [BigInt(i)], blockNumber });
+      return { ...await tokenMetadata(c, token, blockNumber), reserves, liabilities: value.liabilities[i] };
+    }));
     return {
       epoch, timestamp: value.timestamp, commitment: value.snapshotId,
-      assets: value.reserves.map((reserves, i) => ({ label: `Asset ${i}`, reserves, liabilities: value.liabilities[i] })),
+      assets,
+      freshness: await readFreshness(c, connection.registry, blockNumber),
       data: { snapshotId: value.snapshotId, roots: value.rootHashes, liabilities: value.liabilities },
     };
   },

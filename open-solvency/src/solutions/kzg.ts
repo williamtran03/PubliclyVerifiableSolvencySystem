@@ -1,6 +1,6 @@
 import { parseAbi } from "viem";
 import { poseidon2Hash, usernameToBigInt } from "@shared/merkleSumTree.ts";
-import { assertEpoch, client } from "./common.ts";
+import { assertEpoch, client, readFreshness, tokenMetadata } from "./common.ts";
 import type { Solution } from "../types.ts";
 
 const abi = parseAbi([
@@ -8,6 +8,8 @@ const abi = parseAbi([
   "struct Epoch { G1Point balanceCommitment; G1Point identityCommitment; uint256 totalLiabilities; uint256 reserveUnits; uint64 timestamp; }",
   "function epochCount() view returns (uint256)",
   "function getEpoch(uint256) view returns (Epoch)",
+  "function token() view returns (address)",
+  "function decimals() view returns (uint8)",
   "function verifyInclusion(uint256 epochId, uint256 index, uint256 identity, uint256 balance, G1Point proof) view returns (bool)",
 ]);
 
@@ -15,18 +17,24 @@ type KzgBundle = { username: string; index: number; identity: string; balance: s
 
 export const kzg: Solution = {
   id: "snarkless",
-  name: "KZG ohne Circuit",
+  name: "KZG without a Circuit",
   description: "Polynomial commitments with on-chain verification of customer inclusion.",
   disclosure: "Currently supports one asset and eight account slots. Total liabilities are public.",
   publication: ["Prepare the SRS once: make kzg-setup", "Generate epoch data, the range proof, and customer openings: make kzg-epoch", "Review the artifacts before signing.", "Call submitEpoch with the company key and deliver each customer opening privately."],
   async read(connection) {
     const c = client(connection);
-    const epoch = assertEpoch(await c.readContract({ address: connection.registry, abi, functionName: "epochCount" }));
-    const value = await c.readContract({ address: connection.registry, abi, functionName: "getEpoch", args: [epoch] });
+    const blockNumber = await c.getBlockNumber({ cacheTime: 0 });
+    const epoch = assertEpoch(await c.readContract({ address: connection.registry, abi, functionName: "epochCount", blockNumber }));
+    const value = await c.readContract({ address: connection.registry, abi, functionName: "getEpoch", args: [epoch], blockNumber });
+    const token = await c.readContract({ address: connection.registry, abi, functionName: "token", blockNumber });
+    const scale = await c.readContract({ address: connection.registry, abi, functionName: "decimals", blockNumber });
+    const metadata = await tokenMetadata(c, token, blockNumber);
+    const unitDecimals = metadata.unitDecimals !== undefined && metadata.unitDecimals >= scale ? metadata.unitDecimals - scale : undefined;
     return {
       epoch, timestamp: value.timestamp,
       commitment: `(${value.balanceCommitment.x}, ${value.balanceCommitment.y})`,
-      assets: [{ label: "Asset 0", reserves: value.reserveUnits, liabilities: value.totalLiabilities }],
+      assets: [{ ...metadata, unitDecimals, unitDescription: `Raw token amount divided by 10^${scale}`, reserves: value.reserveUnits, liabilities: value.totalLiabilities }],
+      freshness: await readFreshness(c, connection.registry, blockNumber),
       data: value,
     };
   },
