@@ -1,5 +1,6 @@
 import { isAddress } from "viem";
 import { displayAmount, freshnessText, parseBalance } from "./amounts.ts";
+import { renderPublicLedger } from "./merkleView.ts";
 import { zk } from "./solutions/zk.ts";
 import { ledger } from "./solutions/ledger.ts";
 import { kzg } from "./solutions/kzg.ts";
@@ -26,7 +27,7 @@ app.innerHTML = `
     <div class="hero"><span class="eyebrow">One interface. Three proof methods.</span><h1>Make solvency verifiable.</h1><p>Select a method and check a published snapshot directly against its smart contract.</p></div>
     <div class="role-switch" role="tablist" aria-label="View"><button id="customerTab" class="active" role="tab" aria-selected="true">For customers</button><button id="companyTab" role="tab" aria-selected="false">For companies</button></div>
     <section class="panel selector"><div class="section-heading"><div><span class="eyebrow">01 · Method</span><h2>Select a proof method</h2></div><span class="pill">Modular</span></div><div id="solutions" class="solution-grid"></div><p id="disclosure" class="hint"></p><button id="demo" class="secondary" hidden>Use local demo</button></section>
-    <section class="panel"><div class="section-heading"><div><span class="eyebrow">02 · Blockchain</span><h2>Load a snapshot</h2></div></div><div class="form-grid"><label>RPC endpoint<input id="rpc" type="url" placeholder="https://…" value="${escapeHtml(stored.rpc ?? "http://127.0.0.1:8545")}" /></label><label>Registry address<input id="registry" spellcheck="false" placeholder="0x…" value="${escapeHtml(stored.registry ?? "")}" /></label></div><div class="actions"><button id="load" class="primary">Load latest snapshot</button><span id="loadStatus" role="status"></span></div><div id="snapshot" class="snapshot" hidden></div></section>
+    <section class="panel"><div class="section-heading"><div><span class="eyebrow">02 · Blockchain</span><h2>Load a snapshot</h2></div></div><div class="form-grid"><label>RPC endpoint<input id="rpc" type="url" placeholder="https://…" value="${escapeHtml(stored.rpc ?? "http://127.0.0.1:8545")}" /></label><label>Registry address<input id="registry" spellcheck="false" placeholder="0x…" value="${escapeHtml(stored.registry ?? "")}" /></label></div><div class="actions"><button id="load" class="primary">Load latest snapshot</button><span id="loadStatus" role="status"></span></div><div id="snapshot" class="snapshot" hidden></div><div id="publicLedger" class="public-ledger" hidden></div></section>
     <section id="customerView" class="panel"><div class="section-heading"><div><span class="eyebrow">03 · Customer verification</span><h2>Verify my balances</h2></div><span class="pill">No wallet needed</span></div><p id="customerHelp" class="hint"></p><div class="form-grid"><label>Customer ID<input id="account" autocomplete="off" placeholder="e.g. customer-123" /></label><label>Private customer proof (.json)<input id="proof" type="file" accept=".json,application/json" /></label></div><label class="unit-mode">Amount units<select id="unitMode"><option value="human">Token amounts</option><option value="proof">Proof units (integers)</option></select></label><div id="balances" class="balances"></div><label id="secretLabel">Account secret<input id="secret" autocomplete="off" placeholder="ZK and KZG only" /></label><div class="actions"><button id="verify" class="primary">Verify proof</button><span id="verifyStatus" role="status"></span></div></section>
     <section id="companyView" class="panel" hidden><div class="section-heading"><div><span class="eyebrow">03 · Company workflow</span><h2>Publish a snapshot</h2></div><span class="pill">Company wallet</span></div><p class="hint">Generate proofs with the existing CLI tools. Load the artifacts locally, then publish the next epoch with an authorized company wallet. Keep private customer bundles out of the website and public builds.</p><ol id="publication" class="steps"></ol><div class="company-callout"><strong>Review the current epoch</strong><p id="companyCheck">Load the registry above to review its epoch and reserves.</p></div><div class="artifact"><label>Compare an already published artifact<input id="artifact" type="file" accept=".json,application/json" /></label><button id="inspect" class="secondary">Compare with registry</button><p id="inspectStatus" role="status" class="hint"></p></div><div class="publish"><h3>Submit the next epoch</h3><div class="form-grid"><label id="nextLabel">New artifact<input id="nextArtifact" type="file" accept=".json,application/json" /></label><label id="supplementLabel">Additional proof<input id="supplement" type="file" /></label></div><label id="roundsLabel">Oracle round IDs (three comma-separated values)<input id="rounds" placeholder="123, 456, 789" /></label><div class="actions"><button id="publish" class="primary">Publish with company wallet</button><span id="publishStatus" role="status"></span></div></div></section>
   </main><footer class="shell">A valid customer proof confirms inclusion in the published snapshot. It cannot reveal undisclosed liabilities or lock reserves.</footer>`;
@@ -93,6 +94,7 @@ function invalidate() {
   snapshot = null;
   snapshotConnection = null;
   el<HTMLElement>("snapshot").hidden = true;
+  el<HTMLElement>("publicLedger").hidden = true;
   for (const id of ["verifyStatus", "inspectStatus", "publishStatus"]) setStatus(id, "");
   el<HTMLElement>("companyCheck").textContent = "Load the registry above to review its epoch and reserves.";
 }
@@ -117,6 +119,11 @@ function renderSnapshot(value: Snapshot) {
   showFreshness(value);
   el<HTMLElement>("companyCheck").textContent = `Current snapshot: epoch ${value.epoch}, published ${new Date(Number(value.timestamp) * 1000).toLocaleString("en-GB")}. Compare these figures with your internal records before creating a new proof.`;
   renderBalances();
+  const publicLedger = el<HTMLElement>("publicLedger");
+  publicLedger.hidden = selected.id !== "published-ledger";
+  if (selected.id === "published-ledger" && value.publicLedger) {
+    renderPublicLedger(publicLedger, value.publicLedger, value.assets.map(asset => asset.label), (raw, assetId) => displayAmount(raw, value.assets[assetId]));
+  }
 }
 el<HTMLButtonElement>("load").addEventListener("click", async () => {
   snapshot = null;
