@@ -2,9 +2,9 @@
 
 Blockchain Challenge 2026 — Case 5: Publicly Verifiable Solvency System.
 
-This branch is the **comparison study**: four implementations of the same claim,
-built so they can be measured against each other in one build. The standalone
-product built for the presentation demo lives on the `minimum` branch.
+This branch contains three runnable solvency arms plus a single-asset measurement
+control. The three runnable arms are the product choices exposed by OpenSolvency;
+the control remains only so the gas comparison has a stable baseline.
 
 ## The arms
 
@@ -16,14 +16,14 @@ Each directory under `arms/` is self-contained — `contracts/`, `prover/`,
 | `arms/published-ledger` | Publish every anonymised part on-chain, one merkle-sum tree per asset; the contract recomputes every total |
 | `arms/zk-circuit` | Noir/UltraHonk proof that each asset's liabilities stay under a public reserve floor; liabilities stay private |
 | `arms/snarkless` | KZG polynomial commitments: total, non-negativity and customer inclusion verified on-chain, no circuit |
-| `arms/single-asset` | Superseded by `zk-circuit`; kept because the comparison quotes its gas and bytecode |
+| `arms/single-asset` | Measurement control only; not exposed by OpenSolvency |
 
 Shared, deliberately: `shared/contracts/ReserveRegistry.sol` (company and auditor
 roles, and reserve wallets that prove control by signature, used by every registry),
 `shared/merkleSumTree.ts` (the Poseidon2 tree core and username encoding) and
 `shared/customers.csv` (the common input the single-asset and snarkless arms use).
 
-`docs/comparison.md` is the deliverable that reads across all four.
+`docs/comparison.md` reads across all four implementations, including the measurement control.
 
 ## Dev environment
 
@@ -47,7 +47,7 @@ full list.
 
 - `arms/` — one directory per implementation
 - `shared/` — the reserve registry base, the tree core and the common customer set
-- `demo-site/` — customer-facing site for the `zk-circuit` arm
 - `open-solvency/` — shared customer and company website for the three current arms (`npm run web`)
+- `scripts/demo/` — reproducible three-chain Anvil demo (`npm run demo`)
 - `docs/` — the cross-arm comparison
 - `lib/` — vendored deps

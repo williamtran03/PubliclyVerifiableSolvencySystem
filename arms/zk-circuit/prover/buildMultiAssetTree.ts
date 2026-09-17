@@ -91,18 +91,20 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
       `liabilities ${epoch.liabilities.join("/")} under floors ${epoch.floors.join("/")})`,
   );
 
-  mkdirSync("./demo-site/public/bundles", { recursive: true });
+  const outputDir = "./arms/zk-circuit/fixtures/generated";
+  mkdirSync(outputDir, { recursive: true, mode: 0o700 });
   for (const username of new Set(holdings.map((h) => h.username))) {
     writeFileSync(
-      `./demo-site/public/bundles/${username}.json`,
+      `${outputDir}/${username}.json`,
       serializeBundle(createBundle(username, epoch.padded, epoch.levels)),
+      { mode: 0o600 },
     );
   }
-  console.log("Wrote demo-site/public/bundles/");
+  console.log(`Wrote private customer bundles to ${outputDir}/`);
 
-  mkdirSync("./demo-site/public/operator", { recursive: true });
+  mkdirSync(outputDir, { recursive: true, mode: 0o700 });
   writeFileSync(
-    "./demo-site/public/operator/ledger.json",
+    `${outputDir}/ledger.json`,
     JSON.stringify(
       {
         rootHash: epoch.rootHash.toString(),
@@ -117,5 +119,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
       2,
     ) + "\n",
   );
-  console.log("Wrote demo-site/public/operator/ledger.json");
+  console.log(`Wrote private operator ledger to ${outputDir}/ledger.json`);
 }

@@ -12,8 +12,8 @@
 
 .PHONY: build test integration check compare \
         ledger-demo \
-        zk-fixtures zk-check zk-prove zk-verifier zk-snapshot zk-circuit-test zk-demo zk-bench demo-site \
-        kzg-setup kzg-epoch kzg-demo \
+        zk-fixtures zk-check zk-prove zk-verifier zk-snapshot zk-circuit-test zk-demo zk-bench \
+        kzg-setup kzg-epoch kzg-demo demo test-demo \
         single-fixtures single-check single-proof single-prove single-verifier single-demo
 
 # ---- all arms ------------------------------------------------------------
@@ -39,7 +39,7 @@ compare:
 
 # ---- arm: published-ledger ----------------------------------------------
 # split + shuffle customers, publish the anonymised ledger, recompute on-chain
-ledger-demo:
+ledger-demo: build
 	npx tsx arms/published-ledger/script/demo.ts
 
 # ---- arm: zk-circuit (multi-asset) --------------------------------------
@@ -72,14 +72,10 @@ zk-verifier: zk-prove
 # live demo; needs a local anvil first: anvil --silent &
 # the script signs as anvil dev accounts 0 (company) and 1 (auditor)
 zk-demo: build
-	forge script arms/zk-circuit/script/Demo.s.sol --rpc-url http://127.0.0.1:8545 --broadcast
+	node --import tsx arms/zk-circuit/script/demo.ts
 
 zk-bench:
 	npx tsx arms/zk-circuit/bench/scale.ts
-
-# customer-facing demo site for this arm
-demo-site: zk-fixtures
-	npx vite --config vite.demo.config.ts
 
 # ---- arm: snarkless (KZG) -----------------------------------------------
 # one-time setup, the counterpart to the circuit's verification key
@@ -94,10 +90,17 @@ kzg-setup:
 kzg-epoch:
 	npx tsx arms/snarkless/prover/buildEpoch.ts $(SNAPSHOT) $(OUT)
 
-# live demo; needs a local anvil first: anvil --silent &
+# live demo; needs a local anvil first: anvil --silent --port 8547 &
 # deploys, binds the transcript to the deployed address, then proves and submits
+# override the node with RPC_URL=…; artifacts go to DEMO_OUTPUT, outside the repo
 kzg-demo: build
-	npx tsx arms/snarkless/script/demo.ts
+	node --import tsx arms/snarkless/script/demo.ts
+
+demo:
+	npm run demo
+
+test-demo: build
+	npm run test:demo
 
 # ---- arm: single-asset (superseded) -------------------------------------
 # writes arms/single-asset/fixtures/epoch.json + circuit/Prover.toml

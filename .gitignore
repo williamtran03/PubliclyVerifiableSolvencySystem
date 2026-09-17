@@ -19,9 +19,8 @@ arms/*/circuit/e2e-*.toml
 arms/single-asset/fixtures/proof-*.json
 arms/single-asset/site/public/proofs/
 arms/*/site/dist/
-demo-site/dist/
 open-solvency/dist/
-demo-site/public/bundles/
+arms/zk-circuit/fixtures/generated/
 
 # per-deployment KZG artifacts from kzg-demo; the committed fixtures stay put
 arms/snarkless/fixtures/demo/

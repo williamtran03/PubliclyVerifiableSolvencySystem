@@ -1,12 +1,15 @@
-import { encodeAbiParameters, keccak256, parseAbi, type Hex } from "viem";
+import { decodeFunctionData, encodeAbiParameters, keccak256, parseAbi, type Hex } from "viem";
 import { verifyProof, keccakHash, type MerkleSumProof } from "@arms/published-ledger/prover/tree.ts";
-import { assertEpoch, client } from "./common.ts";
-import type { Solution } from "../types.ts";
+import { assertEpoch, client, readFreshness, tokenMetadata } from "./common.ts";
+import type { PublicLedgerAsset, Solution } from "../types.ts";
 
 const abi = parseAbi([
   "struct Epoch { bytes32 snapshotId; uint256[] rootHashes; uint256[] liabilities; uint256[] reserves; uint64 timestamp; }",
   "function epochCount() view returns (uint256)",
-  "function latestEpoch() view returns (Epoch)",
+  "function getEpoch(uint256) view returns (Epoch)",
+  "function assets(uint256) view returns (address)",
+  "event LedgerSubmitted(uint256 indexed epochId, bytes32 indexed snapshotId, uint256[] rootHashes, uint256[] liabilities, uint256[] reserves)",
+  "function submitLedger(bytes32 snapshotId, uint256[][] identities, uint256[][] amounts)",
 ]);
 
 type Bundle = { snapshotId: Hex; customerId: string; name: string; dateOfBirth: string; parts: {
@@ -29,6 +32,32 @@ function identity(bundle: Bundle, assetId: number, partIndex: number, salt: Hex)
   )));
 }
 
+async function publicLedger(c: ReturnType<typeof client>, registry: `0x${string}`, epoch: bigint, snapshotId: Hex, roots: readonly bigint[], liabilities: readonly bigint[]): Promise<PublicLedgerAsset[] | undefined> {
+  const logs = await c.getLogs({ address: registry, event: {
+    type: "event",
+    name: "LedgerSubmitted",
+    inputs: [
+      { indexed: true, name: "epochId", type: "uint256" },
+      { indexed: true, name: "snapshotId", type: "bytes32" },
+      { indexed: false, name: "rootHashes", type: "uint256[]" },
+      { indexed: false, name: "liabilities", type: "uint256[]" },
+      { indexed: false, name: "reserves", type: "uint256[]" },
+    ],
+  }, args: { epochId: epoch, snapshotId } });
+  const log = logs[0];
+  if (!log?.transactionHash) return undefined;
+  const transaction = await c.getTransaction({ hash: log.transactionHash });
+  const decoded = decodeFunctionData({ abi, data: transaction.input });
+  if (decoded.functionName !== "submitLedger") return undefined;
+  const [calledSnapshot, identities, amounts] = decoded.args as readonly [Hex, readonly (readonly bigint[])[], readonly (readonly bigint[])[]];
+  if (calledSnapshot.toLowerCase() !== snapshotId.toLowerCase() || identities.length !== roots.length || amounts.length !== roots.length) return undefined;
+  return roots.map((rootHash, assetId) => ({
+    rootHash,
+    total: liabilities[assetId],
+    entries: identities[assetId].map((identity, index) => ({ identity, amount: amounts[assetId][index] })),
+  }));
+}
+
 export const ledger: Solution = {
   id: "published-ledger",
   name: "Merkle-Sum Tree",
@@ -37,11 +66,18 @@ export const ledger: Solution = {
   publication: ["Prepare customer data locally.", "Build the ledger and private customer bundles: npm run ledger -- build <input> <new-directory> <asset-count>", "Audit the public ledger: npm run ledger -- audit <directory>/ledger.json", "Publish through submitLedger with the company key; deliver each private bundle separately."],
   async read(connection) {
     const c = client(connection);
-    const epoch = assertEpoch(await c.readContract({ address: connection.registry, abi, functionName: "epochCount" }));
-    const value = await c.readContract({ address: connection.registry, abi, functionName: "latestEpoch" });
+    const blockNumber = await c.getBlockNumber({ cacheTime: 0 });
+    const epoch = assertEpoch(await c.readContract({ address: connection.registry, abi, functionName: "epochCount", blockNumber }));
+    const value = await c.readContract({ address: connection.registry, abi, functionName: "getEpoch", args: [epoch], blockNumber });
+    const assets = await Promise.all(value.reserves.map(async (reserves, i) => {
+      const token = await c.readContract({ address: connection.registry, abi, functionName: "assets", args: [BigInt(i)], blockNumber });
+      return { ...await tokenMetadata(c, token, blockNumber), reserves, liabilities: value.liabilities[i] };
+    }));
     return {
       epoch, timestamp: value.timestamp, commitment: value.snapshotId,
-      assets: value.reserves.map((reserves, i) => ({ label: `Asset ${i}`, reserves, liabilities: value.liabilities[i] })),
+      assets,
+      freshness: await readFreshness(c, connection.registry, blockNumber),
+      publicLedger: await publicLedger(c, connection.registry, epoch, value.snapshotId, value.rootHashes, value.liabilities),
       data: { snapshotId: value.snapshotId, roots: value.rootHashes, liabilities: value.liabilities },
     };
   },

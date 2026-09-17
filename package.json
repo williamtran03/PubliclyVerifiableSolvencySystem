@@ -9,6 +9,8 @@
     "check": "tsc --noEmit",
     "web": "vite --config vite.opensolvency.config.ts",
     "web:build": "vite build --config vite.opensolvency.config.ts",
+    "demo": "node --import tsx scripts/demo/run.ts",
+    "test:demo": "node --import tsx --test --test-reporter=spec scripts/demo/*.test.ts",
     "ledger": "node --import tsx arms/published-ledger/cli/verify.ts",
     "inclusion": "node --import tsx arms/single-asset/cli/verify-inclusion.ts"
   },

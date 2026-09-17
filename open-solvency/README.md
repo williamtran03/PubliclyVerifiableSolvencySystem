@@ -1,8 +1,8 @@
 # OpenSolvency website
 
-Start with `npm run web` from the repository root. Run `npm run web:build` for a static production build in `open-solvency/dist/`.
+Start with `npm run web` from the repository root. Run `npm run web:build` for a static production build in `open-solvency/dist/`. For a complete local deployment with all three arms, use `npm run demo`; the launcher starts three isolated Anvil chains and the website, then exposes only their connection details at `/demo-config.json`.
 
-The site has a public customer view and a company view. Select **Merkle-Sum Tree** (`arms/published-ledger`), **ZK circuit**, or **KZG** first; each adapter reads the matching registry contract. The Merkle-Sum implementation uses one tree per asset and publishes the pseudonymous ledger so the contract can recompute every root and sum. The RPC and registry address are remembered in local storage. They are user supplied because the three registries are separate contracts and deployments.
+The site has a public customer view and a company view. Select **Merkle-Sum Tree** (`arms/published-ledger`), **ZK circuit**, or **KZG** first; each adapter reads the matching registry contract. The Merkle-Sum implementation uses one tree per asset and publishes the pseudonymous ledger so the contract can recompute every root and sum. The selected RPC and registry are remembered separately for each arm. They are user supplied because the three registries are separate contracts and deployments.
 
 ## Customer
 
@@ -24,6 +24,10 @@ Generate the ledger and proofs with the arm's existing CLI or Foundry workflow. 
 | KZG | `epoch.json` from `make kzg-epoch` | `range-proof.json` |
 
 The site checks the artifact against the selected register where possible, simulates the contract call and requests confirmation from the browser wallet. The wallet must be on the same chain as the RPC and hold the contract's company role. A successful wallet response is a **submitted transaction**, not a confirmed epoch; reload after it is mined. Do not add private bundles, witness files, account salts or internal ledgers to the static site.
+
+## Legacy demo site
+
+The former `demo-site/` has been removed. It published customer bundles under predictable URLs, so it is not part of the supported website path anymore. `open-solvency/` accepts private proof files from the browser instead.
 
 ## Limits
 
