@@ -32,3 +32,14 @@ The former `demo-site/` has been removed. It published customer bundles under pr
 ## Limits
 
 These implementations prove claims about submitted records and reserve balances at a point in time. They do not detect omitted liabilities, prove that reserves remain available later, or substitute for an independent financial audit. The company interface relies on the smart contract's `onlyCompany` restriction and a wallet; it has no browser-side password.
+
+## Deployment and validation
+
+See [deployment status](../docs/deployment.md) for static hosting instructions and
+remaining production requirements. Run `npm run validate` for the prototype
+checks, including browser and three-chain demo tests.
+
+When historical ledger retrieval is unavailable, the site still loads the snapshot
+and verifies customer proofs. Select the public `ledger.json` in the fallback
+section to display a tree after its entries have been checked against the on-chain
+roots and totals. This also supports ledgers published through contract wallets.

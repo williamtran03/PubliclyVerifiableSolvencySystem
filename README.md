@@ -23,20 +23,24 @@ roles, and reserve wallets that prove control by signature, used by every regist
 `shared/merkleSumTree.ts` (the Poseidon2 tree core and username encoding) and
 `shared/customers.csv` (the common input the single-asset and snarkless arms use).
 
-`docs/comparison.md` reads across all four implementations, including the measurement control.
+See [deployment status and remaining work](docs/deployment.md) before hosting the website or deploying contracts.
 
 ## Dev environment
 
-Tool versions are pinned locally via [mise](https://mise.jdx.dev).
+Use the following tool versions (also used by the prototype CI workflow). Noir and
+Barretenberg are required for fresh ZK proving but are not yet pinned.
 
 - Node 22
 - Foundry 1.7.1
 
 ```shell
 make build     # forge build
-make test      # forge test + every arm's Node tests + the Anvil end-to-end test
+npm ci
+npx playwright install chromium
+npm run validate # checks, Solidity/Node tests, build, Anvil demo and browser tests
+make test      # all of the above + fresh ZK proof integration (requires nargo/bb)
 make check     # tsc --noEmit + forge fmt --check
-make compare   # regenerate the gas figures in docs/comparison.md
+make compare   # print the Foundry gas report
 ```
 
 Per-arm targets are prefixed by arm — `ledger-`, `zk-`, `kzg-`, `single-`.
@@ -49,5 +53,5 @@ full list.
 - `shared/` — the reserve registry base, the tree core and the common customer set
 - `open-solvency/` — shared customer and company website for the three current arms (`npm run web`)
 - `scripts/demo/` — reproducible three-chain Anvil demo (`npm run demo`)
-- `docs/` — the cross-arm comparison
+- `docs/` — deployment status and validation requirements
 - `lib/` — vendored deps
