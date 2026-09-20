@@ -12,9 +12,11 @@
     "demo": "node --import tsx scripts/demo/run.ts",
     "test:demo": "node --import tsx --test --test-reporter=spec scripts/demo/*.test.ts",
     "ledger": "node --import tsx arms/published-ledger/cli/verify.ts",
-    "inclusion": "node --import tsx arms/single-asset/cli/verify-inclusion.ts"
+    "inclusion": "node --import tsx arms/single-asset/cli/verify-inclusion.ts",
+    "test:browser": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^26.4.1",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",

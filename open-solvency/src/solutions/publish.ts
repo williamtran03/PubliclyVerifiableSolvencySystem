@@ -67,14 +67,21 @@ export async function publicationCall(solution: SolutionId, connection: Connecti
 
 type Provider = { request(args: { method: string; params?: unknown[] }): Promise<unknown> };
 
-export async function submitWithWallet(connection: Connection, data: Hex): Promise<Hex> {
+export async function submitWithWallet(connection: Connection, data: Hex, isCurrent: () => boolean = () => true): Promise<Hex> {
   const provider = (window as Window & { ethereum?: Provider }).ethereum;
   if (!provider) throw new Error("No browser wallet found.");
+  const assertCurrent = () => { if (!isCurrent()) throw new Error("Publication inputs changed. Review them and try again."); };
+  assertCurrent();
   const chain = BigInt(await provider.request({ method: "eth_chainId" }) as string);
   if (chain !== BigInt(await client(connection).getChainId())) throw new Error("Wallet and RPC are connected to different chains.");
+  assertCurrent();
   const accounts = await provider.request({ method: "eth_requestAccounts" }) as string[];
   if (!accounts?.[0]) throw new Error("No wallet account available.");
+  assertCurrent();
   const tx = { from: accounts[0], to: connection.registry, data };
   await provider.request({ method: "eth_call", params: [tx, "latest"] });
+  assertCurrent();
+  if (BigInt(await provider.request({ method: "eth_chainId" }) as string) !== chain) throw new Error("Wallet chain changed. Review the connection and try again.");
+  assertCurrent();
   return await provider.request({ method: "eth_sendTransaction", params: [tx] }) as Hex;
 }

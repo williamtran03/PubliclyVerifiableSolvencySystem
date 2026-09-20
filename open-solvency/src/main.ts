@@ -16,6 +16,9 @@ let snapshot: Snapshot | null = null;
 let snapshotConnection: string | null = null;
 let role: "customer" | "company" = "customer";
 let stateVersion = 0;
+let verificationVersion = 0;
+let inspectionVersion = 0;
+let publicationVersion = 0;
 const connections: Record<string, { rpc: string; registry: string }> = stored.connections ?? {};
 if (stored.rpc && stored.registry && !connections[selected.id]) connections[selected.id] = { rpc: stored.rpc, registry: stored.registry };
 let demoConnections: Record<string, { rpc: string; registry: string }> | undefined;
@@ -144,8 +147,8 @@ function renderSnapshot(value: Snapshot) {
   }
 }
 el<HTMLButtonElement>("load").addEventListener("click", async () => {
-  snapshot = null;
-  el<HTMLElement>("snapshot").hidden = true;
+  invalidate();
+  renderBalances();
   setStatus("loadStatus", "Reading the smart contract …");
   const version = stateVersion;
   const solution = selected;
@@ -156,13 +159,16 @@ el<HTMLButtonElement>("verify").addEventListener("click", async () => {
   setStatus("verifyStatus", "Verifying …");
   const version = stateVersion;
   const solution = selected;
+  const request = ++verificationVersion;
+  const current = () => version === stateVersion && request === verificationVersion;
+  const checkedSnapshot = snapshot;
   try {
     const c = connection();
-    if (!snapshot) throw new Error("Load a snapshot first.");
+    if (!checkedSnapshot) throw new Error("Load a snapshot first.");
     if (snapshotConnection !== `${c.rpc}|${c.registry.toLowerCase()}`) throw new Error("RPC endpoint or registry changed. Reload the snapshot.");
     const latest = await solution.read(c);
-    if (version !== stateVersion) return;
-    if (latest.epoch !== snapshot.epoch || latest.commitment !== snapshot.commitment) throw new Error("A new snapshot was published. Reload it before verifying.");
+    if (!current()) return;
+    if (latest.epoch !== checkedSnapshot.epoch || latest.commitment !== checkedSnapshot.commitment) throw new Error("A new snapshot was published. Reload it before verifying.");
     const account = el<HTMLInputElement>("account").value.trim();
     if (!account) throw new Error("Enter your customer ID.");
     const file = el<HTMLInputElement>("proof").files?.[0];
@@ -172,38 +178,45 @@ el<HTMLButtonElement>("verify").addEventListener("click", async () => {
       const value = input.value.trim();
       if (value) {
         const id = Number(input.dataset.asset);
-        const decimals = el<HTMLSelectElement>("unitMode").value === "human" ? snapshot!.assets[id]?.unitDecimals ?? 0 : 0;
+        const decimals = el<HTMLSelectElement>("unitMode").value === "human" ? checkedSnapshot.assets[id]?.unitDecimals ?? 0 : 0;
         expected.set(id, parseBalance(value, decimals));
       }
     });
     if (!expected.size) throw new Error("Enter at least one balance from your own records.");
-    const result = await solution.verify(c, snapshot, await file.text(), account, expected, el<HTMLInputElement>("secret").value.trim());
-    if (version !== stateVersion) return;
+    const secret = el<HTMLInputElement>("secret").value.trim();
+    const text = await file.text();
+    if (!current()) return;
+    const result = await solution.verify(c, checkedSnapshot, text, account, expected, secret);
+    if (!current()) return;
     showFreshness(latest);
     setStatus("verifyStatus", result.message, result.valid);
     if (result.valid && !latest.freshness?.current) {
       setStatus("verifyStatus", `${result.message} This snapshot has expired or its freshness is unavailable. Ask the company for a newer snapshot.`);
       el<HTMLElement>("verifyStatus").className = "warning";
     }
-  } catch (error) { if (version === stateVersion) setStatus("verifyStatus", error instanceof Error ? error.message : String(error), false); }
+  } catch (error) { if (current()) setStatus("verifyStatus", error instanceof Error ? error.message : String(error), false); }
 });
 el<HTMLButtonElement>("inspect").addEventListener("click", async () => {
   setStatus("inspectStatus", "Comparing …");
   const version = stateVersion;
   const solution = selected;
+  const request = ++inspectionVersion;
+  const current = () => version === stateVersion && request === inspectionVersion;
+  const checkedSnapshot = snapshot;
   try {
-    if (!snapshot) throw new Error("Load a snapshot first.");
+    if (!checkedSnapshot) throw new Error("Load a snapshot first.");
     const c = connection();
     if (snapshotConnection !== `${c.rpc}|${c.registry.toLowerCase()}`) throw new Error("RPC endpoint or registry changed. Reload the snapshot.");
     const file = el<HTMLInputElement>("artifact").files?.[0];
     if (!file || file.size > 2_000_000) throw new Error("Select a JSON artifact of at most 2 MB.");
     const latest = await solution.read(c);
-    if (version !== stateVersion) return;
-    if (latest.epoch !== snapshot.epoch || latest.commitment !== snapshot.commitment) throw new Error("A new snapshot was published. Reload it before comparing.");
-    if (version !== stateVersion) return;
+    if (!current()) return;
+    if (latest.epoch !== checkedSnapshot.epoch || latest.commitment !== checkedSnapshot.commitment) throw new Error("A new snapshot was published. Reload it before comparing.");
+    const text = await file.text();
+    if (!current()) return;
     showFreshness(latest);
-    setStatus("inspectStatus", inspectArtifact(solution.id, latest, await file.text()), true);
-  } catch (error) { if (version === stateVersion) setStatus("inspectStatus", error instanceof Error ? error.message : String(error), false); }
+    setStatus("inspectStatus", inspectArtifact(solution.id, latest, text), true);
+  } catch (error) { if (current()) setStatus("inspectStatus", error instanceof Error ? error.message : String(error), false); }
 });
 el<HTMLButtonElement>("publish").addEventListener("click", async () => {
   const button = el<HTMLButtonElement>("publish");
@@ -211,19 +224,24 @@ el<HTMLButtonElement>("publish").addEventListener("click", async () => {
   setStatus("publishStatus", "Checking artifacts and wallet …");
   const version = stateVersion;
   const solution = selected;
+  const request = ++publicationVersion;
+  const current = () => version === stateVersion && request === publicationVersion;
   try {
     const c = connection();
     const file = el<HTMLInputElement>("nextArtifact").files?.[0];
     if (!file || file.size > 2_000_000) throw new Error("Select a new JSON artifact of at most 2 MB.");
     const supplement = el<HTMLInputElement>("supplement").files?.[0];
     if (supplement && supplement.size > 2_000_000) throw new Error("The additional proof exceeds 2 MB.");
-    const data = await publicationCall(solution.id, c, await file.text(), supplement, el<HTMLInputElement>("rounds").value);
-    if (version !== stateVersion) return;
+    const rounds = el<HTMLInputElement>("rounds").value;
+    const text = await file.text();
+    if (!current()) return;
+    const data = await publicationCall(solution.id, c, text, supplement, rounds);
+    if (!current()) return;
     setStatus("publishStatus", "Waiting for wallet confirmation …");
-    const hash = await submitWithWallet(c, data);
-    if (version !== stateVersion) return;
+    const hash = await submitWithWallet(c, data, current);
+    if (!current()) return;
     setStatus("publishStatus", `Transaction submitted: ${hash}. Reload the snapshot once it is confirmed.`, true);
-  } catch (error) { if (version === stateVersion) setStatus("publishStatus", error instanceof Error ? error.message : String(error), false); }
+  } catch (error) { if (current()) setStatus("publishStatus", error instanceof Error ? error.message : String(error), false); }
   finally { button.disabled = false; }
 });
 for (const [tabId, viewId, nextRole] of [["customerTab", "customerView", "customer"], ["companyTab", "companyView", "company"]] as const) {
@@ -236,7 +254,21 @@ for (const [tabId, viewId, nextRole] of [["customerTab", "customerView", "custom
 }
 restoreConnection();
 renderSolutions();
-el<HTMLSelectElement>("unitMode").addEventListener("change", () => { renderBalances(); setStatus("verifyStatus", "Amount units changed. Re-enter balances from your records."); });
+function invalidateVerification() {
+  verificationVersion++;
+  setStatus("verifyStatus", "");
+}
+for (const event of ["input", "change"]) {
+  el<HTMLElement>("customerView").addEventListener(event, e => {
+    if ((e.target as HTMLElement).id !== "unitMode") invalidateVerification();
+  });
+  el<HTMLElement>("companyView").addEventListener(event, e => {
+    const id = (e.target as HTMLElement).id;
+    if (id === "artifact") { inspectionVersion++; setStatus("inspectStatus", ""); }
+    if (["nextArtifact", "supplement", "rounds"].includes(id)) { publicationVersion++; setStatus("publishStatus", ""); }
+  });
+}
+el<HTMLSelectElement>("unitMode").addEventListener("change", () => { invalidateVerification(); renderBalances(); setStatus("verifyStatus", "Amount units changed. Re-enter balances from your records."); });
 for (const id of ["rpc", "registry"]) el<HTMLInputElement>(id).addEventListener("input", () => {
   invalidate(); renderBalances(); setStatus("loadStatus", "Connection changed. Load a snapshot.");
 });

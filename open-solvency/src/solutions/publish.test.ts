@@ -57,3 +57,25 @@ test("ZK submission binds the fixture to the next epoch and three oracle rounds"
     assert.deepEqual(decoded.args?.[3], [1n, 2n, 3n]);
   });
 });
+
+test("wallet submission stops if inputs change while the account request is pending", async () => {
+  const { submitWithWallet } = await import("./publish.ts");
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "window");
+  let current = true;
+  const methods: string[] = [];
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { ethereum: { async request({ method }: { method: string }) {
+    methods.push(method);
+    if (method === "eth_chainId") return "0x7a69";
+    if (method === "eth_requestAccounts") { current = false; return [registry]; }
+    throw new Error(`Unexpected wallet request ${method}`);
+  } } } });
+  try {
+    await withRpc(() => "0x7a69", async () => {
+      await assert.rejects(submitWithWallet({ rpc, registry }, "0x1234", () => current), /inputs changed/);
+      assert.equal(methods.includes("eth_sendTransaction"), false);
+    });
+  } finally {
+    if (previous) Object.defineProperty(globalThis, "window", previous);
+    else Reflect.deleteProperty(globalThis, "window");
+  }
+});
