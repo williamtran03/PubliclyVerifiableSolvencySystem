@@ -1,4 +1,5 @@
 import test from "node:test";
+import { createTestClient, http } from "viem";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -19,7 +20,11 @@ test("three demo deployments support the site's verification and publication ada
       [kzg, "kzg-customer-123.json", "customer-123", new Map([[0, 12550n]]), "84731920475619283746152039485761029384"],
     ] as const) {
       const connection = demo.connections[solution.id];
+      if (solution === ledger) {
+        await createTestClient({ mode: "anvil", transport: http(connection.rpc) }).mine({ blocks: 1 });
+      }
       const snapshot = await solution.read(connection);
+      if (solution === ledger) assert.ok(snapshot.publicLedger?.length, "ledger remains available after a later block");
       assert.equal((await solution.verify(connection, snapshot, file(name), account, expected, secret)).valid, true, solution.id);
       const wrong = new Map(expected);
       wrong.set(0, wrong.get(0)! + 1n);

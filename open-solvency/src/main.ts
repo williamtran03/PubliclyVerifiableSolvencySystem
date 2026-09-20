@@ -2,7 +2,7 @@ import { isAddress } from "viem";
 import { displayAmount, freshnessText, parseBalance } from "./amounts.ts";
 import { renderPublicLedger } from "./merkleView.ts";
 import { zk } from "./solutions/zk.ts";
-import { ledger } from "./solutions/ledger.ts";
+import { ledger, readPublicLedgerArtifact } from "./solutions/ledger.ts";
 import { kzg } from "./solutions/kzg.ts";
 import { inspectArtifact } from "./solutions/company.ts";
 import { publicationCall, submitWithWallet } from "./solutions/publish.ts";
@@ -120,9 +120,27 @@ function renderSnapshot(value: Snapshot) {
   el<HTMLElement>("companyCheck").textContent = `Current snapshot: epoch ${value.epoch}, published ${new Date(Number(value.timestamp) * 1000).toLocaleString("en-GB")}. Compare these figures with your internal records before creating a new proof.`;
   renderBalances();
   const publicLedger = el<HTMLElement>("publicLedger");
+  publicLedger.replaceChildren();
   publicLedger.hidden = selected.id !== "published-ledger";
   if (selected.id === "published-ledger" && value.publicLedger) {
     renderPublicLedger(publicLedger, value.publicLedger, value.assets.map(asset => asset.label), (raw, assetId) => displayAmount(raw, value.assets[assetId]));
+  } else if (selected.id === "published-ledger") {
+    publicLedger.innerHTML = `<p class="hint">The public ledger could not be retrieved. You can still verify your private customer proof in the balances section. To display the tree, select the public ledger.json; its contents will be checked against this snapshot.</p><label>Public ledger (.json)<input id="publicLedgerFile" type="file" accept=".json,application/json" /></label><p id="publicLedgerStatus" role="status"></p>`;
+    let uploadVersion = 0;
+    el<HTMLInputElement>("publicLedgerFile").addEventListener("change", async event => {
+      const version = stateVersion;
+      const request = ++uploadVersion;
+      const current = () => version === stateVersion && request === uploadVersion;
+      try {
+        setStatus("publicLedgerStatus", "Checking the public ledger …");
+        const file = (event.target as HTMLInputElement).files?.[0];
+        if (!file || file.size > 2_000_000) throw new Error("Select a public ledger JSON file of at most 2 MB.");
+        const text = await file.text();
+        if (!current()) return;
+        const assets = readPublicLedgerArtifact(value, text);
+        renderPublicLedger(publicLedger, assets, value.assets.map(asset => asset.label), (raw, assetId) => displayAmount(raw, value.assets[assetId]));
+      } catch (error) { if (current()) setStatus("publicLedgerStatus", error instanceof Error ? error.message : String(error), false); }
+    });
   }
 }
 el<HTMLButtonElement>("load").addEventListener("click", async () => {
