@@ -21,9 +21,8 @@ build:
 	forge build
 
 test:
-	forge test
-	node --import tsx --test shared/*.test.ts arms/*/prover/*.test.ts
-	node --import tsx --test arms/*/test/*.test.ts
+	npm run validate
+	npm run test:integration
 
 # spawns its own anvil on a free port; needs forge build output in out/
 integration: build
