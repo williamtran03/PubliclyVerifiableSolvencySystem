@@ -188,23 +188,20 @@ export function createProof(index: number, tree: Tree): MerkleSumProof {
  * well-formed (see the circuit). It only says "this leaf is under this root".
  */
 export function verifyProof(proof: MerkleSumProof, hash: HashFn): boolean {
-  if (usernameToField(proof.username) !== proof.id) return false;
-  if (proof.balance < 0n || proof.balance > MAX_BALANCE) return false;
-  if (
-    proof.siblingHashes.length !== proof.siblingSums.length ||
-    proof.siblingHashes.length !== proof.pathIndices.length
-  ) {
-    return false;
-  }
-
-  let node = computeLeaf({ id: proof.id, balance: proof.balance }, hash);
-  for (let level = 0; level < proof.siblingHashes.length; level++) {
-    const sibling: Node = { hash: proof.siblingHashes[level], sum: proof.siblingSums[level] };
-    node =
-      proof.pathIndices[level] === 1
-        ? combineNodes(sibling, node, hash)
-        : combineNodes(node, sibling, hash);
-  }
-
-  return node.hash === proof.rootHash && node.sum === proof.rootSum;
+  try {
+    if (usernameToField(proof.username) !== proof.id) return false;
+    if (typeof proof.balance !== "bigint" || proof.balance < 0n || proof.balance > MAX_BALANCE) return false;
+    if (!Array.isArray(proof.siblingHashes) || !Array.isArray(proof.siblingSums) || !Array.isArray(proof.pathIndices) ||
+        proof.siblingHashes.length === 0 || proof.siblingHashes.length !== proof.siblingSums.length ||
+        proof.siblingHashes.length !== proof.pathIndices.length || proof.pathIndices.some(i => i !== 0 && i !== 1)) return false;
+    const inField = (value: bigint) => typeof value === "bigint" && value >= 0n && value < BN254_FR;
+    if (![proof.rootHash, proof.rootSum, ...proof.siblingHashes, ...proof.siblingSums].every(inField)) return false;
+    let node = computeLeaf({ id: proof.id, balance: proof.balance }, hash);
+    for (let level = 0; level < proof.siblingHashes.length; level++) {
+      const sibling: Node = { hash: proof.siblingHashes[level], sum: proof.siblingSums[level] };
+      node = proof.pathIndices[level] === 1 ? combineNodes(sibling, node, hash) : combineNodes(node, sibling, hash);
+      if (!inField(node.sum)) return false;
+    }
+    return node.hash === proof.rootHash && node.sum === proof.rootSum;
+  } catch { return false; }
 }
