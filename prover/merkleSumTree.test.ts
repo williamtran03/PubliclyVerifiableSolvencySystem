@@ -38,3 +38,16 @@ test("a non-power-of-two entry count still pads and sums correctly", () => {
   const { root } = buildTree(five, keccakHash);
   assert.equal(root.sum, 49550n + 100n + 200n);
 });
+
+
+test("rejects malformed paths instead of accepting missing or invalid directions", () => {
+  const entries = [{ username: "alice", balance: 10n }, { username: "bob", balance: 20n }];
+  const tree = buildTree(entries, keccakHash);
+  const proof = createProof(0, tree.entries, tree.levels);
+  assert.equal(verifyProof(proof, keccakHash), true);
+  assert.equal(verifyProof({ ...proof, pathIndices: [] }, keccakHash), false);
+  assert.equal(verifyProof({ ...proof, pathIndices: [2] }, keccakHash), false);
+  assert.equal(verifyProof({ ...proof, siblingSums: [] }, keccakHash), false);
+  assert.throws(() => createProof(-1, tree.entries, tree.levels), /invalid index/);
+  assert.throws(() => buildTree([{ username: "negative", balance: -1n }], keccakHash));
+});
