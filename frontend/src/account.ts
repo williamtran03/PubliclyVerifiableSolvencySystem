@@ -8,14 +8,24 @@ const DEMO_PASSWORD = "test";
 const SESSION = "solvency.minimum.demo-signed-in";
 
 markNavigation();
-const connection = connectionPanel();
+let requestVersion = 0;
+const connection = connectionPanel(invalidateResult);
 let bundle: Bundle | undefined;
+
+function invalidateResult() {
+  requestVersion++;
+  bundle = undefined;
+  element("inclusion").hidden = true;
+  output("verifyResult", "");
+}
+for (const id of ["customerId", "dateOfBirth", "fullBalance", "accessToken"]) element(id).addEventListener("input", invalidateResult);
 
 function showAccount() {
   element("loginView").hidden = true;
   element("accountView").hidden = false;
 }
 function showLogin() {
+  invalidateResult();
   element("accountView").hidden = true;
   element("loginView").hidden = false;
   element("inclusion").hidden = true;
@@ -75,6 +85,8 @@ function renderInclusion(current: Bundle) {
 }
 
 button("verifyBtn").onclick = async () => {
+  const ticket = ++requestVersion;
+  bundle = undefined;
   const client = connection();
   const token = value("accessToken");
   element<HTMLInputElement>("accessToken").value = "";
@@ -87,7 +99,9 @@ button("verifyBtn").onclick = async () => {
   try {
     const expectedUnits = parseUsdInput(expected);
     const retrieved = await retrieveProof(token);
+    if (ticket !== requestVersion) return;
     const current = await client.current();
+    if (ticket !== requestVersion) return;
     output("connection", "Read at block " + current.blockNumber);
     const result = localResult(retrieved, customer, dob, expectedUnits, anchor(current));
     output("verifyResult", result);
@@ -96,6 +110,7 @@ button("verifyBtn").onclick = async () => {
       renderInclusion(retrieved);
     }
   } catch (e) {
+    if (ticket !== requestVersion) return;
     output("verifyResult", `INVALID: ${e instanceof Error ? e.message : e}`);
   } finally {
     button("verifyBtn").disabled = false;
