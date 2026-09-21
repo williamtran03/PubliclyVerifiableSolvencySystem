@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,writeFile,rm} from 'node:fs/promises';
+import {mkdtemp,writeFile,rm,symlink} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {once} from 'node:events';
@@ -21,3 +21,18 @@ test('HTTP authentication boundary returns only the mapped private bundle and re
 });
 
 test('backend refuses a private store inside the public project',()=>{assert.throws(()=>proofServer(new PrototypeAuthentication([]),'.'),/outside the repository/);});
+
+test('backend rejects a bundle symlink escaping the private store',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'minimum-symlink-'));
+ const outside=await mkdtemp(join(tmpdir(),'minimum-outside-'));
+ const token='cd'.repeat(32);
+ const {bundles}=build([{customerId:'alice',dateOfBirth:'2000-01-01',balance:100n}],`0x${'02'.repeat(32)}`);
+ await writeFile(join(outside,'alice.json'),stringify(bundles[0]));
+ await symlink(join(outside,'alice.json'),join(dir,'alice.json'));
+ const server=proofServer(new PrototypeAuthentication([{tokenHash:tokenHash(token),customerId:'alice',bundleFile:'alice.json',expiresAt:Date.now()+60000}]),dir);
+ server.listen(0,'127.0.0.1');await once(server,'listening');
+ try {
+  const response=await fetch(`http://127.0.0.1:${(server.address() as {port:number}).port}/api/proof`,{headers:{Authorization:`Bearer ${token}`}});
+  assert.equal(response.status,500);assert.equal(await response.text(),'{"error":"Proof unavailable"}');
+ } finally {server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));await rm(dir,{recursive:true,force:true});await rm(outside,{recursive:true,force:true});}
+});

@@ -1,6 +1,6 @@
 import {createServer, type IncomingMessage} from 'node:http';
 import {createHash, timingSafeEqual} from 'node:crypto';
-import {readFile, stat} from 'node:fs/promises';
+import {readFile, stat, realpath} from 'node:fs/promises';
 import {realpathSync} from 'node:fs';
 import {resolve, relative, isAbsolute} from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -32,8 +32,10 @@ export function proofServer(auth: AuthenticationAdapter, privateDirectory: strin
       if (!account) {res.writeHead(401);res.end('{"error":"Authentication required"}');return;}
       const file=resolve(root,account.bundleFile),rel=relative(root,file);
       if(rel.startsWith('..') || isAbsolute(rel) || !rel) throw Error('path');
-      if((await stat(file)).size>262144) throw Error('size');
-      const bundle=parse<Bundle>(await readFile(file,'utf8'));
+      const canonical=await realpath(file),canonicalRel=relative(root,canonical);
+      if(canonicalRel.startsWith('..') || isAbsolute(canonicalRel) || !canonicalRel) throw Error('path');
+      if((await stat(canonical)).size>262144) throw Error('size');
+      const bundle=parse<Bundle>(await readFile(canonical,'utf8'));
       if(bundle.customerId!==account.customerId) throw Error('account mapping');
       res.end(stringify(bundle));
     } catch {res.writeHead(500);res.end('{"error":"Proof unavailable"}');}
