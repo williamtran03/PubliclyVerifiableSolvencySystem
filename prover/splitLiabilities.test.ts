@@ -42,3 +42,15 @@ test("negative, overflow and empty inputs fail; salts change commitments", () =>
   assert.throws(() => buildSplitLiabilities([customers[0], customers[0]], snapshot));
   assert.notEqual(fixture().ledger.rootHash, fixture().ledger.rootHash);
 });
+
+test("public audit rejects snapshots that cannot be submitted to the registry", () => {
+  const {ledger}=fixture();
+  for (const snapshotId of ["0x00", `0x${"00".repeat(32)}`] as const) {
+    assert.equal(verifyPublicLedger({...ledger,snapshotId}),false);
+    assert.throws(()=>buildSplitLiabilities(customers,snapshotId),/invalid snapshot/);
+  }
+  const entries=Array.from({length:257},(_,i)=>({username:"",identityHash:BigInt(i),balance:1n}));
+  const root=buildTree(entries,keccakHash).root;
+  assert.equal(verifyPublicLedger({snapshotId:snapshot,rootHash:root.hash,totalLiabilities:root.sum,entries}),false);
+  assert.throws(()=>buildSplitLiabilities([{...customers[0],amounts:Array(257).fill(1n)}],snapshot),/256 parts/);
+});

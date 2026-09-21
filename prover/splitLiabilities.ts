@@ -16,7 +16,13 @@ export function identityCommitment(snapshotId: Hex, customer: Pick<Customer, "cu
   )));
 }
 
+function validSnapshot(snapshotId: unknown): snapshotId is Hex {
+  return typeof snapshotId === "string" && /^0x[0-9a-fA-F]{64}$/.test(snapshotId) && BigInt(snapshotId) !== 0n;
+}
+
 export function buildSplitLiabilities(customers: Customer[], snapshotId: Hex) {
+  if (!validSnapshot(snapshotId)) throw new Error("invalid snapshot ID");
+  if (customers.reduce((count, customer) => count + customer.amounts.length, 0) > 256) throw new Error("contract supports at most 256 parts");
   const seen = new Set<string>();
   const entries: Entry[] = [];
   const bundles: CustomerBundle[] = [];
@@ -68,6 +74,7 @@ export function verifyCustomer(bundle: CustomerBundle, expectedBalance: bigint, 
 
 export function verifyPublicLedger(ledger: PublicLedger): boolean {
   try {
+    if (!validSnapshot(ledger.snapshotId) || !Array.isArray(ledger.entries) || ledger.entries.length === 0 || ledger.entries.length > 256) return false;
     const { root } = buildTree(ledger.entries.map(e => ({ ...e, username: "" })), keccakHash);
     return root.hash === ledger.rootHash && root.sum === ledger.totalLiabilities;
   } catch { return false; }
