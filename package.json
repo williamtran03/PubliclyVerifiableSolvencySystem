@@ -6,7 +6,7 @@
   "scripts": {
     "prove": "tsx prover/buildTree.ts",
     "demo": "tsx script/demo.ts",
-    "test": "tsx --test prover/*.test.ts",
+    "test": "tsx --test prover/*.test.ts prover/kzg/*.test.ts",
     "verify": "tsx cli/verify-inclusion.ts"
   },
   "devDependencies": {
@@ -15,5 +15,8 @@
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "viem": "^2.56.3"
+  },
+  "dependencies": {
+    "@noble/curves": "^1.9.7"
   }
 }

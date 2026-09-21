@@ -108,3 +108,15 @@ test("a commitment cannot be opened to a value the polynomial does not take", ()
   const opening = open(srs, other, 555n);
   assert.equal(verify(srs, commit(srs, honest), opening), false);
 });
+
+
+test("constant and zero polynomials have valid identity opening proofs", () => {
+  const srs = generateSrs(8);
+  for (const value of [0n, 5n]) {
+    const polynomial = [value];
+    const commitment = commit(srs, polynomial);
+    const opening = open(srs, polynomial, 3n);
+    assert.equal(verify(srs, commitment, opening), true);
+    assert.equal(verify(srs, commitment, { ...opening, value: value + 1n }), false);
+  }
+});

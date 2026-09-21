@@ -53,10 +53,13 @@ export function verify(srs: Srs, commitment: G1Point, opening: Opening): boolean
     .subtract(mulPoint(G1.BASE, opening.value))
     .add(mulPoint(opening.proof, opening.z));
 
-  const result = bn254.pairingBatch([
+  // Pairings with the identity contribute one; noble rejects those inputs.
+  const pairs = [
     { g1: left, g2: srs.g2 },
     { g1: opening.proof.negate(), g2: srs.tauG2 },
-  ]);
+  ].filter(pair => !pair.g1.equals(G1.ZERO));
+  if (pairs.length === 0) return true;
+  const result = bn254.pairingBatch(pairs);
   return bn254.fields.Fp12.eql(result, bn254.fields.Fp12.ONE);
 }
 
