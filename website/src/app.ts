@@ -51,3 +51,13 @@ $('proof-form').addEventListener('submit',event=>{event.preventDefault();resetRe
  }catch(error){$('result-panel').classList.add('failed');text('result-title','Verification did not pass.');text('result-description',error instanceof Error?error.message:'Unable to verify this proof.');if(error instanceof VerificationError)$(`check-${error.step}`).querySelector('span')!.textContent='×';}});
 $('copy-root').addEventListener('click',async()=>{if(!snapshot){text('connection-feedback','Select a snapshot before copying its root.');return;}try{await navigator.clipboard.writeText(snapshot.rootHash.toString());text('copy-root','Copied');setTimeout(()=>text('copy-root','Copy'),1500);}catch{text('connection-feedback','Clipboard unavailable. Select and copy the root directly.');}});
 useDemo();
+
+for(const id of ['rpc','registry','chain']) input(id).addEventListener('input',()=>{
+ request++;
+ invalidate();
+ $<HTMLButtonElement>('connect-button').disabled=false;
+ text('connection-feedback','Connection changed. Read the registry again.');
+ text('mode-label','NOT CONNECTED');
+ text('mode-note','The connection details changed. Read the selected registry before verifying.');
+ text('snapshot-badge','NO SNAPSHOT SELECTED');
+});
