@@ -45,9 +45,10 @@ export async function readEpoch({ rpcUrl, registry }: Settings): Promise<Epoch> 
   const client = createPublicClient({ transport: http(rpcUrl) });
   const address = registry as `0x${string}`;
 
-  const count = await client.readContract({ address, abi: registryAbi, functionName: "epochCount" });
+  const blockNumber = await client.getBlockNumber({ cacheTime: 0 });
+  const count = await client.readContract({ address, abi: registryAbi, functionName: "epochCount", blockNumber });
   if (count === 0n) throw new Error("This registry has not published an epoch yet.");
-  const epoch = await client.readContract({ address, abi: registryAbi, functionName: "latestEpoch" });
+  const epoch = await client.readContract({ address, abi: registryAbi, functionName: "latestEpoch", blockNumber });
 
   return {
     epochId: count - 1n,
