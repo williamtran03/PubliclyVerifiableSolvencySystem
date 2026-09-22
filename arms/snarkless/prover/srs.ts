@@ -6,6 +6,7 @@ import { LEAF_CAPACITY } from "../../../shared/merkleSumTree.ts";
 
 const G1 = bn254.G1.ProjectivePoint;
 const G2 = bn254.G2.ProjectivePoint;
+const { Fp12 } = bn254.fields;
 
 export type G1Point = InstanceType<typeof G1>;
 export type G2Point = InstanceType<typeof G2>;
@@ -42,6 +43,7 @@ export function generateSrs(maxDegree: number, boundedDegree: number = LEAF_CAPA
 }
 
 type SerializedSrs = {
+  source?: string;
   maxDegree: number;
   g1: [string, string][];
   g2: [string, string, string, string];
@@ -62,8 +64,9 @@ function g2ToJson(point: G2Point): [string, string, string, string] {
   return [hex(affine.x.c0), hex(affine.x.c1), hex(affine.y.c0), hex(affine.y.c1)];
 }
 
-export function saveSrs(srs: Srs, path: string): void {
+export function saveSrs(srs: Srs, path: string, source?: string): void {
   const json: SerializedSrs = {
+    source,
     maxDegree: srs.maxDegree,
     g1: srs.g1.map(g1ToJson),
     g2: g2ToJson(srs.g2),
@@ -76,20 +79,52 @@ export function saveSrs(srs: Srs, path: string): void {
 
 export function loadSrs(path: string): Srs {
   const json = JSON.parse(readFileSync(path, "utf8")) as SerializedSrs;
-  const g2 = (values: [string, string, string, string]) =>
-    G2.fromAffine({
+  const g1 = ([x, y]: [string, string]) => {
+    const point = G1.fromAffine({ x: BigInt(x), y: BigInt(y) });
+    point.assertValidity();
+    return point;
+  };
+  const g2 = (values: [string, string, string, string]) => {
+    const point = G2.fromAffine({
       x: { c0: BigInt(values[0]), c1: BigInt(values[1]) },
       y: { c0: BigInt(values[2]), c1: BigInt(values[3]) },
     });
+    point.assertValidity();
+    return point;
+  };
 
-  return {
+  if (!Number.isInteger(json.maxDegree) || json.g1.length !== json.maxDegree + 1) {
+    throw new Error(`${path} holds ${json.g1.length} G1 points; degree ${json.maxDegree} needs ${json.maxDegree + 1}`);
+  }
+  if (!Number.isInteger(json.boundedDegree) || json.boundedDegree < 0 || json.boundedDegree > json.maxDegree) {
+    throw new Error(`${path} bounds degree ${json.boundedDegree} outside the SRS`);
+  }
+
+  const srs: Srs = {
     maxDegree: json.maxDegree,
-    g1: json.g1.map(([x, y]) => G1.fromAffine({ x: BigInt(x), y: BigInt(y) })),
+    g1: json.g1.map(g1),
     g2: g2(json.g2),
     tauG2: g2(json.tauG2),
     boundedDegree: json.boundedDegree,
     boundG2: g2(json.boundG2),
   };
+  if (!isPowersOfTau(srs)) {
+    throw new Error(`${path} is not successive powers of one tau; rebuild it with make kzg-setup`);
+  }
+  return srs;
+}
+
+export function isPowersOfTau(srs: Srs): boolean {
+  if (!srs.g1[0].equals(G1.BASE) || !srs.g2.equals(G2.BASE)) return false;
+  const weights = srs.g1.slice(1).map(() => Fr.create(BigInt(`0x${randomBytes(48).toString("hex")}`)));
+  const shifted = weights.reduce((sum, w, i) => sum.add(srs.g1[i + 1].multiply(w)), G1.ZERO);
+  const base = weights.reduce((sum, w, i) => sum.add(srs.g1[i].multiply(w)), G1.ZERO);
+  const agree = (a: G1Point, b: G2Point, c: G1Point, d: G2Point) =>
+    Fp12.eql(bn254.pairingBatch([{ g1: a, g2: b }, { g1: c.negate(), g2: d }]), Fp12.ONE);
+  return (
+    agree(shifted, srs.g2, base, srs.tauG2) &&
+    agree(srs.g1[srs.maxDegree - srs.boundedDegree], srs.g2, srs.g1[0], srs.boundG2)
+  );
 }
 
 export function g2ForPrecompile(point: G2Point): [bigint, bigint, bigint, bigint] {

@@ -1,6 +1,6 @@
 # Reproducible local demo
 
-From the repository root, install the locked dependencies with `npm ci`, then run `npm run demo`. Node 22+ and Foundry (`forge`, `anvil`, Solidity 0.8.28) are required. The committed ZK proof avoids a Noir/Barretenberg installation for this walkthrough. KZG proofs are generated locally for the deployed registry, using the repository's demonstration SRS.
+From the repository root, install the locked dependencies with `npm ci`, then run `npm run demo`. Node 22+ and Foundry (`forge`, `anvil`, Solidity 0.8.28) are required. The committed ZK proof avoids a Noir/Barretenberg installation for this walkthrough. KZG proofs are generated locally for the deployed registry, using the SRS that `make kzg-setup` extracts from the Perpetual Powers of Tau ceremony.
 
 The launcher builds contracts and starts three isolated Anvil nodes plus OpenSolvency:
 

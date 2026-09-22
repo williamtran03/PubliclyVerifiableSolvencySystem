@@ -77,7 +77,8 @@ zk-bench:
 	npx tsx arms/zk-circuit/bench/scale.ts
 
 # ---- arm: snarkless (KZG) -----------------------------------------------
-# one-time setup, the counterpart to the circuit's verification key
+# one-time setup, the counterpart to the circuit's verification key: extracts the
+# powers from the pinned Perpetual Powers of Tau file (80 contributions + beacon)
 kzg-setup:
 	npx tsx arms/snarkless/script/setup.ts
 
