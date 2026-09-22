@@ -4,9 +4,8 @@ import { formatEther } from "viem";
 import { deploy } from "./deploy.ts";
 import { exerciseOperations } from "./exercise.ts";
 import { nextEpochOpensAt, publishEpoch } from "./epoch.ts";
-import { armNames, sepoliaNetwork, type Arm, type Network } from "./network.ts";
-
-const usage = "Usage: npm run sepolia -- deploy | epoch [arms...] | exercise [arms...] | status";
+import { armNames, sepoliaNetwork, type Network } from "./network.ts";
+import { parseArguments } from "./arguments.ts";
 
 async function status(network: Network) {
   const { client, record, company, auditor } = network;
@@ -35,22 +34,14 @@ async function status(network: Network) {
   console.log(`Deployment record: ${network.file}`);
 }
 
-const [command, ...rest] = process.argv.slice(2);
-if (!["deploy", "epoch", "exercise", "status"].includes(command)) {
-  console.error(usage);
-  process.exit(1);
-}
-const arms = (rest.length ? rest : armNames) as Arm[];
-const unknown = arms.filter(arm => !armNames.includes(arm));
-if (unknown.length) throw new Error(`Unknown arm ${unknown.join(", ")}. ${usage}`);
-
 try {
-  execFileSync("forge", ["build"], { stdio: "pipe" });
-} catch (error) {
-  process.stderr.write((error as { stderr?: Buffer }).stderr ?? "");
-  throw new Error("forge build failed.");
-}
-try {
+  const { command, arms } = parseArguments(process.argv.slice(2));
+  try {
+    execFileSync("forge", ["build"], { stdio: "pipe" });
+  } catch (error) {
+    process.stderr.write((error as { stderr?: Buffer }).stderr ?? "");
+    throw new Error("forge build failed.");
+  }
   if (command === "epoch" && arms.includes("zk-circuit")) checkProvingTools();
   const network = await sepoliaNetwork();
   if (command !== "exercise" && command !== "status" && Object.values(network.record.operations ?? {}).some(stage => stage !== 14)) {

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --import tsx --test shared/*.test.ts arms/*/prover/*.test.ts open-solvency/src/*.test.ts open-solvency/src/solutions/*.test.ts",
+    "test": "node --import tsx --test shared/*.test.ts scripts/sepolia/*.test.ts arms/*/prover/*.test.ts open-solvency/src/*.test.ts open-solvency/src/solutions/*.test.ts",
     "test:integration": "node --import tsx --test arms/*/test/*.test.ts",
     "check": "tsc --noEmit",
     "web": "vite --config vite.opensolvency.config.ts",
