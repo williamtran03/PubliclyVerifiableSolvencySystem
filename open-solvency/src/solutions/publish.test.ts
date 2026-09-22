@@ -101,3 +101,35 @@ test("wallet submission stops if inputs change while the account request is pend
     else Reflect.deleteProperty(globalThis, "window");
   }
 });
+
+test("wallet submission asks a wallet on another chain to switch to the RPC's chain", async () => {
+  const { submitWithWallet } = await import("./publish.ts");
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "window");
+  let walletChain = "0xaa36a7";
+  const methods: string[] = [];
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { ethereum: { async request({ method, params }: { method: string; params?: { chainId: string }[] }) {
+    methods.push(method);
+    if (method === "eth_chainId") return walletChain;
+    if (method === "wallet_switchEthereumChain") { walletChain = params![0].chainId; return null; }
+    if (method === "eth_requestAccounts") return [registry];
+    if (method === "eth_call") return "0x";
+    if (method === "eth_sendTransaction") return `0x${"12".repeat(32)}`;
+    throw new Error(`Unexpected wallet request ${method}`);
+  } } } });
+  try {
+    await withRpc({}, async () => {
+      assert.equal(await submitWithWallet({ rpc, registry }, "0x1234"), `0x${"12".repeat(32)}`);
+      assert.deepEqual(methods.slice(0, 3), ["eth_chainId", "wallet_switchEthereumChain", "eth_chainId"]);
+      walletChain = "0x1";
+      methods.length = 0;
+      const refusing = (globalThis as unknown as { window: { ethereum: { request(args: { method: string }): Promise<unknown> } } }).window.ethereum;
+      const request = refusing.request;
+      refusing.request = async (args) => { if (args.method === "wallet_switchEthereumChain") throw new Error("User rejected"); return request(args as never); };
+      await assert.rejects(submitWithWallet({ rpc, registry }, "0x1234"), /different chains/);
+      assert.equal(methods.includes("eth_sendTransaction"), false);
+    });
+  } finally {
+    if (previous) Object.defineProperty(globalThis, "window", previous);
+    else Reflect.deleteProperty(globalThis, "window");
+  }
+});

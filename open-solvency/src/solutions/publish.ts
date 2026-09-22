@@ -92,8 +92,14 @@ export async function submitWithWallet(connection: Connection, data: Hex, isCurr
   if (!provider) throw new Error("No browser wallet found.");
   const assertCurrent = () => { if (!isCurrent()) throw new Error("Publication inputs changed. Review them and try again."); };
   assertCurrent();
-  const chain = BigInt(await provider.request({ method: "eth_chainId" }) as string);
-  if (chain !== BigInt(await client(connection).getChainId())) throw new Error("Wallet and RPC are connected to different chains.");
+  const expected = BigInt(await client(connection).getChainId());
+  let chain = BigInt(await provider.request({ method: "eth_chainId" }) as string);
+  if (chain !== expected) {
+    await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: `0x${expected.toString(16)}` }] }).catch(() => undefined);
+    assertCurrent();
+    chain = BigInt(await provider.request({ method: "eth_chainId" }) as string);
+  }
+  if (chain !== expected) throw new Error("Wallet and RPC are connected to different chains. Switch the wallet to the RPC's network.");
   assertCurrent();
   const accounts = await provider.request({ method: "eth_requestAccounts" }) as string[];
   if (!accounts?.[0]) throw new Error("No wallet account available.");
