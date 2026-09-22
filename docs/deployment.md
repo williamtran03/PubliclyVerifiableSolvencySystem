@@ -43,8 +43,8 @@ Automatic decoding of arbitrary multisig transactions is not implemented.
 - **Make ZK proving reproducible.** Pin compatible Noir and Barretenberg versions,
   regenerate and check the verifier from the committed circuit, and run the real
   proof integration suite. Current fixture proofs are bound to their original
-  registry, chain and epoch; a new deployment needs new proofs. The repository
-  does not currently pin those two tool versions.
+  registry, chain and epoch; a new deployment needs new proofs. The required versions are nargo `1.0.0-beta.26` and bb
+  `6.0.0-nightly.20260902`; the prover checks these before generating a proof.
 - **Review the cryptographic setup.** `arms/snarkless/prover/srs.ts` creates a
   single-process BN254 KZG setup. Establish reviewed setup provenance and a
   verifiable ceremony/import process before relying on it with real customers.

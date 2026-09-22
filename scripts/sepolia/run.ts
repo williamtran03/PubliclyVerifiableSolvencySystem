@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { checkProvingTools } from "../../arms/zk-circuit/prover/toolchain.ts";
 import { formatEther } from "viem";
 import { deploy } from "./deploy.ts";
 import { nextEpochOpensAt, publishEpoch } from "./epoch.ts";
@@ -49,6 +50,7 @@ try {
   throw new Error("forge build failed.");
 }
 try {
+  if (command === "epoch" && arms.includes("zk-circuit")) checkProvingTools();
   const network = await sepoliaNetwork();
   if (command === "deploy") await deploy(network);
   if (command === "epoch") for (const arm of arms) await publishEpoch(network, arm);

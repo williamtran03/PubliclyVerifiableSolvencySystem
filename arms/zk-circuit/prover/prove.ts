@@ -2,10 +2,12 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { toHex, type Hex } from "viem";
+import { checkProvingTools } from "./toolchain.ts";
 
 const CIRCUIT = "arms/zk-circuit/circuit";
 
 export function prove(proverToml: string, workDir: string): Hex {
+  checkProvingTools();
   const name = `e2e-${process.pid}-${Date.now()}`;
   const toml = join(CIRCUIT, `${name}.toml`);
   writeFileSync(toml, proverToml);
