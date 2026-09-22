@@ -4,9 +4,10 @@
 same contracts, customer set and provers as the local demo, with real keys, the live
 Chainlink feeds and the ceremony SRS. Deployment reads the recorded addresses and
 on-chain reserve state to skip completed steps. The operations drill saves resumable
-checkpoints. Epoch publication creates the next epoch on each successful invocation;
-it is not an idempotent retry command. See the recovery limits below before retrying
-after an interruption.
+checkpoints. Epoch publication creates the next epoch on each successful invocation,
+so running it again publishes another epoch. After an interruption, run the same
+command again: it first recovers the transaction that was in flight (see *Recovery*
+below).
 
 ## What gets deployed
 
@@ -144,33 +145,42 @@ same as in the local demo (`scripts/demo/README.md`).
 
 Still outstanding (2026-09-22):
 
-- Fund the company and auditor, verify RPC access and install the pinned proving
-  tools on the epoch machine. The version check does not install them.
-- Regenerate/check the verifier and run `npm run test:integration` with fresh ZK
-  proofs. The three-chain demo uses committed proofs; it is not that validation.
+- Fund the company and auditor, check RPC access, and install the pinned proving tools
+  on the machine that runs `epoch`. The version check does not install them.
 - Deploy, publish epochs and run `exercise` on public Sepolia, then publish a fresh
-  epoch after the drill. These workflows have local test coverage, not public
-  testnet receipts.
-- Commit the resulting public `deployments/sepolia.json`, rebuild the site, select
-  a host and publish `open-solvency/dist/`. Never publish `.env` or private bundles.
-- Record real receipt gas and capture reproducible traces. The historical ZK gas
-  difference is not fully reconciled; the old fork block and traces are missing.
+  epoch after the drill.
+- Commit the resulting public `deployments/sepolia.json`, rebuild the site, choose a
+  host and publish `open-solvency/dist/`. Never publish `.env` or private bundles.
 
-### Recovery limits
+Already checked on 2026-09-22 with the pinned tools: `bb write_solidity_verifier`
+regenerates `MultiAssetHonkVerifier.sol` byte for byte from the committed circuit, and
+`npm run test:integration` passes with fresh proofs. On a Sepolia fork pinned at block
+11,759,567 (see *Rehearsal and measurements*), `deploy`, two `epoch` rounds and `exercise`
+all succeeded, and so did the recovery below after the process was killed mid-submission.
 
-The deployment JSON is replaced atomically: readers see the previous complete
-record or the new complete record, not a partially overwritten JSON file. This
-does not make the on-chain transaction and the local record one atomic operation,
-and does not add a concurrent-writer lock.
+### Recovery
 
-The scripts do not persist a pending transaction hash before awaiting its receipt.
-After a connection failure, inspect the sender's transactions before rerunning.
-A deployment mined before its address is saved can otherwise be deployed again.
-Likewise, epoch bundles are currently written **after** submission; a process crash
-between mining and writing can lose the random inputs required to recover a private
-bundle. A later `epoch` invocation publishes a new epoch rather than recovering the
-missing bundle. A write-ahead transaction/proof journal and a dedicated recovery
-command are still needed to close these gaps.
+Each transaction's hash is written to `deployments/sepolia.json` as `pending` as soon as
+it is broadcast, before the script waits for the receipt. Before anything else, the next
+`deploy`, `epoch` or `exercise`:
+
+- stops if the company, the auditor or a reserve wallet still has a transaction in the
+  mempool, until it is mined or replaced;
+- records the `pending` transaction if it was mined. A mined deployment has its
+  address saved, so it is not deployed a second time. A mined epoch submission gets
+  its entry in `epochs`. A transaction that was never mined or that reverted is
+  dropped, and the step runs again.
+
+Epoch bundles are written to `PRIVATE_OUTPUT/<arm>/epoch-<n>.pending/` **before** the
+submission is sent, then renamed to `epoch-<n>/` once it is mined. On the next `epoch`
+run, a leftover `.pending` folder is renamed if epoch `n` is on chain and deleted if it
+is not. A folder named `epoch-<n>` therefore always holds the bundles of a published
+epoch. A recovered epoch is not re-verified through the site adapter, because the
+adapter reads only the latest epoch.
+
+The deployment JSON is replaced atomically, so a reader sees either the previous
+complete record or the new one. There is no lock against concurrent writers: run one
+command at a time.
 
 ### Rehearsal and measurements
 

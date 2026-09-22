@@ -25,7 +25,7 @@ export function writeJson(directory: string, name: string, value: unknown) {
   writeFileSync(join(directory, name), JSON.stringify(value, (_, v) => typeof v === "bigint" ? v.toString() : v, 2) + "\n", { mode: 0o600 });
 }
 export const artifact = (source: string, name: string) => JSON.parse(readFileSync(`out/${source}/${name}.json`, "utf8"));
-export function connect(transport: Transport, chain: Chain, deployer: Account, onReceipt: (label: string, receipt: TransactionReceipt) => void = () => {}) {
+export function connect(transport: Transport, chain: Chain, deployer: Account, onReceipt: (label: string, receipt: TransactionReceipt) => void = () => {}, onSent: (label: string, hash: Hex) => void = () => {}) {
   const client = createPublicClient({ chain, transport });
   const wallet = (account: Account) => createWalletClient({ account, chain, transport });
   async function deploy(source: string, name: string, args: unknown[] = [], libraries: Record<string, Address> = {}, from: Account = deployer) {
@@ -38,6 +38,7 @@ export function connect(transport: Transport, chain: Chain, deployer: Account, o
       }
     }
     const hash = await wallet(from).deployContract({ abi: json.abi as Abi, bytecode: `0x${bytecode}`, args });
+    onSent(`deploy ${name}`, hash);
     const receipt = await client.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success" || !receipt.contractAddress) throw new Error(`Deployment failed: ${name}`);
     onReceipt(`deploy ${name}`, receipt);
@@ -45,7 +46,9 @@ export function connect(transport: Transport, chain: Chain, deployer: Account, o
   }
   async function send(account: Account, address: Address, abi: Abi, functionName: string, args: unknown[]) {
     const { request } = await client.simulateContract({ account, address, abi, functionName, args });
-    const receipt = await client.waitForTransactionReceipt({ hash: await wallet(account).writeContract(request) });
+    const hash = await wallet(account).writeContract(request);
+    onSent(functionName, hash);
+    const receipt = await client.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") throw new Error(`${functionName} reverted`);
     onReceipt(functionName, receipt);
     return receipt;

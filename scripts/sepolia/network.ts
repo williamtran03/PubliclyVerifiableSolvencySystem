@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { http, isHex, type Abi, type Address, type Hex, type TransactionReceipt } from "viem";
+import { getAddress, http, isHex, TransactionReceiptNotFoundError, type Abi, type Address, type Hex, type TransactionReceipt } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { sepolia } from "viem/chains";
 import { artifact, auditor as anvilAuditor, company as anvilCompany, connect } from "../demo/chain.ts";
@@ -34,6 +34,7 @@ export type Deployment = {
   epochs: { arm: Arm; epochId: string; hash: Hex; block: string; gasUsed: string; timestamp: string }[];
   transactions: Transaction[];
   operations?: Partial<Record<Arm, number>>;
+  pending?: { step: string; label: string; hash: Hex };
 };
 
 function privateKey(name: string): Hex {
@@ -89,11 +90,16 @@ export async function sepoliaNetwork() {
 
   let step = "";
   const transport = http(rpc, { timeout: 30000, retryCount: 3 });
-  const onReceipt = (label: string, receipt: TransactionReceipt) => {
-    record.transactions.push({ step: `${step}${label}`, hash: receipt.transactionHash, block: receipt.blockNumber.toString(), gasUsed: receipt.gasUsed.toString() });
+  const onSent = (label: string, hash: Hex) => {
+    record.pending = { step, label, hash };
     save();
   };
-  const { client, wallet, deploy, send } = connect(transport, sepolia, company, onReceipt);
+  const onReceipt = (label: string, receipt: TransactionReceipt) => {
+    record.transactions.push({ step: step ? `${step} ${label}` : label, hash: receipt.transactionHash, block: receipt.blockNumber.toString(), gasUsed: receipt.gasUsed.toString() });
+    delete record.pending;
+    save();
+  };
+  const { client, wallet, deploy, send } = connect(transport, sepolia, company, onReceipt, onSent);
   const chainId = await client.getChainId();
   if (chainId !== sepolia.id) throw new Error(`SEPOLIA_RPC_URL serves chain ${chainId}, not Sepolia (${sepolia.id}).`);
 
@@ -106,18 +112,60 @@ export async function sepoliaNetwork() {
   const read = <T>(arm: Arm, functionName: string, args: unknown[] = []) =>
     client.readContract({ address: registryOf(arm), abi: abiOf(arm), functionName, args }) as Promise<T>;
   async function transfer(to: Address, value: bigint) {
-    const receipt = await client.waitForTransactionReceipt({ hash: await wallet(company).sendTransaction({ to, value }) });
+    const hash = await wallet(company).sendTransaction({ to, value });
+    onSent("transfer", hash);
+    const receipt = await client.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") throw new Error(`Transfer to ${to} failed`);
     onReceipt("transfer", receipt);
+  }
+  async function recover() {
+    for (const account of [company, auditor, ...Object.values(reserves)]) {
+      const [mined, sent] = await Promise.all([
+        client.getTransactionCount({ address: account.address, blockTag: "latest" }),
+        client.getTransactionCount({ address: account.address, blockTag: "pending" }),
+      ]);
+      if (sent > mined) throw new Error(`${account.address} has a transaction in the mempool. Wait until it is mined or replaced, then run the command again.`);
+    }
+    const pending = record.pending;
+    if (!pending) return;
+    const receipt = await client.getTransactionReceipt({ hash: pending.hash }).catch(error => {
+      if (error instanceof TransactionReceiptNotFoundError) return undefined;
+      throw error;
+    });
+    step = pending.step;
+    if (!receipt) {
+      delete record.pending;
+      save();
+      console.warn(`${pending.step} ${pending.label}: transaction ${pending.hash} was never mined; the step will be repeated.`);
+      return;
+    }
+    onReceipt(pending.label, receipt);
+    if (receipt.status !== "success") {
+      console.warn(`${pending.step} ${pending.label}: transaction ${pending.hash} reverted; the step will be repeated.`);
+      return;
+    }
+    if (pending.label.startsWith("deploy ") && receipt.contractAddress) {
+      record.contracts[pending.step] = getAddress(receipt.contractAddress);
+      record.deployBlocks[pending.step] = receipt.blockNumber.toString();
+    }
+    if ((pending.label === "submitEpoch" || pending.label === "submitLedger") && armNames.includes(pending.step as Arm)) {
+      const arm = pending.step as Arm;
+      const epochId = await read<bigint>(arm, "epochCount") - 1n;
+      const block = await client.getBlock({ blockNumber: receipt.blockNumber });
+      record.epochs.push({ arm, epochId: epochId.toString(), hash: receipt.transactionHash, block: receipt.blockNumber.toString(), gasUsed: receipt.gasUsed.toString(), timestamp: block.timestamp.toString() });
+    }
+    save();
+    step = "";
+    console.log(`${pending.step} ${pending.label}: recovered mined transaction ${pending.hash}.`);
   }
   async function blockAfter(block: bigint) {
     while (await client.getBlockNumber({ cacheTime: 0 }) <= block) await delay(3000);
   }
   return {
-    rpc, file, record, save, client, wallet, deploy, send, transfer, blockAfter, read, abiOf, registryOf,
+    rpc, file, record, save, client, wallet, deploy, send, transfer, recover, blockAfter, read, abiOf, registryOf,
     company, auditor, reserves, chainId: BigInt(chainId),
     maxEpochAge: BigInt(record.parameters.maxEpochAge), minEpochInterval: BigInt(record.parameters.minEpochInterval),
-    setStep(value: string) { step = value ? `${value} ` : ""; },
+    setStep(value: string) { step = value; },
   };
 }
 export type Network = Awaited<ReturnType<typeof sepoliaNetwork>>;

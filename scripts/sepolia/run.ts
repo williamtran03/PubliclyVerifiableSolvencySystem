@@ -44,6 +44,7 @@ try {
   }
   if (command === "epoch" && arms.includes("zk-circuit")) checkProvingTools();
   const network = await sepoliaNetwork();
+  if (command !== "status") await network.recover();
   if (command !== "exercise" && command !== "status" && Object.values(network.record.operations ?? {}).some(stage => stage !== 14)) {
     throw new Error("An operations exercise is incomplete. Resume npm run sepolia -- exercise before deploying or publishing.");
   }

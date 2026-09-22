@@ -1,8 +1,8 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { toHex, type Address, type Hex, type TransactionReceipt } from "viem";
+import { toHex, type Address, type Hex } from "viem";
 import { buildSplitLiabilities, type Customer as LedgerCustomer } from "../../arms/published-ledger/prover/splitLiabilities.ts";
 import { fetchSnapshot } from "../../arms/zk-circuit/prover/fetchSnapshot.ts";
 import { prepareEpoch } from "../../arms/zk-circuit/prover/buildMultiAssetTree.ts";
@@ -19,6 +19,7 @@ import { proveReserve } from "./deploy.ts";
 import { privateOutput, writePrivate, type Arm, type Network } from "./network.ts";
 
 type Check = { file: string; account: string; expected: Map<number, bigint>; secret: string };
+type Prepared = { functionName: string; args: unknown[]; files: [string, unknown][]; checks: Check[] };
 const point = (p: G1Point) => p.toAffine();
 
 export async function nextEpochOpensAt(network: Network, arm: Arm) {
@@ -44,25 +45,23 @@ async function prepareReserves(network: Network, arm: Arm) {
   await network.blockAfter(await read<bigint>(arm, "sampledBlock"));
 }
 
-async function publishLedger(network: Network, epochId: bigint, output: string) {
+async function prepareLedger(): Promise<Prepared> {
   const customers: LedgerCustomer[] = JSON.parse(readFileSync("arms/published-ledger/fixtures/customers.example.json", "utf8")).map((c: any) => ({
     ...c, parts: c.parts.map((p: any) => ({ assetId: p.assetId, amount: BigInt(p.amount) })),
   }));
   const built = buildSplitLiabilities(customers, toHex(randomBytes(32)), 2);
-  const receipt = await network.send(network.company, network.registryOf("published-ledger"), network.abiOf("published-ledger"), "submitLedger", [
-    built.ledger.snapshotId, built.ledger.assets.map(a => a.entries.map(e => e.identityHash)), built.ledger.assets.map(a => a.entries.map(e => e.balance)),
-  ]);
-  writePrivate(output, "ledger.json", built.ledger);
+  const args = [built.ledger.snapshotId, built.ledger.assets.map(a => a.entries.map(e => e.identityHash)), built.ledger.assets.map(a => a.entries.map(e => e.balance))];
+  const files: [string, unknown][] = [["ledger.json", built.ledger]];
   const checks = customers.map((customer, i) => {
-    writePrivate(output, `${customer.customerId}.json`, built.bundles[i]);
+    files.push([`${customer.customerId}.json`, built.bundles[i]]);
     const expected = new Map<number, bigint>();
     for (const part of customer.parts) expected.set(part.assetId, (expected.get(part.assetId) ?? 0n) + part.amount);
     return { file: `${customer.customerId}.json`, account: customer.customerId, expected, secret: "" };
   });
-  return { receipt, checks };
+  return { functionName: "submitLedger", args, files, checks };
 }
 
-async function publishZk(network: Network, epochId: bigint, output: string) {
+async function prepareZk(network: Network, epochId: bigint): Promise<Prepared> {
   const registry = network.registryOf("zk-circuit");
   const snapshot = await fetchSnapshot(network.rpc, registry);
   if (snapshot.epochId !== epochId) throw new Error("zk-circuit: the epoch changed while preparing the proof.");
@@ -75,17 +74,17 @@ async function publishZk(network: Network, epochId: bigint, output: string) {
     proof = prove(prepared.proverToml, workDir);
   } finally { rmSync(workDir, { recursive: true, force: true }); }
   const [, roundIds] = await network.read<[bigint[], bigint[]]>("zk-circuit", "readPrices");
-  const receipt = await network.send(network.company, registry, network.abiOf("zk-circuit"), "submitEpoch", [proof, prepared.rootHash, prepared.floors, roundIds]);
+  const files: [string, unknown][] = [];
   const checks: Check[] = [];
   for (const username of new Set(holdings.map(h => h.username))) {
-    writePrivate(output, `${username}.json`, createBundle(username, prepared.padded, prepared.levels));
+    files.push([`${username}.json`, createBundle(username, prepared.padded, prepared.levels)]);
     const own = holdings.filter(h => h.username === username);
     checks.push({ file: `${username}.json`, account: username, expected: new Map(own.map(h => [h.assetId, h.amount])), secret: own[0].salt.toString() });
   }
-  return { receipt, checks };
+  return { functionName: "submitEpoch", args: [proof, prepared.rootHash, prepared.floors, roundIds], files, checks };
 }
 
-async function publishKzg(network: Network, epochId: bigint, output: string) {
+async function prepareKzg(network: Network, epochId: bigint): Promise<Prepared> {
   const registry = network.registryOf("snarkless");
   const srs = loadSrs("arms/snarkless/fixtures/srs.json");
   const accounts: Account[] = readFileSync("shared/customers.csv", "utf8").trim().split("\n").slice(1).map(row => {
@@ -97,27 +96,50 @@ async function publishKzg(network: Network, epochId: bigint, output: string) {
   const range = proveRange(srs, epoch.balancePoly, epoch.balances, context);
   const sum = { balanceCommitment: point(epoch.balanceCommitment), shiftedCommitment: point(epoch.shiftedCommitment), identityCommitment: point(epoch.identityCommitment), totalLiabilities: epoch.totalLiabilities, sumProof: point(epoch.opening.proof) };
   const rangeArtifact = { bitCommitments: range.bitCommitments.map(point), quotientCommitment: point(range.quotientCommitment), values: range.values, batchProof: point(range.batchProof) };
-  const receipt = await network.send(network.company, registry, network.abiOf("snarkless"), "submitEpoch", [sum, rangeArtifact]);
-  writePrivate(output, "epoch.json", { ...sum, registry, chainId: network.chainId, epochId, context });
-  writePrivate(output, "range-proof.json", rangeArtifact);
+  const files: [string, unknown][] = [
+    ["epoch.json", { ...sum, registry, chainId: network.chainId, epochId, context }],
+    ["range-proof.json", rangeArtifact],
+  ];
   const checks = accounts.map((account, index) => {
-    writePrivate(output, `${account.username}.json`, { username: account.username, index, identity: identityOf(account.username, account.salt), balance: account.balance, proof: point(proveInclusion(srs, epoch, index, context).proof) });
+    files.push([`${account.username}.json`, { username: account.username, index, identity: identityOf(account.username, account.salt), balance: account.balance, proof: point(proveInclusion(srs, epoch, index, context).proof) }]);
     return { file: `${account.username}.json`, account: account.username, expected: new Map([[0, account.balance]]), secret: account.salt.toString() };
   });
-  return { receipt, checks };
+  return { functionName: "submitEpoch", args: [sum, rangeArtifact], files, checks };
 }
 
-const publishers: Record<Arm, (network: Network, epochId: bigint, output: string) => Promise<{ receipt: TransactionReceipt; checks: Check[] }>> = {
-  "published-ledger": publishLedger, "zk-circuit": publishZk, snarkless: publishKzg,
+const preparers: Record<Arm, (network: Network, epochId: bigint) => Promise<Prepared>> = {
+  "published-ledger": prepareLedger, "zk-circuit": prepareZk, snarkless: prepareKzg,
 };
+
+function settleStaging(arm: Arm, published: bigint) {
+  const armOutput = privateOutput(arm);
+  for (const name of readdirSync(armOutput)) {
+    const match = /^epoch-(\d+)\.pending$/.exec(name);
+    if (!match) continue;
+    const staging = join(armOutput, name);
+    const output = join(armOutput, `epoch-${match[1]}`);
+    if (BigInt(match[1]) >= published) rmSync(staging, { recursive: true, force: true });
+    else if (existsSync(output)) throw new Error(`${arm}: both ${staging} and ${output} exist; keep the one whose bundles match the published epoch.`);
+    else {
+      renameSync(staging, output);
+      console.log(`${arm}: epoch ${match[1]} was published before the previous run stopped; its bundles are in ${output}`);
+    }
+  }
+}
 const solutions: Record<Arm, Solution> = { "published-ledger": ledger, "zk-circuit": zk, snarkless: kzg };
 
 export async function publishEpoch(network: Network, arm: Arm) {
   network.setStep(arm);
+  settleStaging(arm, await network.read<bigint>(arm, "epochCount"));
   await prepareReserves(network, arm);
   const epochId = await network.read<bigint>(arm, "epochCount");
-  const output = privateOutput(arm, `epoch-${epochId}`);
-  const { receipt, checks } = await publishers[arm](network, epochId, output);
+  const { functionName, args, files, checks } = await preparers[arm](network, epochId);
+  const output = join(privateOutput(arm), `epoch-${epochId}`);
+  if (existsSync(output)) throw new Error(`${arm}: ${output} already exists although epoch ${epochId} is unpublished; move it aside first.`);
+  const staging = privateOutput(arm, `epoch-${epochId}.pending`);
+  for (const [name, value] of files) writePrivate(staging, name, value);
+  const receipt = await network.send(network.company, network.registryOf(arm), network.abiOf(arm), functionName, args);
+  renameSync(staging, output);
   const block = await network.client.getBlock({ blockNumber: receipt.blockNumber });
   network.record.epochs.push({ arm, epochId: epochId.toString(), hash: receipt.transactionHash, block: receipt.blockNumber.toString(), gasUsed: receipt.gasUsed.toString(), timestamp: block.timestamp.toString() });
   network.save();
