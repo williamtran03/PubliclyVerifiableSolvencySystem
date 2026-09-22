@@ -111,7 +111,7 @@ const preparers: Record<Arm, (network: Network, epochId: bigint) => Promise<Prep
   "published-ledger": prepareLedger, "zk-circuit": prepareZk, snarkless: prepareKzg,
 };
 
-function settleStaging(arm: Arm, published: bigint) {
+export function settleStaging(arm: Arm, published: bigint) {
   const armOutput = privateOutput(arm);
   for (const name of readdirSync(armOutput)) {
     const match = /^epoch-(\d+)\.pending$/.exec(name);
