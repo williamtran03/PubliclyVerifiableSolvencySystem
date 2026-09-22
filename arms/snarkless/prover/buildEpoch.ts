@@ -33,8 +33,6 @@ const g2Json = (p: G2Point) => {
   return { xImag, xReal, yImag, yReal };
 };
 
-// Optional positional arguments let a deployment bind its proofs to its own
-// registry address; both default to the committed fixtures the tests read.
 const [snapshotPath = "./arms/snarkless/prover/snapshot.json", outDir = "./arms/snarkless/fixtures"] =
   process.argv.slice(2);
 

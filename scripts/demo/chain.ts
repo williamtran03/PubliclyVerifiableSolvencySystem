@@ -6,7 +6,6 @@ import { createPublicClient, createTestClient, createWalletClient, http, type Ab
 import { privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 
-// Public Anvil development keys. These helpers refuse non-local/non-Anvil nodes.
 export const company = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 export const auditor = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d");
 export const maxEpochAge = 86400n;
