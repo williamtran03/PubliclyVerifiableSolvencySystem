@@ -2,10 +2,11 @@ import { execFileSync } from "node:child_process";
 import { checkProvingTools } from "../../arms/zk-circuit/prover/toolchain.ts";
 import { formatEther } from "viem";
 import { deploy } from "./deploy.ts";
+import { exerciseOperations } from "./exercise.ts";
 import { nextEpochOpensAt, publishEpoch } from "./epoch.ts";
 import { armNames, sepoliaNetwork, type Arm, type Network } from "./network.ts";
 
-const usage = "Usage: npm run sepolia -- deploy | epoch [published-ledger] [zk-circuit] [snarkless] | status";
+const usage = "Usage: npm run sepolia -- deploy | epoch [arms...] | exercise [arms...] | status";
 
 async function status(network: Network) {
   const { client, record, company, auditor } = network;
@@ -35,7 +36,7 @@ async function status(network: Network) {
 }
 
 const [command, ...rest] = process.argv.slice(2);
-if (!["deploy", "epoch", "status"].includes(command)) {
+if (!["deploy", "epoch", "exercise", "status"].includes(command)) {
   console.error(usage);
   process.exit(1);
 }
@@ -52,7 +53,11 @@ try {
 try {
   if (command === "epoch" && arms.includes("zk-circuit")) checkProvingTools();
   const network = await sepoliaNetwork();
+  if (command !== "exercise" && command !== "status" && Object.values(network.record.operations ?? {}).some(stage => stage !== 14)) {
+    throw new Error("An operations exercise is incomplete. Resume npm run sepolia -- exercise before deploying or publishing.");
+  }
   if (command === "deploy") await deploy(network);
+  if (command === "exercise") for (const arm of arms) await exerciseOperations(network, arm);
   if (command === "epoch") for (const arm of arms) await publishEpoch(network, arm);
   await status(network);
 } catch (error) {

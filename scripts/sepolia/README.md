@@ -80,7 +80,8 @@ For each arm, the script follows the registry's order:
 5. The script reads the new epoch through the website's own adapters and verifies every
    customer's bundle. It also checks that a balance one unit higher fails.
 
-The ZK arm needs `nargo` 1.0.0-beta.26 and `bb` 6.0.0-nightly.20260902, the versions the
+Before sending any epoch transactions, the command checks the required proving versions
+when the ZK arm is selected. The ZK arm needs `nargo` 1.0.0-beta.26 and `bb` 6.0.0-nightly.20260902, the versions the
 committed verifier was generated with. Customer bundles go to
 `PRIVATE_OUTPUT/<arm>/epoch-<n>/`. Hand them out privately and never commit them.
 
@@ -90,6 +91,40 @@ script stops early and prints when it opens.
 ```shell
 npm run sepolia -- status               # balances, epochs, freshness, when the next epoch opens
 ```
+
+## 4. Exercise role transfer and reserve removal
+
+On this test-token deployment, run the explicit operations drill, then publish a
+fresh epoch:
+
+```sh
+npm run sepolia -- exercise             # or a subset of arms
+npm run sepolia -- epoch
+```
+
+The drill transfers the company role to that arm's reserve wallet and back, then
+transfers the auditor role to the same wallet and back. Each transfer uses both
+nomination and acceptance. The company funds that wallet for the four transactions
+it must send (a 200,000-gas budget at the estimated maximum fee); this is additional
+to the deployment/epoch budget above. The original company and auditor are restored.
+The reserve temporarily controls a role: use this only for the test-token rehearsal,
+with all five keys controlled by its operator.
+
+Next it removes the reserve, checks that the shared directory released its claim,
+and proposes, proves and approves it again. It discards any current sample so the
+next epoch takes a fresh sample. The drill leaves the small unused ETH balance in
+the reserve wallet. It does not publish an epoch itself.
+
+Receipts and per-arm checkpoints are saved in `deployments/sepolia.json` under
+`transactions` and `operations`. Re-run `exercise` after an interruption; it reads
+the on-chain state before repeating a step. Keep the original `.env` keys throughout,
+including while a reserve wallet temporarily holds a role. `deploy` and `epoch`
+refuse to run while a drill is incomplete. A completed drill is skipped on rerun.
+Do not manually edit checkpoints or concurrently operate the same registries.
+
+The local three-arm integration test exercises this code with interruptions after
+mined transactions. This is local validation; only actual Sepolia receipts establish
+that the drill has been performed on the testnet.
 
 ## Website
 

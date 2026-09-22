@@ -32,6 +32,7 @@ export type Deployment = {
   deployBlocks: Record<string, string>;
   epochs: { arm: Arm; epochId: string; hash: Hex; block: string; gasUsed: string; timestamp: string }[];
   transactions: Transaction[];
+  operations?: Partial<Record<Arm, number>>;
 };
 
 function privateKey(name: string): Hex {

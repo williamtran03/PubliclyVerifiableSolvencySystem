@@ -38,8 +38,10 @@ Automatic decoding of arbitrary multisig transactions is not implemented.
   records every address and receipt in `deployments/sepolia.json`. Its assets are
   test tokens with unrestricted minting. A real deployment needs real asset
   addresses and decimal scales, and a company key and an auditor key held by
-  different parties. Role transfer and reserve removal are not yet exercised on the
-  testnet.
+  different parties. `npm run sepolia -- exercise` tests both role transfers and reserve removal,
+  restores the roles and re-approves the reserve; publish a fresh epoch afterwards.
+  This workflow is covered by local integration tests, but has not yet been run
+  on the public testnet.
 - **Make ZK proving reproducible.** Pin compatible Noir and Barretenberg versions,
   regenerate and check the verifier from the committed circuit, and run the real
   proof integration suite. Current fixture proofs are bound to their original
