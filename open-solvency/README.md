@@ -2,7 +2,7 @@
 
 Start with `npm run web` from the repository root. Run `npm run web:build` for a static production build in `open-solvency/dist/`. For a complete local deployment with all three arms, use `npm run demo`; the launcher starts three isolated Anvil chains and the website, then exposes only their connection details at `/demo-config.json`.
 
-The site has a public customer view and a company view. Select **Merkle-Sum Tree** (`arms/published-ledger`), **ZK circuit**, or **KZG** first; each adapter reads the matching registry contract. The Merkle-Sum implementation uses one tree per asset and publishes the pseudonymous ledger so the contract can recompute every root and sum. The selected RPC and registry are remembered separately for each arm. They are user supplied because the three registries are separate contracts and deployments.
+The site has a public customer view and a company view. Select **Merkle-Sum Tree** (`arms/published-ledger`), **ZK circuit**, or **KZG** first; each adapter reads the matching registry contract. The Merkle-Sum implementation uses one tree per asset and publishes the pseudonymous ledger so the contract can recompute every root and sum. The selected RPC and registry are remembered separately for each arm. They are user supplied because the three registries are separate contracts and deployments. When the build finds a complete record in `deployments/*.json`, such as the one `npm run sepolia` writes, a **Use Sepolia deployment** button fills in all three and links each registry to the block explorer.
 
 ## Customer
 

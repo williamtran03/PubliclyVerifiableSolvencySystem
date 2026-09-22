@@ -11,7 +11,10 @@ host. Do not publish the repository, proof-generation workspace, customer bundle
 account secrets or the Vite development server. Vite's development configuration
 allows source imports from the repository and is intended for local development.
 
-Customers configure an RPC URL and registry address for each method in the UI.
+Customers configure an RPC URL and registry address for each method in the UI. Every
+complete record in `deployments/*.json` becomes a preset button at build time, for
+example **Use Sepolia deployment**, which fills in all three registries with a public
+CORS-enabled RPC.
 For a hosted deployment, provide independently authenticated registry addresses,
 chain IDs and an HTTPS RPC that allows browser CORS requests. The local demo
 configuration is not included in the static build. Customers must receive their
