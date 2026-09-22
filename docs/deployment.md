@@ -7,7 +7,8 @@ production deployment package for real customer solvency attestations.
 
 Use Node 22 and install the locked dependencies with `npm ci`. Run
 `npm run web:build`, then publish **only `open-solvency/dist/`** to an HTTPS static
-host. Do not publish the repository, proof-generation workspace, customer bundles,
+host. The build uses relative paths, so it also works under a sub-path such as a
+GitHub Pages project site. Do not publish the repository, proof-generation workspace, customer bundles,
 account secrets or the Vite development server. Vite's development configuration
 allows source imports from the repository and is intended for local development.
 

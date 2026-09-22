@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 export default defineConfig({
   root: "open-solvency",
+  base: "./",
   plugins: [{
     name: "local-demo-connections",
     configureServer(server) {
@@ -12,7 +13,6 @@ export default defineConfig({
         if (!config) { response.statusCode = 404; response.end(); return; }
         try {
           const parsed = JSON.parse(readFileSync(config, "utf8"));
-          // Expose connection details only. Never serve bundles or secrets.
           const solutions = Object.fromEntries(Object.entries(parsed.solutions).map(([id, value]) => {
             const connection = value as { rpc: string; registry: string; chainId: number };
             return [id, { rpc: connection.rpc, registry: connection.registry, chainId: connection.chainId }];

@@ -287,7 +287,7 @@ document.querySelectorAll<HTMLButtonElement>(".network").forEach(button => butto
   restoreConnection(); invalidate(); save();
   el<HTMLButtonElement>("load").click();
 }));
-void fetch("/demo-config.json").then(async response => {
+void fetch("demo-config.json").then(async response => {
   if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) return;
   const config = await response.json();
   if (config.version !== 1 || !solutions.every(s => /^https?:\/\//.test(config.solutions?.[s.id]?.rpc ?? "") && isAddress(config.solutions?.[s.id]?.registry ?? ""))) return;
