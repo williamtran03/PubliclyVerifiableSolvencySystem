@@ -88,7 +88,7 @@ export async function startDemo(options: { ports?: number[]; webPort?: number; w
 }
 
 if (isMain(import.meta.url)) {
-  execFileSync("forge", ["build", "--no-lint"], { stdio: "inherit" });
+  execFileSync("forge", ["build"], { stdio: "inherit" });
   const base = Number(process.env.DEMO_BASE_PORT ?? 8545);
   await startDemo({ ports: [base, base + 1, base + 2], webPort: Number(process.env.DEMO_WEB_PORT ?? 5175) });
 }
