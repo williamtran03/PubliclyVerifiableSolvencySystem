@@ -71,6 +71,14 @@ test("a bundle round-trips through JSON", () => {
   assert.ok(verifyBundle(bundle, customer(holdings[1]), root, CONTEXT));
 });
 
+test("an entered zero matches an asset the customer does not hold", () => {
+  const { levels, root, holdings: padded } = published();
+  const bundle = createBundle("customer-123", padded, levels);
+  const zeros = (other: bigint): Customer => ({ ...customer(holdings[0]), expectedAmounts: new Map([[0, 2n], [1, other], [2, 0n]]) });
+  assert.ok(verifyBundle(bundle, zeros(0n), root, CONTEXT));
+  assert.equal(verifyBundle(bundle, zeros(1n), root, CONTEXT), false);
+});
+
 test("a wrong amount, context or root fails", () => {
   const { levels, root, holdings: padded } = published();
   const bundle = createBundle("customer-123", padded, levels);

@@ -122,7 +122,7 @@ export const ledger: Solution = {
       if (proof.entry.identityHash !== identity(bundle, assetId, partIndex, part.salt) || proof.rootHash !== data.roots[assetId] || proof.rootSum !== data.liabilities[assetId] || !verifyProof(proof, keccakHash)) return { valid: false, message: "A balance part does not match the published root." };
       totals.set(assetId, (totals.get(assetId) ?? 0n) + proof.entry.balance);
     }
-    const valid = totals.size === expected.size && [...expected].every(([asset, amount]) => totals.get(asset) === amount);
+    const valid = [...new Set([...totals.keys(), ...expected.keys()])].every((asset) => (totals.get(asset) ?? 0n) === (expected.get(asset) ?? 0n));
     return { valid, message: valid ? "All entered balance parts are included in the published ledger." : "The sum of the balance parts does not match your balances." };
   },
 };

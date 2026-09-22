@@ -184,9 +184,8 @@ export function verifyBundle(bundle: CustomerBundle, customer: Customer, publish
     totals.set(part.holding.assetId, (totals.get(part.holding.assetId) ?? 0n) + part.holding.amount);
   }
 
-  if (totals.size !== customer.expectedAmounts.size) return false;
-  for (const [assetId, expected] of customer.expectedAmounts) {
-    if (totals.get(assetId) !== expected) return false;
+  for (const assetId of new Set([...totals.keys(), ...customer.expectedAmounts.keys()])) {
+    if ((totals.get(assetId) ?? 0n) !== (customer.expectedAmounts.get(assetId) ?? 0n)) return false;
   }
   return true;
 }

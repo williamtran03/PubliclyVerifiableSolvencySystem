@@ -82,8 +82,9 @@ export function verifyCustomer(bundle: CustomerBundle, expectedAmounts: Map<numb
       checkUint(total);
       totals.set(part.assetId, total);
     }
-    if (totals.size !== expectedAmounts.size) return false;
-    for (const [assetId, expected] of expectedAmounts) if (totals.get(assetId) !== expected) return false;
+    for (const assetId of new Set([...totals.keys(), ...expectedAmounts.keys()])) {
+      if ((totals.get(assetId) ?? 0n) !== (expectedAmounts.get(assetId) ?? 0n)) return false;
+    }
     return true;
   } catch { return false; }
 }

@@ -16,6 +16,8 @@ test("each asset gets its own tree and total; customers verify per asset", () =>
   assert.ok(verifyPublicLedger(ledger));
   assert.ok(verifyCustomer(bundles[0], alice, ledger));
   assert.ok(verifyCustomer(bundles[1], new Map([[0, 20n]]), ledger));
+  assert.ok(verifyCustomer(bundles[1], new Map([[0, 20n], [1, 0n]]), ledger), "an entered zero matches an asset the customer does not hold");
+  assert.equal(verifyCustomer(bundles[1], new Map([[0, 20n], [1, 1n]]), ledger), false);
   const p = bundles[0].parts[0].proof;
   assert.ok(verifyProof(deserializeProof(serializeProof(p)), keccakHash));
 });
