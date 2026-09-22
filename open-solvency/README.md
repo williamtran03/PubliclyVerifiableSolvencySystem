@@ -10,6 +10,7 @@ The site has a public customer view and a company view. Select **Merkle-Sum Tree
 2. Obtain your own JSON inclusion proof through a private channel. Enter your account ID and balances in base units from independent account records.
 3. For ZK or KZG, enter your account secret. For KZG, save only your own object from `inclusion.json` as a JSON file, not the full array.
 4. Select the file and run the check. The site reads the current epoch again before verifying, so a changed epoch requires a reload.
+5. Compare the publication time the site shows with when you asked for the proof file. An epoch published after your request could have been built around it; proof files should reach every customer when the epoch is published, not on request.
 
 ZK and published-ledger verification runs in the browser. KZG invokes the registry's `verifyInclusion` through the configured RPC: identity commitment, claimed balance, proof point and index are visible to the RPC operator. The JSON file itself is never uploaded by the site. No wallet is required for customers.
 

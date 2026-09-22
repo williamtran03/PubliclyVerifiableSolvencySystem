@@ -189,7 +189,8 @@ el<HTMLButtonElement>("verify").addEventListener("click", async () => {
     const result = await solution.verify(c, checkedSnapshot, text, account, expected, secret);
     if (!current()) return;
     showFreshness(latest);
-    setStatus("verifyStatus", result.message, result.valid);
+    const published = new Date(Number(latest.timestamp) * 1000).toLocaleString("en-GB");
+    setStatus("verifyStatus", result.valid ? `${result.message} Epoch ${latest.epoch} was published ${published}. If you requested this proof file after that time, the snapshot could not have been adjusted to your request.` : result.message, result.valid);
     if (result.valid && !latest.freshness?.current) {
       setStatus("verifyStatus", `${result.message} This snapshot has expired or its freshness is unavailable. Ask the company for a newer snapshot.`);
       el<HTMLElement>("verifyStatus").className = "warning";
