@@ -35,6 +35,7 @@ check:
 # regenerates every number in docs/comparison.md in one pass
 compare:
 	forge test --gas-report
+	forge test --match-test '^test_Gas' -vv | grep ' gas'
 
 # ---- arm: published-ledger ----------------------------------------------
 # split + shuffle customers, publish the anonymised ledger, recompute on-chain

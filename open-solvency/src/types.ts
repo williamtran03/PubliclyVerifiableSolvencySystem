@@ -1,7 +1,7 @@
 export type SolutionId = "published-ledger" | "zk-circuit" | "snarkless";
 export type Connection = { rpc: string; registry: `0x${string}` };
 export type Asset = { label: string; token?: string; unitDecimals?: number; unitDescription?: string; liabilities?: bigint; floor?: bigint; reserves: bigint };
-export type Freshness = { current: boolean; age: bigint; maxAge: bigint };
+export type Freshness = { current: boolean; age: bigint; maxAge: bigint; lapses?: bigint };
 export type PublicLedgerEntry = { identity: bigint; amount: bigint };
 export type PublicLedgerAsset = { entries: PublicLedgerEntry[]; rootHash: bigint; total: bigint };
 export type Snapshot = {

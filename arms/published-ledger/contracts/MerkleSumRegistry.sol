@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import {ReserveRegistry} from "../../../shared/contracts/ReserveRegistry.sol";
+import {ReserveDirectory} from "../../../shared/contracts/ReserveDirectory.sol";
 
 contract MerkleSumRegistry is ReserveRegistry {
     uint256 public constant MAX_ENTRIES = 256;
@@ -34,9 +35,14 @@ contract MerkleSumRegistry is ReserveRegistry {
     error NoEpoch();
     error Insolvent(uint256 assetId, uint256 reserves, uint256 liabilities);
 
-    constructor(address _company, address _auditor, address[] memory tokens, uint64 _maxEpochAge)
-        ReserveRegistry("MerkleSumRegistry", _company, _auditor, _maxEpochAge)
-    {
+    constructor(
+        address _company,
+        address _auditor,
+        address[] memory tokens,
+        uint64 _maxEpochAge,
+        uint64 _minEpochInterval,
+        ReserveDirectory _directory
+    ) ReserveRegistry(_company, _auditor, _maxEpochAge, _minEpochInterval, _directory) {
         if (tokens.length == 0 || tokens.length > MAX_ASSETS) revert BadAssets();
         for (uint256 i = 0; i < tokens.length; i++) {
             for (uint256 j = 0; j < i; j++) {
@@ -44,6 +50,10 @@ contract MerkleSumRegistry is ReserveRegistry {
             }
             assets.push(tokens[i]);
         }
+    }
+
+    function _reserveTokens() internal view override returns (address[] memory) {
+        return assets;
     }
 
     function assetCount() external view returns (uint256) {
@@ -66,22 +76,23 @@ contract MerkleSumRegistry is ReserveRegistry {
     {
         if (snapshotId == bytes32(0) || usedSnapshots[snapshotId]) revert InvalidSnapshot();
         if (identities.length != assets.length || amounts.length != assets.length) revert InvalidLength();
+        _requireSample();
 
         uint256 n = assets.length;
         uint256[] memory rootHashes = new uint256[](n);
         uint256[] memory liabilities = new uint256[](n);
-        uint256[] memory reserves = new uint256[](n);
+        uint256[] memory attested = new uint256[](n);
         for (uint256 a = 0; a < n; a++) {
             (rootHashes[a], liabilities[a]) = computeRoot(identities[a], amounts[a]);
-            reserves[a] = reserveBalance(assets[a]);
-            if (reserves[a] < liabilities[a]) revert Insolvent(a, reserves[a], liabilities[a]);
+            attested[a] = attestedBalance(assets[a]);
+            if (attested[a] < liabilities[a]) revert Insolvent(a, attested[a], liabilities[a]);
         }
 
         usedSnapshots[snapshotId] = true;
         _recordEpoch();
         uint256 epochId = epochCount++;
-        epochs[epochId] = Epoch(snapshotId, rootHashes, liabilities, reserves, uint64(block.timestamp));
-        emit LedgerSubmitted(epochId, snapshotId, rootHashes, liabilities, reserves);
+        epochs[epochId] = Epoch(snapshotId, rootHashes, liabilities, attested, uint64(block.timestamp));
+        emit LedgerSubmitted(epochId, snapshotId, rootHashes, liabilities, attested);
     }
 
     function computeRoot(uint256[] calldata identities, uint256[] calldata amounts)

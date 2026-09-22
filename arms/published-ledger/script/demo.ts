@@ -4,22 +4,23 @@ import assert from "node:assert/strict";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { type Abi, type Hex } from "viem";
 import { buildSplitLiabilities, verifyCustomer, type Customer } from "../prover/splitLiabilities.ts";
-import { auditor, company, demoChain, isMain, maxEpochAge, outputDirectory, writeJson } from "../../../scripts/demo/chain.ts";
+import { auditor, company, demoChain, isMain, maxEpochAge, minEpochInterval, outputDirectory, writeJson } from "../../../scripts/demo/chain.ts";
 
 export async function runLedgerDemo(rpc: string, output: string) {
-  const { client, wallet, artifact, deploy, send, approveReserve, chain } = await demoChain(rpc);
+  const { client, wallet, artifact, deploy, deployDirectory, send, proveReserve, approveReserve, sampleReserves, chain } = await demoChain(rpc);
   const reserve = privateKeyToAccount(generatePrivateKey());
   const tokenAbi = artifact("DemoAsset.sol", "DemoAsset").abi as Abi;
   const abi = artifact("MerkleSumRegistry.sol", "MerkleSumRegistry").abi as Abi;
   const token = await deploy("DemoAsset.sol", "DemoAsset", ["TEST", 0]);
   const registry = await deploy("MerkleSumRegistry.sol", "MerkleSumRegistry", [
     company.address, auditor.address,
-    ["0x0000000000000000000000000000000000000000", token], maxEpochAge,
+    ["0x0000000000000000000000000000000000000000", token], maxEpochAge, minEpochInterval, await deployDirectory(),
   ]);
   await send(company, token, tokenAbi, "mint", [reserve.address, 3n]);
   const funding = await client.waitForTransactionReceipt({ hash: await wallet(company).sendTransaction({ to: reserve.address, value: 120n }) });
   assert.equal(funding.status, "success");
   await approveReserve(registry, abi, reserve);
+  await sampleReserves(registry, abi);
   const customers: Customer[] = JSON.parse(readFileSync("arms/published-ledger/fixtures/customers.example.json", "utf8")).map((c: any) => ({
     ...c, parts: c.parts.map((p: any) => ({ assetId: p.assetId, amount: BigInt(p.amount) })),
   }));
@@ -38,6 +39,8 @@ export async function runLedgerDemo(rpc: string, output: string) {
     assert.ok(verifyCustomer(bundles[i], expected, published));
     writeJson(output, `ledger-${customer.customerId}.json`, bundles[i]);
   }
+  await proveReserve(registry, abi, reserve);
+  await sampleReserves(registry, abi);
   const short = buildSplitLiabilities(customers.map(c => ({ ...c, parts: c.parts.map(p => p.assetId === 1 ? { ...p, amount: 4n } : p) })), snapshot(), 2);
   await assert.rejects(send(company, registry, abi, "submitLedger", calldata(short.ledger)), /Insolvent/);
   writeJson(output, "ledger.json", ledger);

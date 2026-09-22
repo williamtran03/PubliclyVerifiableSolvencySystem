@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { startDemo } from "./run.ts";
-import { company, demoChain } from "./chain.ts";
+import { company, demoChain, minEpochInterval } from "./chain.ts";
 import { ledger } from "../../open-solvency/src/solutions/ledger.ts";
 import { zk } from "../../open-solvency/src/solutions/zk.ts";
 import { kzg } from "../../open-solvency/src/solutions/kzg.ts";
@@ -32,9 +32,12 @@ test("three demo deployments support the site's verification and publication ada
     }
     for (const solution of [ledger, kzg]) {
       const connection = demo.connections[solution.id];
-      const { client, wallet } = await demoChain(connection.rpc);
+      const { client, wallet, advance } = await demoChain(connection.rpc);
       const extra = solution === kzg ? new File([file("kzg-next-range-proof.json")], "range-proof.json") : undefined;
-      const data = await publicationCall(solution.id, connection, file(solution === ledger ? "ledger-next.json" : "kzg-next-epoch.json"), extra, "");
+      const next = file(solution === ledger ? "ledger-next.json" : "kzg-next-epoch.json");
+      await assert.rejects(publicationCall(solution.id, connection, next, extra, ""), /accepts the next epoch from/, `${solution.id} republished before the minimum interval`);
+      await advance(minEpochInterval);
+      const data = await publicationCall(solution.id, connection, next, extra, "");
       const receipt = await client.waitForTransactionReceipt({ hash: await wallet(company).sendTransaction({ to: connection.registry, data }) });
       assert.equal(receipt.status, "success");
       assert.equal((await solution.read(connection)).epoch, 1n);

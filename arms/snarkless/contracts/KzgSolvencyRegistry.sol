@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import {KzgVerifier} from "./KzgVerifier.sol";
 import {ReserveRegistry} from "../../../shared/contracts/ReserveRegistry.sol";
+import {ReserveDirectory} from "../../../shared/contracts/ReserveDirectory.sol";
 
 contract KzgSolvencyRegistry is ReserveRegistry {
     uint256 public constant DOMAIN_SIZE = 8;
@@ -61,11 +62,22 @@ contract KzgSolvencyRegistry is ReserveRegistry {
         address _token,
         uint8 _decimals,
         Srs memory _srs,
-        uint64 _maxEpochAge
-    ) ReserveRegistry("KzgSolvencyRegistry", _company, _auditor, _maxEpochAge) {
+        uint64 _maxEpochAge,
+        uint64 _minEpochInterval,
+        ReserveDirectory _directory
+    ) ReserveRegistry(_company, _auditor, _maxEpochAge, _minEpochInterval, _directory) {
         token = _token;
         decimals = _decimals;
         srs = _srs;
+    }
+
+    function _reserveTokens() internal view override returns (address[] memory tokens) {
+        tokens = new address[](1);
+        tokens[0] = token;
+    }
+
+    function getSrs() external view returns (Srs memory) {
+        return srs;
     }
 
     function getEpoch(uint256 epochId) external view returns (Epoch memory) {
@@ -78,10 +90,11 @@ contract KzgSolvencyRegistry is ReserveRegistry {
     }
 
     function reserveUnits() public view returns (uint256) {
-        return reserveBalance(token) / (10 ** decimals);
+        return attestedBalance(token) / (10 ** decimals);
     }
 
     function submitEpoch(GrandSum calldata sum, RangeProof calldata range) external onlyCompany {
+        _requireSample();
         uint256 units = reserveUnits();
         if (units < sum.totalLiabilities) revert Insolvent(units, sum.totalLiabilities);
 

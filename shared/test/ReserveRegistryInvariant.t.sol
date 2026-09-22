@@ -3,9 +3,18 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {ReserveRegistry} from "../contracts/ReserveRegistry.sol";
+import {ReserveDirectory} from "../contracts/ReserveDirectory.sol";
 
 contract InvariantRegistry is ReserveRegistry {
-    constructor(address company, address auditor) ReserveRegistry("Registry", company, auditor, 1 days) {}
+    constructor(address company, address auditor, ReserveDirectory directory)
+        ReserveRegistry(company, auditor, 1 days, 1 hours, directory)
+    {}
+
+    function _reserveTokens() internal pure override returns (address[] memory tokens) {}
+
+    function recordEpoch() external {
+        _recordEpoch();
+    }
 }
 
 contract MockToken {
@@ -26,6 +35,8 @@ contract ReserveHandler is Test {
     uint256[8] private keys;
 
     mapping(address => bool) public shouldBeApproved;
+    mapping(address => uint256) public confirmedIn;
+    uint256 public window = 1;
     address[] public expected;
 
     constructor(InvariantRegistry _registry, MockToken _token, address _company, address _auditor) {
@@ -50,12 +61,19 @@ contract ReserveHandler is Test {
         registry.proposeReserve(wallet);
     }
 
-    function prove(uint256 seed, uint32 offset) external {
+    function prove(uint256 seed) external {
         (address wallet, uint256 walletKey) = pick(seed);
-        if (registry.reserveStatus(wallet) != ReserveRegistry.ReserveStatus.Proposed) return;
-        uint256 expiry = block.timestamp + uint256(offset);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(walletKey, registry.reserveDigest(wallet, expiry));
-        registry.proveReserve(wallet, expiry, abi.encodePacked(r, s, v));
+        if (registry.reserveStatus(wallet) == ReserveRegistry.ReserveStatus.None) return;
+        vm.roll(block.number + 1);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(walletKey, registry.reserveDigest(wallet));
+        registry.proveReserve(wallet, abi.encodePacked(r, s, v));
+        confirmedIn[wallet] = window;
+    }
+
+    function endWindow() external {
+        vm.warp(block.timestamp + 1 hours);
+        registry.recordEpoch();
+        window++;
     }
 
     function review(uint256 seed, bool approved) external {
@@ -98,13 +116,14 @@ contract ReserveHandler is Test {
 
     function expectedBalance() external view returns (uint256 total) {
         for (uint256 i = 0; i < expected.length; i++) {
-            total += token.balanceOf(expected[i]);
+            if (confirmedIn[expected[i]] == window) total += token.balanceOf(expected[i]);
         }
     }
 }
 
 contract ReserveRegistryInvariantTest is Test {
     InvariantRegistry registry;
+    ReserveDirectory directory;
     MockToken token;
     ReserveHandler handler;
 
@@ -113,10 +132,22 @@ contract ReserveRegistryInvariantTest is Test {
 
     function setUp() public {
         vm.warp(1_700_000_000);
-        registry = new InvariantRegistry(company, auditor);
+        vm.roll(1_000);
+        directory = new ReserveDirectory();
+        registry = new InvariantRegistry(company, auditor, directory);
         token = new MockToken();
         handler = new ReserveHandler(registry, token, company, auditor);
         targetContract(address(handler));
+    }
+
+    function invariant_EveryProvenOrListedWalletIsClaimedByThisRegistry() public view {
+        for (uint256 i = 0; i < 8; i++) {
+            address wallet = handler.pool(i);
+            ReserveRegistry.ReserveStatus status = registry.reserveStatus(wallet);
+            bool claimed =
+                status == ReserveRegistry.ReserveStatus.Proven || status == ReserveRegistry.ReserveStatus.Approved;
+            assertEq(directory.registryOf(wallet), claimed ? address(registry) : address(0));
+        }
     }
 
     function invariant_BalanceSumsExactlyTheApprovedSet() public view {

@@ -1,4 +1,4 @@
-import { encodeFunctionData, parseAbi, toHex, type Hex } from "viem";
+import { encodeFunctionData, parseAbi, toHex, type Address, type Hex } from "viem";
 import { client } from "./common.ts";
 import { buildTree, keccakHash } from "@arms/published-ledger/prover/tree.ts";
 import type { Connection, SolutionId } from "../types.ts";
@@ -18,6 +18,25 @@ const kzgAbi = parseAbi([
   "function submitEpoch(GrandSum sum, RangeProof range)",
 ]);
 
+const scheduleAbi = parseAbi([
+  "function window() view returns (uint64)",
+  "function sampledWindow() view returns (uint64)",
+  "function sampledBlock() view returns (uint64)",
+  "function lastEpochAt() view returns (uint64)",
+  "function minEpochInterval() view returns (uint64)",
+]);
+
+async function checkSchedule(c: ReturnType<typeof client>, registry: Address) {
+  const block = await c.getBlock({ blockTag: "latest" });
+  const read = (functionName: "window" | "sampledWindow" | "sampledBlock" | "lastEpochAt" | "minEpochInterval") =>
+    c.readContract({ address: registry, abi: scheduleAbi, functionName, blockNumber: block.number });
+  const [window, sampledWindow, sampledBlock, lastEpochAt, minEpochInterval] = await Promise.all([read("window"), read("sampledWindow"), read("sampledBlock"), read("lastEpochAt"), read("minEpochInterval")]);
+  const earliest = lastEpochAt + minEpochInterval;
+  if (lastEpochAt !== 0n && block.timestamp < earliest) throw new Error(`The registry accepts the next epoch from ${new Date(Number(earliest) * 1000).toLocaleString("en-GB")} on.`);
+  if (sampledWindow !== window) throw new Error("The auditor has not sampled the reserves since the last epoch. Re-prove control of every reserve wallet, then ask the auditor to call sampleReserves.");
+  if (sampledBlock >= block.number) throw new Error("The auditor sampled the reserves in the latest block. Publish from the next block on.");
+}
+
 const point = (value: { x: string; y: string }) => ({ x: BigInt(value.x), y: BigInt(value.y) });
 const amount = (value: string) => {
   if (!/^(0|[1-9]\d*)$/.test(value)) throw new Error("Invalid integer in the artifact.");
@@ -27,6 +46,7 @@ const amount = (value: string) => {
 export async function publicationCall(solution: SolutionId, connection: Connection, artifact: string, supplement: File | undefined, rounds: string): Promise<Hex> {
   const raw = JSON.parse(artifact);
   const c = client(connection);
+  await checkSchedule(c, connection.registry);
   if (solution === "published-ledger") {
     if (!/^0x[0-9a-fA-F]{64}$/.test(raw.snapshotId ?? "") || !Array.isArray(raw.assets) || raw.assets.length === 0) throw new Error("Invalid public ledger.");
     const assetCount = await c.readContract({ address: connection.registry, abi: parseAbi(["function assetCount() view returns (uint256)"]), functionName: "assetCount" });

@@ -14,14 +14,16 @@ const freshnessAbi = parseAbi([
   "function isCurrent() view returns (bool)",
   "function epochAge() view returns (uint64)",
   "function maxEpochAge() view returns (uint64)",
+  "function lapses() view returns (uint64)",
 ]);
 export async function readFreshness(c: ReturnType<typeof client>, address: Address, blockNumber: bigint) {
-  const [current, age, maxAge] = await Promise.all([
+  const [current, age, maxAge, lapses] = await Promise.all([
     c.readContract({ address, abi: freshnessAbi, functionName: "isCurrent", blockNumber }),
     c.readContract({ address, abi: freshnessAbi, functionName: "epochAge", blockNumber }),
     c.readContract({ address, abi: freshnessAbi, functionName: "maxEpochAge", blockNumber }),
+    c.readContract({ address, abi: freshnessAbi, functionName: "lapses", blockNumber }),
   ]);
-  return { current, age, maxAge };
+  return { current, age, maxAge, lapses };
 }
 
 const tokenAbi = parseAbi(["function symbol() view returns (string)", "function decimals() view returns (uint8)"]);

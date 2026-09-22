@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import {IVerifier} from "./MultiAssetHonkVerifier.sol";
 import {ReserveRegistry} from "../../../shared/contracts/ReserveRegistry.sol";
+import {ReserveDirectory} from "../../../shared/contracts/ReserveDirectory.sol";
 
 interface IAggregatorV3 {
     function decimals() external view returns (uint8);
@@ -64,9 +65,15 @@ contract MultiAssetSolvencyRegistry is ReserveRegistry {
     error NoEpoch();
     error Insolvent(uint256 assetId, uint256 reserveUnits, uint256 floor);
 
-    constructor(address _company, address _auditor, Asset[] memory _assets, address _verifier, uint64 _maxEpochAge)
-        ReserveRegistry("MultiAssetSolvencyRegistry", _company, _auditor, _maxEpochAge)
-    {
+    constructor(
+        address _company,
+        address _auditor,
+        Asset[] memory _assets,
+        address _verifier,
+        uint64 _maxEpochAge,
+        uint64 _minEpochInterval,
+        ReserveDirectory _directory
+    ) ReserveRegistry(_company, _auditor, _maxEpochAge, _minEpochInterval, _directory) {
         if (_assets.length != NUM_ASSETS) revert BadAssetCount();
         for (uint256 i = 0; i < _assets.length; i++) {
             for (uint256 j = 0; j < i; j++) {
@@ -75,6 +82,13 @@ contract MultiAssetSolvencyRegistry is ReserveRegistry {
             assets.push(_assets[i]);
         }
         verifier = IVerifier(_verifier);
+    }
+
+    function _reserveTokens() internal view override returns (address[] memory tokens) {
+        tokens = new address[](NUM_ASSETS);
+        for (uint256 i = 0; i < NUM_ASSETS; i++) {
+            tokens[i] = assets[i].token;
+        }
     }
 
     function getEpoch(uint256 epochId) public view returns (Epoch memory) {
@@ -93,7 +107,7 @@ contract MultiAssetSolvencyRegistry is ReserveRegistry {
 
     function reserveRaw() public view returns (uint256[NUM_ASSETS] memory raw) {
         for (uint256 i = 0; i < NUM_ASSETS; i++) {
-            raw[i] = reserveBalance(assets[i].token);
+            raw[i] = attestedBalance(assets[i].token);
         }
     }
 
@@ -151,6 +165,7 @@ contract MultiAssetSolvencyRegistry is ReserveRegistry {
         uint64[NUM_ASSETS] calldata floors,
         uint80[NUM_ASSETS] calldata roundIds
     ) external onlyCompany {
+        _requireSample();
         uint256[NUM_ASSETS] memory raw = reserveRaw();
         uint256[NUM_ASSETS] memory units = unitsOf(raw);
         for (uint256 i = 0; i < NUM_ASSETS; i++) {

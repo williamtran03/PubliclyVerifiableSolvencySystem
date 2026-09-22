@@ -4,13 +4,15 @@ pragma solidity 0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {MultiAssetSolvencyRegistry} from "../contracts/MultiAssetSolvencyRegistry.sol";
 import {ReserveRegistry} from "../../../shared/contracts/ReserveRegistry.sol";
-import {HonkVerifier} from "../contracts/MultiAssetHonkVerifier.sol";
+import {ReserveDirectory} from "../../../shared/contracts/ReserveDirectory.sol";
+import {HonkVerifier, Errors} from "../contracts/MultiAssetHonkVerifier.sol";
 import {MockAggregator, MockToken} from "../contracts/mocks/DemoMocks.sol";
 
 contract MultiAssetSolvencyRegistryTest is Test {
     address constant FIXTURE_REGISTRY = 0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6;
 
     MultiAssetSolvencyRegistry registry;
+    ReserveDirectory directory;
     HonkVerifier verifier;
     MultiAssetSolvencyRegistry.Asset[] assets;
     MockAggregator btcFeed;
@@ -29,11 +31,14 @@ contract MultiAssetSolvencyRegistryTest is Test {
     uint64[3] floors;
 
     uint64 constant MAX_EPOCH_AGE = 1 days;
+    uint64 constant MIN_EPOCH_INTERVAL = 1 hours;
 
     function setUp() public {
         vm.chainId(31337);
         vm.warp(1_700_000_000);
+        vm.roll(1_000);
         (reserve, reserveKey) = makeAddrAndKey("reserve");
+        directory = new ReserveDirectory();
 
         btc = new MockToken();
         usdc = new MockToken();
@@ -48,7 +53,7 @@ contract MultiAssetSolvencyRegistryTest is Test {
         verifier = new HonkVerifier();
         deployCodeTo(
             "MultiAssetSolvencyRegistry.sol:MultiAssetSolvencyRegistry",
-            abi.encode(company, auditor, assets, address(verifier), MAX_EPOCH_AGE),
+            abi.encode(company, auditor, assets, address(verifier), MAX_EPOCH_AGE, MIN_EPOCH_INTERVAL, directory),
             FIXTURE_REGISTRY
         );
         registry = MultiAssetSolvencyRegistry(FIXTURE_REGISTRY);
@@ -57,6 +62,7 @@ contract MultiAssetSolvencyRegistryTest is Test {
         vm.deal(reserve, 12 ether);
         usdc.mint(reserve, 6000e6);
         approveReserve(registry, reserve, reserveKey);
+        sample(registry);
 
         string memory json = vm.readFile("arms/zk-circuit/fixtures/epoch.json");
         rootHash = vm.parseJsonUint(json, ".rootHash");
@@ -71,10 +77,20 @@ contract MultiAssetSolvencyRegistryTest is Test {
     function approveReserve(MultiAssetSolvencyRegistry target, address wallet, uint256 key) internal {
         vm.prank(company);
         target.proposeReserve(wallet);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, target.reserveDigest(wallet, block.timestamp));
-        target.proveReserve(wallet, block.timestamp, abi.encodePacked(r, s, v));
+        proveControl(target, wallet, key);
         vm.prank(auditor);
         target.reviewReserve(wallet, true);
+    }
+
+    function proveControl(MultiAssetSolvencyRegistry target, address wallet, uint256 key) internal {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, target.reserveDigest(wallet));
+        target.proveReserve(wallet, abi.encodePacked(r, s, v));
+    }
+
+    function sample(MultiAssetSolvencyRegistry target) internal {
+        vm.prank(auditor);
+        target.sampleReserves();
+        vm.roll(block.number + 1);
     }
 
     function latestRounds() internal view returns (uint80[3] memory roundIds) {
@@ -95,7 +111,9 @@ contract MultiAssetSolvencyRegistryTest is Test {
         duplicate[2] = MultiAssetSolvencyRegistry.Asset(address(usdc), address(usdcFeed), 6, 1 days);
 
         vm.expectRevert(MultiAssetSolvencyRegistry.DuplicateAsset.selector);
-        new MultiAssetSolvencyRegistry(company, auditor, duplicate, address(verifier), MAX_EPOCH_AGE);
+        new MultiAssetSolvencyRegistry(
+            company, auditor, duplicate, address(verifier), MAX_EPOCH_AGE, MIN_EPOCH_INTERVAL, directory
+        );
     }
 
     function test_GasForASuccessfulSubmission() public {
@@ -171,21 +189,28 @@ contract MultiAssetSolvencyRegistryTest is Test {
 
     function test_ProofCannotBeReplayedForTheNextEpoch() public {
         submit(latestRounds());
+        vm.warp(block.timestamp + MIN_EPOCH_INTERVAL);
+        btcFeed.set(60_000e8, block.timestamp);
+        ethFeed.set(3_000e8, block.timestamp);
+        proveControl(registry, reserve, reserveKey);
+        sample(registry);
 
         uint80[3] memory roundIds = latestRounds();
         vm.prank(company);
-        vm.expectRevert();
+        vm.expectRevert(Errors.SumcheckFailed.selector);
         registry.submitEpoch(proof, rootHash, floors, roundIds);
     }
 
     function test_ProofIsBoundToTheRegistryItWasBuiltFor() public {
-        MultiAssetSolvencyRegistry other =
-            new MultiAssetSolvencyRegistry(company, auditor, assets, address(verifier), MAX_EPOCH_AGE);
+        MultiAssetSolvencyRegistry other = new MultiAssetSolvencyRegistry(
+            company, auditor, assets, address(verifier), MAX_EPOCH_AGE, MIN_EPOCH_INTERVAL, new ReserveDirectory()
+        );
         approveReserve(other, reserve, reserveKey);
+        sample(other);
 
         uint80[3] memory roundIds = latestRounds();
         vm.prank(company);
-        vm.expectRevert();
+        vm.expectRevert(Errors.SumcheckFailed.selector);
         other.submitEpoch(proof, rootHash, floors, roundIds);
     }
 
@@ -200,6 +225,7 @@ contract MultiAssetSolvencyRegistryTest is Test {
 
     function test_RejectsAShortfallInOneAssetEvenWhenUsdCoversIt() public {
         vm.deal(reserve, 2 ether);
+        sample(registry);
 
         uint80[3] memory roundIds = latestRounds();
         vm.prank(company);
@@ -222,8 +248,8 @@ contract MultiAssetSolvencyRegistryTest is Test {
         btc.mint(wallet, 10e8);
         vm.prank(company);
         registry.proposeReserve(wallet);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, registry.reserveDigest(wallet, block.timestamp));
-        registry.proveReserve(wallet, block.timestamp, abi.encodePacked(r, s, v));
+        proveControl(registry, wallet, key);
+        sample(registry);
 
         assertEq(registry.reserveUnits()[0], 3e8);
     }
@@ -231,6 +257,7 @@ contract MultiAssetSolvencyRegistryTest is Test {
     function test_ADepositToAReserveDoesNotInvalidateTheProof() public {
         vm.deal(reserve, 12 ether + 1);
         btc.mint(reserve, 1);
+        sample(registry);
         submit(latestRounds());
         assertEq(registry.epochCount(), 1);
     }
@@ -247,8 +274,9 @@ contract MultiAssetSolvencyRegistryTest is Test {
     function test_NormalisesFeedDecimals() public {
         MultiAssetSolvencyRegistry.Asset[] memory wide = assets;
         wide[1].feed = address(new MockAggregator(18, 3_000e18));
-        MultiAssetSolvencyRegistry other =
-            new MultiAssetSolvencyRegistry(company, auditor, wide, address(verifier), MAX_EPOCH_AGE);
+        MultiAssetSolvencyRegistry other = new MultiAssetSolvencyRegistry(
+            company, auditor, wide, address(verifier), MAX_EPOCH_AGE, MIN_EPOCH_INTERVAL, directory
+        );
 
         (uint256[3] memory prices,) = other.readPrices();
         assertEq(prices[1], 3_000e8);
@@ -282,6 +310,27 @@ contract MultiAssetSolvencyRegistryTest is Test {
         uint80[3] memory roundIds = latestRounds();
         vm.prank(company);
         vm.expectRevert(MultiAssetSolvencyRegistry.BadPrice.selector);
+        registry.submitEpoch(proof, rootHash, floors, roundIds);
+    }
+
+    function test_FundsBorrowedForTheSubmissionDoNotCount() public {
+        vm.deal(reserve, 2 ether);
+        sample(registry);
+        vm.deal(reserve, 1_000 ether);
+
+        uint80[3] memory roundIds = latestRounds();
+        vm.prank(company);
+        vm.expectRevert(abi.encodeWithSelector(MultiAssetSolvencyRegistry.Insolvent.selector, 1, 2e8, 12e8));
+        registry.submitEpoch(proof, rootHash, floors, roundIds);
+    }
+
+    function test_SubmissionNeedsASampleFromAnEarlierBlock() public {
+        vm.prank(auditor);
+        registry.sampleReserves();
+
+        uint80[3] memory roundIds = latestRounds();
+        vm.prank(company);
+        vm.expectRevert(ReserveRegistry.ReservesNotSampled.selector);
         registry.submitEpoch(proof, rootHash, floors, roundIds);
     }
 

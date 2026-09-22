@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {KzgVerifier} from "../contracts/KzgVerifier.sol";
 import {KzgSolvencyRegistry} from "../contracts/KzgSolvencyRegistry.sol";
 import {ReserveRegistry} from "../../../shared/contracts/ReserveRegistry.sol";
+import {ReserveDirectory} from "../../../shared/contracts/ReserveDirectory.sol";
 
 contract UnitToken {
     mapping(address => uint256) public balanceOf;
@@ -22,26 +23,30 @@ contract KzgSolvencyRegistryTest is Test {
     address company = makeAddr("company");
     address auditor = makeAddr("auditor");
     address reserve;
+    uint256 reserveKey;
+    ReserveDirectory directory;
+    KzgSolvencyRegistry.Srs srs;
 
     KzgSolvencyRegistry.GrandSum sum;
     KzgSolvencyRegistry.RangeProof range;
     string inclusion;
 
     uint64 constant MAX_EPOCH_AGE = 1 days;
+    uint64 constant MIN_EPOCH_INTERVAL = 1 hours;
 
     function setUp() public {
         vm.chainId(31337);
         vm.warp(1_700_000_000);
-        uint256 key;
-        (reserve, key) = makeAddrAndKey("reserve");
+        vm.roll(1_000);
+        (reserve, reserveKey) = makeAddrAndKey("reserve");
 
         string memory epoch = vm.readFile("arms/snarkless/fixtures/epoch.json");
-        KzgSolvencyRegistry.Srs memory srs =
-            KzgSolvencyRegistry.Srs(g2(epoch, ".g2"), g2(epoch, ".tauG2"), g2(epoch, ".boundG2"));
+        srs = KzgSolvencyRegistry.Srs(g2(epoch, ".g2"), g2(epoch, ".tauG2"), g2(epoch, ".boundG2"));
         token = new UnitToken();
+        directory = new ReserveDirectory();
         deployCodeTo(
             "KzgSolvencyRegistry.sol:KzgSolvencyRegistry",
-            abi.encode(company, auditor, address(token), uint8(0), srs, MAX_EPOCH_AGE),
+            abi.encode(company, auditor, address(token), uint8(0), srs, MAX_EPOCH_AGE, MIN_EPOCH_INTERVAL, directory),
             FIXTURE_REGISTRY
         );
         registry = KzgSolvencyRegistry(FIXTURE_REGISTRY);
@@ -49,10 +54,10 @@ contract KzgSolvencyRegistryTest is Test {
         token.set(reserve, 50_000);
         vm.prank(company);
         registry.proposeReserve(reserve);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, registry.reserveDigest(reserve, block.timestamp));
-        registry.proveReserve(reserve, block.timestamp, abi.encodePacked(r, s, v));
+        proveControl();
         vm.prank(auditor);
         registry.reviewReserve(reserve, true);
+        sample();
 
         sum.balanceCommitment = g1(epoch, ".balanceCommitment");
         sum.shiftedCommitment = g1(epoch, ".shiftedCommitment");
@@ -93,9 +98,34 @@ contract KzgSolvencyRegistryTest is Test {
         );
     }
 
+    function ceremonyG2(string memory json, string memory key) internal pure returns (KzgVerifier.G2Point memory) {
+        uint256[] memory parts = vm.parseJsonUintArray(json, key);
+        return KzgVerifier.G2Point(parts[1], parts[0], parts[3], parts[2]);
+    }
+
+    function proveControl() internal {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(reserveKey, registry.reserveDigest(reserve));
+        registry.proveReserve(reserve, abi.encodePacked(r, s, v));
+    }
+
+    function sample() internal {
+        vm.prank(auditor);
+        registry.sampleReserves();
+        vm.roll(block.number + 1);
+    }
+
     function submit() internal {
         vm.prank(company);
         registry.submitEpoch(sum, range);
+    }
+
+    function test_PublishesTheSetupItVerifiesAgainst() public view {
+        string memory ceremony = vm.readFile("arms/snarkless/fixtures/srs.json");
+        KzgSolvencyRegistry.Srs memory published = registry.getSrs();
+        string memory why = "a verifier has to be able to compare the deployed points with the public ceremony";
+        assertEq(abi.encode(published.g2), abi.encode(ceremonyG2(ceremony, ".g2")), why);
+        assertEq(abi.encode(published.tauG2), abi.encode(ceremonyG2(ceremony, ".tauG2")), why);
+        assertEq(abi.encode(published.boundG2), abi.encode(ceremonyG2(ceremony, ".boundG2")), why);
     }
 
     function test_SubmitEpoch() public {
@@ -116,9 +146,33 @@ contract KzgSolvencyRegistryTest is Test {
         assertLt(used, 2_500_000, "a regression beyond the figure the comparison quotes");
     }
 
+    function test_GasForDeployment() public {
+        uint256 before = gasleft();
+        new KzgSolvencyRegistry(
+            company, auditor, address(token), uint8(0), srs, MAX_EPOCH_AGE, MIN_EPOCH_INTERVAL, directory
+        );
+        uint256 used = before - gasleft();
+        emit log_named_uint("kzg registry deployment gas, excluding the 21000 intrinsic and calldata", used);
+        assertLt(used, 5_500_000, "a regression beyond the figure the comparison quotes");
+    }
+
+    function test_GasForVerifyInclusion() public {
+        submit();
+        (uint256 index, uint256 identity, uint256 balance, KzgVerifier.G1Point memory proof) = customerAt(0);
+        uint256 before = gasleft();
+        bool included = registry.verifyInclusion(0, index, identity, balance, proof);
+        uint256 used = before - gasleft();
+        assertTrue(included);
+        emit log_named_uint("kzg verifyInclusion gas", used);
+        assertLt(used, 250_000, "a regression beyond the figure the comparison quotes");
+    }
+
     function test_AProofDoesNotCarryToTheNextEpoch() public {
         submit();
         assertEq(registry.epochCount(), 1);
+        vm.warp(block.timestamp + MIN_EPOCH_INTERVAL);
+        proveControl();
+        sample();
 
         vm.prank(company);
         vm.expectRevert(KzgSolvencyRegistry.InvalidRangeProof.selector);
@@ -133,6 +187,16 @@ contract KzgSolvencyRegistryTest is Test {
 
     function test_RevertsIfInsolvent() public {
         token.set(reserve, 49_549);
+        sample();
+        vm.prank(company);
+        vm.expectRevert(abi.encodeWithSelector(KzgSolvencyRegistry.Insolvent.selector, 49_549, 49_550));
+        registry.submitEpoch(sum, range);
+    }
+
+    function test_FundsBorrowedForTheSubmissionDoNotCount() public {
+        token.set(reserve, 49_549);
+        sample();
+        token.set(reserve, 1_000_000);
         vm.prank(company);
         vm.expectRevert(abi.encodeWithSelector(KzgSolvencyRegistry.Insolvent.selector, 49_549, 49_550));
         registry.submitEpoch(sum, range);

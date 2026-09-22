@@ -1,21 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import {ReserveDirectory} from "./ReserveDirectory.sol";
+
 interface IERC20Balance {
     function balanceOf(address account) external view returns (uint256);
 }
 
-interface IERC1271 {
-    function isValidSignature(bytes32 digest, bytes calldata signature) external view returns (bytes4);
-}
-
 abstract contract ReserveRegistry {
-    bytes32 private constant DOMAIN_TYPEHASH =
-        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-    bytes32 private constant RESERVE_TYPEHASH =
-        keccak256("ReserveControl(address wallet,uint256 nonce,uint256 expiry)");
-    uint256 private constant SECP256K1_HALF_ORDER = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
-
     uint256 public constant MAX_RESERVES = 64;
 
     enum ReserveStatus {
@@ -30,18 +22,29 @@ abstract contract ReserveRegistry {
     address public pendingCompany;
     address public pendingAuditor;
 
+    ReserveDirectory public immutable directory;
     uint64 public immutable maxEpochAge;
+    uint64 public immutable minEpochInterval;
     uint64 public lastEpochAt;
+    uint64 public lapses;
+    uint64 public window;
+    uint64 public sampledWindow;
+    uint64 public sampledBlock;
+    bytes32 public windowChallenge;
 
-    bytes32 private immutable domainNameHash;
     address[] public reserves;
     mapping(address => ReserveStatus) public reserveStatus;
-    mapping(address => uint256) public reserveNonce;
+    mapping(address => uint64) public confirmedWindow;
+    mapping(address => uint256) private sampledBalance;
 
     event ReserveProposed(address indexed wallet);
-    event ReserveProven(address indexed wallet, uint256 nonce);
+    event ReserveProven(address indexed wallet, uint64 window);
     event ReserveReviewed(address indexed wallet, bool approved);
     event ReserveRemoved(address indexed wallet, address by);
+    event ReservesSampled(uint64 indexed window, uint256 blockNumber);
+    event SampleDiscarded(uint64 indexed window);
+    event WindowOpened(uint64 indexed window, bytes32 challenge);
+    event EpochLapsed(uint64 indexed window, uint256 gap);
     event RoleTransferStarted(bytes32 indexed role, address indexed from, address indexed to);
     event RoleTransferred(bytes32 indexed role, address indexed from, address indexed to);
 
@@ -49,18 +52,33 @@ abstract contract ReserveRegistry {
     error NotAuditor();
     error NotAuthorized();
     error BadRoles();
+    error BadSchedule();
+    error BadDirectory();
     error BadReserve();
     error TooManyReserves();
-    error SignatureExpired();
     error InvalidSignature();
+    error EpochTooSoon(uint256 earliest);
+    error ReservesNotSampled();
 
-    constructor(string memory domainName, address _company, address _auditor, uint64 _maxEpochAge) {
-        if (_company == address(0) || _auditor == address(0) || _company == _auditor) revert BadRoles();
-        if (_maxEpochAge == 0) revert BadRoles();
+    constructor(
+        address _company,
+        address _auditor,
+        uint64 _maxEpochAge,
+        uint64 _minEpochInterval,
+        ReserveDirectory _directory
+    ) {
+        if (_company == address(0) || _auditor == address(0) || _company == _auditor) {
+            revert BadRoles();
+        }
+        if (_maxEpochAge == 0 || _minEpochInterval > _maxEpochAge) revert BadSchedule();
+        if (address(_directory) == address(0)) revert BadDirectory();
         company = _company;
         auditor = _auditor;
         maxEpochAge = _maxEpochAge;
-        domainNameHash = keccak256(bytes(domainName));
+        minEpochInterval = _minEpochInterval;
+        directory = _directory;
+        window = 1;
+        _openWindow();
     }
 
     modifier onlyCompany() {
@@ -72,6 +90,8 @@ abstract contract ReserveRegistry {
         if (msg.sender != auditor) revert NotAuditor();
         _;
     }
+
+    function _reserveTokens() internal view virtual returns (address[] memory);
 
     function transferCompany(address to) external onlyCompany {
         pendingCompany = to;
@@ -100,7 +120,23 @@ abstract contract ReserveRegistry {
     }
 
     function _recordEpoch() internal {
+        if (lastEpochAt != 0) {
+            uint256 gap = block.timestamp - lastEpochAt;
+            if (gap < minEpochInterval) revert EpochTooSoon(lastEpochAt + minEpochInterval);
+            if (gap > maxEpochAge) {
+                lapses++;
+                emit EpochLapsed(window, gap);
+            }
+        }
         lastEpochAt = uint64(block.timestamp);
+        window++;
+        _openWindow();
+    }
+
+    function _openWindow() private {
+        windowChallenge =
+            keccak256(abi.encode(blockhash(block.number - 1), block.prevrandao, block.number, address(this), window));
+        emit WindowOpened(window, windowChallenge);
     }
 
     function epochAge() public view returns (uint64) {
@@ -118,8 +154,39 @@ abstract contract ReserveRegistry {
 
     function reserveBalance(address token) public view returns (uint256 raw) {
         for (uint256 i = 0; i < reserves.length; i++) {
-            raw += token == address(0) ? reserves[i].balance : IERC20Balance(token).balanceOf(reserves[i]);
+            address wallet = reserves[i];
+            if (confirmedWindow[wallet] != window) continue;
+            raw += token == address(0) ? wallet.balance : IERC20Balance(token).balanceOf(wallet);
         }
+    }
+
+    function sampleReserves() external onlyAuditor {
+        address[] memory tokens = _reserveTokens();
+        bool first = sampledWindow != window;
+        for (uint256 i = 0; i < tokens.length; i++) {
+            uint256 balance = reserveBalance(tokens[i]);
+            if (first || balance < sampledBalance[tokens[i]]) sampledBalance[tokens[i]] = balance;
+        }
+        sampledWindow = window;
+        sampledBlock = uint64(block.number);
+        emit ReservesSampled(window, block.number);
+    }
+
+    function discardSample() external onlyAuditor {
+        if (sampledWindow != window) revert ReservesNotSampled();
+        sampledWindow = 0;
+        emit SampleDiscarded(window);
+    }
+
+    function attestedBalance(address token) public view returns (uint256) {
+        if (sampledWindow != window) return 0;
+        uint256 live = reserveBalance(token);
+        uint256 sampled = sampledBalance[token];
+        return live < sampled ? live : sampled;
+    }
+
+    function _requireSample() internal view {
+        if (sampledWindow != window || sampledBlock >= block.number) revert ReservesNotSampled();
     }
 
     function proposeReserve(address wallet) external onlyCompany {
@@ -128,21 +195,18 @@ abstract contract ReserveRegistry {
         emit ReserveProposed(wallet);
     }
 
-    function reserveDigest(address wallet, uint256 expiry) public view returns (bytes32) {
-        bytes32 domain =
-            keccak256(abi.encode(DOMAIN_TYPEHASH, domainNameHash, keccak256("1"), block.chainid, address(this)));
-        bytes32 message = keccak256(abi.encode(RESERVE_TYPEHASH, wallet, reserveNonce[wallet], expiry));
-        return keccak256(abi.encodePacked("\x19\x01", domain, message));
+    function reserveDigest(address wallet) public view returns (bytes32) {
+        return directory.controlDigest(wallet, address(this), windowChallenge);
     }
 
-    function proveReserve(address wallet, uint256 expiry, bytes calldata signature) external {
-        if (reserveStatus[wallet] != ReserveStatus.Proposed) revert BadReserve();
-        if (block.timestamp > expiry) revert SignatureExpired();
-        if (!signedBy(wallet, reserveDigest(wallet, expiry), signature)) revert InvalidSignature();
+    function proveReserve(address wallet, bytes calldata signature) external {
+        ReserveStatus current = reserveStatus[wallet];
+        if (current == ReserveStatus.None) revert BadReserve();
+        if (!directory.proveControl(wallet, windowChallenge, signature)) revert InvalidSignature();
 
-        emit ReserveProven(wallet, reserveNonce[wallet]);
-        reserveNonce[wallet]++;
-        reserveStatus[wallet] = ReserveStatus.Proven;
+        if (current == ReserveStatus.Proposed) reserveStatus[wallet] = ReserveStatus.Proven;
+        confirmedWindow[wallet] = window;
+        emit ReserveProven(wallet, window);
     }
 
     function reviewReserve(address wallet, bool approved) external onlyAuditor {
@@ -153,15 +217,17 @@ abstract contract ReserveRegistry {
             reserveStatus[wallet] = ReserveStatus.Approved;
         } else {
             reserveStatus[wallet] = ReserveStatus.None;
+            directory.release(wallet);
         }
         emit ReserveReviewed(wallet, approved);
     }
 
     function removeReserve(address wallet) external {
         if (msg.sender != company && msg.sender != auditor) revert NotAuthorized();
-        if (reserveStatus[wallet] == ReserveStatus.None) revert BadReserve();
+        ReserveStatus current = reserveStatus[wallet];
+        if (current == ReserveStatus.None) revert BadReserve();
 
-        if (reserveStatus[wallet] == ReserveStatus.Approved) {
+        if (current == ReserveStatus.Approved) {
             for (uint256 i = 0; i < reserves.length; i++) {
                 if (reserves[i] == wallet) {
                     reserves[i] = reserves[reserves.length - 1];
@@ -170,25 +236,8 @@ abstract contract ReserveRegistry {
                 }
             }
         }
-        reserveNonce[wallet]++;
+        if (current != ReserveStatus.Proposed) directory.release(wallet);
         reserveStatus[wallet] = ReserveStatus.None;
         emit ReserveRemoved(wallet, msg.sender);
-    }
-
-    function signedBy(address wallet, bytes32 digest, bytes calldata signature) private view returns (bool) {
-        if (wallet.code.length > 0) {
-            try IERC1271(wallet).isValidSignature(digest, signature) returns (bytes4 magic) {
-                return magic == IERC1271.isValidSignature.selector;
-            } catch {
-                return false;
-            }
-        }
-
-        if (signature.length != 65) return false;
-        bytes32 r = bytes32(signature[0:32]);
-        bytes32 s = bytes32(signature[32:64]);
-        uint8 v = uint8(signature[64]);
-        if (uint256(s) > SECP256K1_HALF_ORDER) return false;
-        return ecrecover(digest, v, r, s) == wallet;
     }
 }

@@ -91,7 +91,7 @@ export const ledger: Solution = {
   name: "Merkle-Sum Tree",
   description: "One Merkle-sum tree per asset; the contract recomputes roots and totals from the public ledger.",
   disclosure: "Customers verify their private Merkle paths locally. Part balances are public; splitting and pseudonyms do not guarantee anonymity.",
-  publication: ["Prepare customer data locally.", "Build the ledger and private customer bundles: npm run ledger -- build <input> <new-directory> <asset-count>", "Audit the public ledger: npm run ledger -- audit <directory>/ledger.json", "Publish through submitLedger with the company key; deliver each private bundle separately."],
+  publication: ["Before each epoch: re-prove control of every reserve wallet, then have the auditor call sampleReserves.", "Prepare customer data locally.", "Build the ledger and private customer bundles: npm run ledger -- build <input> <new-directory> <asset-count>", "Audit the public ledger: npm run ledger -- audit <directory>/ledger.json", "Publish through submitLedger with the company key; deliver each private bundle separately."],
   async read(connection) {
     const c = client(connection);
     const blockNumber = await c.getBlockNumber({ cacheTime: 0 });

@@ -3,7 +3,8 @@ pragma solidity 0.8.28;
 
 import {Script, console} from "forge-std/Script.sol";
 import {MultiAssetSolvencyRegistry} from "../contracts/MultiAssetSolvencyRegistry.sol";
-import {HonkVerifier} from "../contracts/MultiAssetHonkVerifier.sol";
+import {ReserveDirectory} from "../../../shared/contracts/ReserveDirectory.sol";
+import {HonkVerifier, Errors} from "../contracts/MultiAssetHonkVerifier.sol";
 import {MockAggregator, MockToken} from "../contracts/mocks/DemoMocks.sol";
 
 contract MultiAssetDemo is Script {
@@ -22,14 +23,19 @@ contract MultiAssetDemo is Script {
     MockAggregator ethFeed;
     MockAggregator usdcFeed;
     MultiAssetSolvencyRegistry registry;
+    ReserveDirectory directory;
+    HonkVerifier verifier;
 
     function run() external {
         company = vm.addr(COMPANY_KEY);
         auditor = vm.addr(AUDITOR_KEY);
         reserve = vm.addr(RESERVE_KEY);
+        vm.roll(block.number + 1);
+        console.log("==> broadcast with --skip-simulation --slow: proofs and samples must precede the submission block");
 
         vm.startBroadcast(COMPANY_KEY);
-        deploy();
+        deployAssets();
+        deployRegistry();
         fundReserve();
         proposeAndProveReserve();
         vm.stopBroadcast();
@@ -37,7 +43,10 @@ contract MultiAssetDemo is Script {
         vm.startBroadcast(AUDITOR_KEY);
         registry.reviewReserve(reserve, true);
         console.log("==> auditor approved the reserve; it now counts towards assets");
+        registry.sampleReserves();
+        console.log("==> auditor sampled the reserves in a block the company does not control");
         vm.stopBroadcast();
+        vm.roll(block.number + 1);
 
         vm.startBroadcast(COMPANY_KEY);
         submit();
@@ -47,21 +56,30 @@ contract MultiAssetDemo is Script {
         showPerAssetCheck();
     }
 
-    function deploy() internal {
+    function deployAssets() internal {
         btc = new MockToken();
         usdc = new MockToken();
         btcFeed = new MockAggregator(8, 60_000e8);
         ethFeed = new MockAggregator(8, 3_000e8);
         usdcFeed = new MockAggregator(8, 1e8);
         console.log("==> feeds deployed: BTC $60000, ETH $3000, USDC $1");
+        verifier = new HonkVerifier();
+    }
 
+    function deployRegistry() internal {
         MultiAssetSolvencyRegistry.Asset[] memory assets = new MultiAssetSolvencyRegistry.Asset[](3);
         assets[0] = MultiAssetSolvencyRegistry.Asset(address(btc), address(btcFeed), 8, 1 hours);
         assets[1] = MultiAssetSolvencyRegistry.Asset(address(0), address(ethFeed), 18, 1 hours);
         assets[2] = MultiAssetSolvencyRegistry.Asset(address(usdc), address(usdcFeed), 6, 1 days);
 
-        registry = new MultiAssetSolvencyRegistry(company, auditor, assets, address(new HonkVerifier()), 1 days);
+        address expectedDirectory = vm.computeCreateAddress(company, vm.getNonce(company) + 1);
+        registry = new MultiAssetSolvencyRegistry(
+            company, auditor, assets, address(verifier), 1 days, 1 hours, ReserveDirectory(expectedDirectory)
+        );
         require(address(registry) == FIXTURE_REGISTRY, "run against a fresh anvil: the proof is bound to the address");
+        directory = new ReserveDirectory();
+        require(address(directory) == expectedDirectory, "the registry points at the directory deployed next");
+        console.log("==> reserve directory deployed at", address(directory));
         console.log("==> registry deployed at", address(registry));
         console.log("    company:", company);
         console.log("    auditor:", auditor);
@@ -79,10 +97,13 @@ contract MultiAssetDemo is Script {
         registry.proposeReserve(reserve);
         console.log("==> company proposed the reserve");
 
-        uint256 expiry = block.timestamp + 1 hours;
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(RESERVE_KEY, registry.reserveDigest(reserve, expiry));
-        registry.proveReserve(reserve, expiry, abi.encodePacked(r, s, v));
+        proveControl();
         console.log("==> reserve signed the EIP-712 challenge off-chain; company relayed it");
+    }
+
+    function proveControl() internal {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(RESERVE_KEY, registry.reserveDigest(reserve));
+        registry.proveReserve(reserve, abi.encodePacked(r, s, v));
     }
 
     function fixture() internal view returns (bytes memory proof, uint256 rootHash, uint64[3] memory floors) {
@@ -117,19 +138,27 @@ contract MultiAssetDemo is Script {
 
     function showReplayIsRejected() internal {
         (bytes memory proof, uint256 rootHash, uint64[3] memory floors) = fixture();
-        uint80[3] memory roundIds = pinnedRounds();
-        console.log("==> resubmitting the same proof as epoch 1");
+        vm.warp(block.timestamp + 1 hours);
+        btcFeed.set(60_000e8, block.timestamp);
+        ethFeed.set(3_000e8, block.timestamp);
+        (, uint80[3] memory roundIds) = registry.readPrices();
+        proveControl();
+        vm.prank(auditor);
+        registry.sampleReserves();
+        vm.roll(block.number + 1);
+        console.log("==> an hour later, reserves re-proven and sampled; resubmitting the same proof as epoch 1");
         vm.prank(company);
         try registry.submitEpoch(proof, rootHash, floors, roundIds) {
             console.log("FAIL: a proof was accepted for a second epoch");
-        } catch {
+        } catch (bytes memory reason) {
+            require(bytes4(reason) == Errors.SumcheckFailed.selector, "unexpected revert");
             console.log("OK: rejected, the proof is bound to epoch 0 of this registry");
         }
     }
 
     function showPerAssetCheck() internal {
         (bytes memory proof, uint256 rootHash, uint64[3] memory floors) = fixture();
-        uint80[3] memory roundIds = pinnedRounds();
+        (, uint80[3] memory roundIds) = registry.readPrices();
         vm.deal(reserve, 2 ether);
         console.log("==> reserve now holds 2 ETH against 10 owed; BTC still covers it in USD");
         vm.prank(company);

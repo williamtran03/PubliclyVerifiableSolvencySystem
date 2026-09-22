@@ -6,11 +6,12 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { prepareEpoch, readSnapshot } from "../prover/buildMultiAssetTree.ts";
 import { createBundle, parseHoldingsCsv } from "../prover/multiAssetTree.ts";
 import { encodePacked, keccak256 } from "viem";
-import { auditor, company, demoChain, isMain, maxEpochAge, outputDirectory, writeJson } from "../../../scripts/demo/chain.ts";
+import { auditor, company, demoChain, isMain, maxEpochAge, minEpochInterval, outputDirectory, writeJson } from "../../../scripts/demo/chain.ts";
 
 export async function runZkDemo(rpc: string, output: string) {
-  const { client, wallet, artifact, deploy, send, approveReserve, chain } = await demoChain(rpc);
+  const { client, wallet, artifact, deploy, deployDirectory, send, proveReserve, approveReserve, sampleReserves, chain } = await demoChain(rpc);
   if (chain.id !== 31337 || await client.getTransactionCount({ address: company.address }) !== 0) throw new Error("The committed ZK proof requires a fresh Anvil node with chain ID 31337. Use npm run demo to manage a separate node for each arm.");
+  const directory = await deployDirectory();
   const btc = await deploy("DemoAsset.sol", "DemoAsset", ["BTC", 8]);
   const usdc = await deploy("DemoAsset.sol", "DemoAsset", ["USDC", 6]);
   const feeds = [];
@@ -24,7 +25,7 @@ export async function runZkDemo(rpc: string, output: string) {
     { token: btc, feed: feeds[0], decimals: 8, maxPriceAge: 3600 },
     { token: "0x0000000000000000000000000000000000000000", feed: feeds[1], decimals: 18, maxPriceAge: 3600 },
     { token: usdc, feed: feeds[2], decimals: 6, maxPriceAge: 86400 },
-  ], verifier, maxEpochAge]);
+  ], verifier, maxEpochAge, minEpochInterval, directory]);
   const snapshot = readSnapshot("arms/zk-circuit/prover/snapshot.json");
   assert.equal(registry.toLowerCase(), snapshot.registry.toLowerCase(), "ZK fixture address mismatch");
   const abi = artifact("MultiAssetSolvencyRegistry.sol", "MultiAssetSolvencyRegistry").abi as Abi;
@@ -34,12 +35,15 @@ export async function runZkDemo(rpc: string, output: string) {
   await send(company, usdc, tokenAbi, "mint", [reserve.address, 6000n * 10n ** 6n]);
   await client.waitForTransactionReceipt({ hash: await wallet(company).sendTransaction({ to: reserve.address, value: parseEther("12") }) });
   await approveReserve(registry, abi, reserve);
+  await sampleReserves(registry, abi);
   const epoch = JSON.parse(readFileSync("arms/zk-circuit/fixtures/epoch.json", "utf8"));
   const proof = toHex(readFileSync("arms/zk-circuit/fixtures/proof.bin"));
   const holdings = parseHoldingsCsv(readFileSync("arms/zk-circuit/prover/customers.csv", "utf8"));
   const prepared = prepareEpoch(holdings, snapshot, keccak256(encodePacked(["string"], ["northwind demo tree seed"])));
   assert.equal(prepared.rootHash, BigInt(epoch.rootHash), "Committed proof and customer data do not match");
   await send(company, registry, abi, "submitEpoch", [proof, BigInt(epoch.rootHash), epoch.floors.map(BigInt), snapshot.roundIds]);
+  await proveReserve(registry, abi, reserve);
+  await sampleReserves(registry, abi);
   for (const username of new Set(holdings.map(h => h.username))) writeJson(output, `zk-${username}.json`, createBundle(username, prepared.padded, prepared.levels));
   writeJson(output, "zk-epoch.json", epoch);
   copyFileSync("arms/zk-circuit/fixtures/proof.bin", join(output, "zk-proof.bin"));

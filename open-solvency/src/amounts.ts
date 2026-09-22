@@ -15,5 +15,6 @@ export function displayAmount(value: bigint, asset: Asset): string {
 export function freshnessText(freshness: Freshness | undefined): string {
   if (!freshness) return "Freshness unavailable";
   const duration = (seconds: bigint) => seconds >= 3600n ? `${seconds / 3600n}h ${(seconds % 3600n) / 60n}m` : `${seconds / 60n}m ${seconds % 60n}s`;
-  return `${freshness.current ? "Current" : "Expired"} · age ${duration(freshness.age)} · maximum age ${duration(freshness.maxAge)} (at last chain read)`;
+  const lapses = freshness.lapses ? ` · ${freshness.lapses} missed publication deadline${freshness.lapses === 1n ? "" : "s"} on record` : "";
+  return `${freshness.current ? "Current" : "Expired"} · age ${duration(freshness.age)} · maximum age ${duration(freshness.maxAge)}${lapses} (at last chain read)`;
 }

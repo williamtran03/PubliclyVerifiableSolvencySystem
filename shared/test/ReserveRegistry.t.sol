@@ -3,19 +3,37 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {ReserveRegistry} from "../contracts/ReserveRegistry.sol";
+import {ReserveDirectory} from "../contracts/ReserveDirectory.sol";
 
 contract Registry is ReserveRegistry {
-    constructor(address company, address auditor) ReserveRegistry("Registry", company, auditor, 1 days) {}
+    address[] private tokens;
+
+    constructor(address company, address auditor, ReserveDirectory directory, address[] memory _tokens)
+        ReserveRegistry(company, auditor, 1 days, 1 hours, directory)
+    {
+        tokens = _tokens;
+    }
+
+    function _reserveTokens() internal view override returns (address[] memory) {
+        return tokens;
+    }
 
     function recordEpoch() external {
         _recordEpoch();
     }
+
+    function attested(address token) external view returns (uint256) {
+        _requireSample();
+        return attestedBalance(token);
+    }
 }
 
 contract BoundedRegistry is ReserveRegistry {
-    constructor(address company, address auditor, uint64 maxAge)
-        ReserveRegistry("Registry", company, auditor, maxAge)
+    constructor(address company, address auditor, uint64 maxAge, uint64 minInterval, ReserveDirectory directory)
+        ReserveRegistry(company, auditor, maxAge, minInterval, directory)
     {}
+
+    function _reserveTokens() internal pure override returns (address[] memory tokens) {}
 }
 
 contract MockToken {
@@ -39,6 +57,8 @@ contract MockMultisig {
 }
 
 contract ReserveRegistryTest is Test {
+    ReserveDirectory directory;
+    MockToken token;
     Registry registry;
     address company = makeAddr("company");
     address auditor = makeAddr("auditor");
@@ -47,13 +67,30 @@ contract ReserveRegistryTest is Test {
 
     function setUp() public {
         vm.warp(1_700_000_000);
+        vm.roll(1_000);
         (wallet, key) = makeAddrAndKey("reserve");
-        registry = new Registry(company, auditor);
+        directory = new ReserveDirectory();
+        token = new MockToken();
+        registry = newRegistry();
     }
 
-    function sign(address signer, uint256 signerKey, uint256 expiry) internal view returns (bytes memory) {
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, registry.reserveDigest(signer, expiry));
+    function newRegistry() internal returns (Registry) {
+        address[] memory tokens = new address[](2);
+        tokens[1] = address(token);
+        return new Registry(company, auditor, directory, tokens);
+    }
+
+    function sign(Registry target, address signer, uint256 signerKey) internal view returns (bytes memory) {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey, target.reserveDigest(signer));
         return abi.encodePacked(r, s, v);
+    }
+
+    function sign(address signer, uint256 signerKey) internal view returns (bytes memory) {
+        return sign(registry, signer, signerKey);
+    }
+
+    function prove(address target, uint256 targetKey) internal {
+        registry.proveReserve(target, sign(target, targetKey));
     }
 
     function propose(address target) internal {
@@ -67,18 +104,37 @@ contract ReserveRegistryTest is Test {
 
     function approve(address target, uint256 targetKey) internal {
         propose(target);
-        registry.proveReserve(target, block.timestamp, sign(target, targetKey, block.timestamp));
+        prove(target, targetKey);
         vm.prank(auditor);
         registry.reviewReserve(target, true);
     }
 
+    function sample() internal {
+        vm.prank(auditor);
+        registry.sampleReserves();
+    }
+
     function test_RejectsMissingOrMergedRoles() public {
+        address[] memory none;
         vm.expectRevert(ReserveRegistry.BadRoles.selector);
-        new Registry(address(0), auditor);
+        new Registry(address(0), auditor, directory, none);
         vm.expectRevert(ReserveRegistry.BadRoles.selector);
-        new Registry(company, address(0));
+        new Registry(company, address(0), directory, none);
         vm.expectRevert(ReserveRegistry.BadRoles.selector);
-        new Registry(company, company);
+        new Registry(company, company, directory, none);
+    }
+
+    function test_RejectsAScheduleWithoutAWindow() public {
+        vm.expectRevert(ReserveRegistry.BadSchedule.selector);
+        new BoundedRegistry(company, auditor, 0, 0, directory);
+        vm.expectRevert(ReserveRegistry.BadSchedule.selector);
+        new BoundedRegistry(company, auditor, 1 days, 1 days + 1, directory);
+        new BoundedRegistry(company, auditor, 1 days, 1 days, directory);
+    }
+
+    function test_RejectsAMissingDirectory() public {
+        vm.expectRevert(ReserveRegistry.BadDirectory.selector);
+        new BoundedRegistry(company, auditor, 1 days, 1 hours, ReserveDirectory(address(0)));
     }
 
     function test_OnlyTheCompanyProposes() public {
@@ -89,7 +145,7 @@ contract ReserveRegistryTest is Test {
 
     function test_OnlyTheAuditorApproves() public {
         propose(wallet);
-        registry.proveReserve(wallet, block.timestamp, sign(wallet, key, block.timestamp));
+        prove(wallet, key);
 
         vm.prank(company);
         vm.expectRevert(ReserveRegistry.NotAuditor.selector);
@@ -106,9 +162,11 @@ contract ReserveRegistryTest is Test {
     function test_Lifecycle() public {
         propose(wallet);
         assertEq(status(wallet), uint256(ReserveRegistry.ReserveStatus.Proposed));
+        assertEq(directory.registryOf(wallet), address(0), "proposing claims nothing");
 
-        registry.proveReserve(wallet, block.timestamp, sign(wallet, key, block.timestamp));
+        prove(wallet, key);
         assertEq(status(wallet), uint256(ReserveRegistry.ReserveStatus.Proven));
+        assertEq(directory.registryOf(wallet), address(registry));
         assertEq(registry.reserveCount(), 0);
 
         vm.prank(auditor);
@@ -121,6 +179,7 @@ contract ReserveRegistryTest is Test {
         registry.removeReserve(wallet);
         assertEq(status(wallet), uint256(ReserveRegistry.ReserveStatus.None));
         assertEq(registry.reserveCount(), 0);
+        assertEq(directory.registryOf(wallet), address(0), "removal releases the claim");
     }
 
     function test_RemovalKeepsTheOtherReserves() public {
@@ -128,10 +187,7 @@ contract ReserveRegistryTest is Test {
         for (uint256 i = 0; i < 3; i++) {
             uint256 walletKey;
             (wallets[i], walletKey) = makeAddrAndKey(string.concat("reserve", vm.toString(i)));
-            propose(wallets[i]);
-            registry.proveReserve(wallets[i], block.timestamp, sign(wallets[i], walletKey, block.timestamp));
-            vm.prank(auditor);
-            registry.reviewReserve(wallets[i], true);
+            approve(wallets[i], walletKey);
         }
 
         vm.prank(company);
@@ -150,12 +206,13 @@ contract ReserveRegistryTest is Test {
 
     function test_RejectedReserveCanBeProposedAgain() public {
         propose(wallet);
-        registry.proveReserve(wallet, block.timestamp, sign(wallet, key, block.timestamp));
+        prove(wallet, key);
         vm.prank(auditor);
         registry.reviewReserve(wallet, false);
 
         assertEq(status(wallet), uint256(ReserveRegistry.ReserveStatus.None));
         assertEq(registry.reserveCount(), 0);
+        assertEq(directory.registryOf(wallet), address(0), "rejection releases the claim");
         propose(wallet);
     }
 
@@ -170,21 +227,196 @@ contract ReserveRegistryTest is Test {
     }
 
     function test_SumsOnlyApprovedReserves() public {
-        MockToken token = new MockToken();
         (address other, uint256 otherKey) = makeAddrAndKey("other");
         token.mint(wallet, 5);
         token.mint(other, 7);
         vm.deal(wallet, 1 ether);
 
         propose(wallet);
-        registry.proveReserve(wallet, block.timestamp, sign(wallet, key, block.timestamp));
+        prove(wallet, key);
         propose(other);
-        registry.proveReserve(other, block.timestamp, sign(other, otherKey, block.timestamp));
+        prove(other, otherKey);
         vm.prank(auditor);
         registry.reviewReserve(wallet, true);
 
         assertEq(registry.reserveBalance(address(token)), 5);
         assertEq(registry.reserveBalance(address(0)), 1 ether);
+    }
+
+    function test_AWalletBacksOnlyOneRegistry() public {
+        token.mint(wallet, 5);
+        approve(wallet, key);
+
+        Registry rival = newRegistry();
+        vm.prank(company);
+        rival.proposeReserve(wallet);
+        bytes memory signature = sign(rival, wallet, key);
+        vm.expectRevert(abi.encodeWithSelector(ReserveDirectory.ClaimedByAnotherRegistry.selector, address(registry)));
+        rival.proveReserve(wallet, signature);
+
+        vm.prank(company);
+        registry.removeReserve(wallet);
+        rival.proveReserve(wallet, sign(rival, wallet, key));
+        assertEq(directory.registryOf(wallet), address(rival), "released wallets can move, one registry at a time");
+    }
+
+    function test_ReservesStopCountingAtTheNextWindowUntilProvenAgain() public {
+        token.mint(wallet, 5);
+        approve(wallet, key);
+        assertEq(registry.reserveBalance(address(token)), 5);
+
+        registry.recordEpoch();
+        assertEq(registry.reserveBalance(address(token)), 0, "control shown last window does not carry over");
+
+        vm.roll(block.number + 1);
+        prove(wallet, key);
+        assertEq(status(wallet), uint256(ReserveRegistry.ReserveStatus.Approved));
+        assertEq(registry.reserveBalance(address(token)), 5);
+    }
+
+    function test_ControlSignatureIsBoundToTheWindowItWasSignedFor() public {
+        propose(wallet);
+        bytes32 challenge = registry.windowChallenge();
+        bytes memory signature = sign(wallet, key);
+
+        registry.recordEpoch();
+        assertTrue(registry.windowChallenge() != challenge, "every window opens with a challenge of its own");
+
+        vm.expectRevert(ReserveRegistry.InvalidSignature.selector);
+        registry.proveReserve(wallet, signature);
+        registry.proveReserve(wallet, sign(wallet, key));
+    }
+
+    function test_AChallengeIsNeverEmpty() public {
+        vm.expectRevert(ReserveDirectory.BadChallenge.selector);
+        directory.controlDigest(wallet, address(registry), bytes32(0));
+        assertTrue(
+            registry.windowChallenge() != bytes32(0), "an empty challenge would be a signature anyone can prepare"
+        );
+    }
+
+    function test_EpochsRespectTheMinimumInterval() public {
+        registry.recordEpoch();
+        uint256 earliest = block.timestamp + 1 hours;
+
+        vm.warp(earliest - 1);
+        vm.expectRevert(abi.encodeWithSelector(ReserveRegistry.EpochTooSoon.selector, earliest));
+        registry.recordEpoch();
+
+        vm.warp(earliest);
+        registry.recordEpoch();
+        assertEq(registry.lapses(), 0);
+    }
+
+    function test_ALateEpochIsRecordedAsALapse() public {
+        registry.recordEpoch();
+        vm.warp(block.timestamp + 1 days + 1);
+        vm.expectEmit(address(registry));
+        emit ReserveRegistry.EpochLapsed(2, 1 days + 1);
+        registry.recordEpoch();
+        assertEq(registry.lapses(), 1, "the missed deadline stays on record after publishing resumes");
+        assertTrue(registry.isCurrent());
+    }
+
+    function test_OnlyTheAuditorSamples() public {
+        vm.prank(company);
+        vm.expectRevert(ReserveRegistry.NotAuditor.selector);
+        registry.sampleReserves();
+    }
+
+    function test_SubmissionNeedsASampleFromAnEarlierBlock() public {
+        token.mint(wallet, 5);
+        approve(wallet, key);
+
+        vm.expectRevert(ReserveRegistry.ReservesNotSampled.selector);
+        registry.attested(address(token));
+
+        sample();
+        vm.expectRevert(ReserveRegistry.ReservesNotSampled.selector);
+        registry.attested(address(token));
+
+        vm.roll(block.number + 1);
+        assertEq(registry.attested(address(token)), 5);
+    }
+
+    function test_FundsBorrowedAfterTheSampleDoNotCount() public {
+        token.mint(wallet, 5);
+        approve(wallet, key);
+        sample();
+        vm.roll(block.number + 1);
+
+        token.mint(wallet, 1_000_000);
+        assertEq(registry.reserveBalance(address(token)), 1_000_005);
+        assertEq(registry.attested(address(token)), 5, "a flash loan inside the submission cannot reach the sample");
+    }
+
+    function test_FundsGoneAfterTheSampleDoNotCount() public {
+        vm.deal(wallet, 10);
+        approve(wallet, key);
+        sample();
+        vm.roll(block.number + 1);
+
+        vm.deal(wallet, 4);
+        assertEq(registry.attested(address(0)), 4);
+    }
+
+    function test_SamplingKeepsTheLowestBalanceOfTheWindow() public {
+        vm.deal(wallet, 10);
+        approve(wallet, key);
+        sample();
+        vm.deal(wallet, 3);
+        sample();
+        vm.deal(wallet, 10);
+        sample();
+        vm.roll(block.number + 1);
+
+        assertEq(registry.attested(address(0)), 3);
+    }
+
+    function test_APrematureSampleCanBeDiscarded() public {
+        token.mint(wallet, 5);
+        approve(wallet, key);
+        registry.recordEpoch();
+        vm.roll(block.number + 1);
+
+        sample();
+        prove(wallet, key);
+        vm.roll(block.number + 1);
+        assertEq(registry.attested(address(token)), 0, "a sample taken before the re-proof pins zero for the window");
+
+        vm.prank(auditor);
+        vm.expectEmit(address(registry));
+        emit ReserveRegistry.SampleDiscarded(2);
+        registry.discardSample();
+        vm.expectRevert(ReserveRegistry.ReservesNotSampled.selector);
+        registry.attested(address(token));
+
+        sample();
+        vm.roll(block.number + 1);
+        assertEq(registry.attested(address(token)), 5, "a fresh sample starts the window's minimum over");
+    }
+
+    function test_OnlyTheAuditorDiscardsASample() public {
+        vm.prank(auditor);
+        vm.expectRevert(ReserveRegistry.ReservesNotSampled.selector);
+        registry.discardSample();
+
+        sample();
+        vm.prank(company);
+        vm.expectRevert(ReserveRegistry.NotAuditor.selector);
+        registry.discardSample();
+    }
+
+    function test_AnEpochRetiresTheSample() public {
+        vm.deal(wallet, 10);
+        approve(wallet, key);
+        sample();
+        vm.roll(block.number + 1);
+        registry.recordEpoch();
+
+        assertEq(registry.attestedBalance(address(0)), 0);
+        vm.expectRevert(ReserveRegistry.ReservesNotSampled.selector);
+        registry.attested(address(0));
     }
 
     function test_CompanyRotatesInTwoSteps() public {
@@ -217,7 +449,7 @@ contract ReserveRegistryTest is Test {
         assertEq(registry.auditor(), next);
 
         propose(wallet);
-        registry.proveReserve(wallet, block.timestamp, sign(wallet, key, block.timestamp));
+        prove(wallet, key);
         vm.prank(auditor);
         vm.expectRevert(ReserveRegistry.NotAuditor.selector);
         registry.reviewReserve(wallet, true);
@@ -295,11 +527,6 @@ contract ReserveRegistryTest is Test {
         assertTrue(registry.isCurrent(), "publishing again restores it");
     }
 
-    function test_RejectsAZeroEpochBound() public {
-        vm.expectRevert(ReserveRegistry.BadRoles.selector);
-        new BoundedRegistry(company, auditor, 0);
-    }
-
     function test_ApprovalStopsAtMaxReserves() public {
         uint256 cap = registry.MAX_RESERVES();
         for (uint256 i = 0; i < cap; i++) {
@@ -310,7 +537,7 @@ contract ReserveRegistryTest is Test {
 
         (address extra, uint256 extraKey) = makeAddrAndKey("one too many");
         propose(extra);
-        registry.proveReserve(extra, block.timestamp, sign(extra, extraKey, block.timestamp));
+        prove(extra, extraKey);
         vm.prank(auditor);
         vm.expectRevert(ReserveRegistry.TooManyReserves.selector);
         registry.reviewReserve(extra, true);
@@ -324,14 +551,13 @@ contract ReserveRegistryTest is Test {
     }
 
     function testFuzz_ReserveBalanceSumsExactlyTheApproved(uint96 a, uint96 b, bool approveSecond) public {
-        MockToken token = new MockToken();
         (address other, uint256 otherKey) = makeAddrAndKey("fuzz other");
         token.mint(wallet, a);
         token.mint(other, b);
 
         approve(wallet, key);
         propose(other);
-        registry.proveReserve(other, block.timestamp, sign(other, otherKey, block.timestamp));
+        prove(other, otherKey);
         vm.prank(auditor);
         registry.reviewReserve(other, approveSecond);
 
@@ -350,90 +576,76 @@ contract ReserveRegistryTest is Test {
         assertEq(registry.company(), company);
     }
 
-    function testFuzz_RemovalInvalidatesAnOldSignature(uint32 expiryOffset) public {
-        uint256 expiry = block.timestamp + uint256(expiryOffset);
+    function test_RemovalInvalidatesAnOldSignature() public {
         propose(wallet);
-        bytes memory signature = sign(wallet, key, expiry);
-        registry.proveReserve(wallet, expiry, signature);
+        bytes memory signature = sign(wallet, key);
+        registry.proveReserve(wallet, signature);
 
         vm.prank(company);
         registry.removeReserve(wallet);
 
         propose(wallet);
         vm.expectRevert(ReserveRegistry.InvalidSignature.selector);
-        registry.proveReserve(wallet, expiry, signature);
+        registry.proveReserve(wallet, signature);
+    }
+
+    function test_ASignatureProvesControlOnlyOnce() public {
+        propose(wallet);
+        bytes memory signature = sign(wallet, key);
+        registry.proveReserve(wallet, signature);
+
+        vm.expectRevert(ReserveRegistry.InvalidSignature.selector);
+        registry.proveReserve(wallet, signature);
     }
 
     function test_RejectsASignatureFromAnotherKey() public {
         (, uint256 wrongKey) = makeAddrAndKey("attacker");
         propose(wallet);
 
-        bytes memory signature = sign(wallet, wrongKey, block.timestamp);
+        bytes memory signature = sign(wallet, wrongKey);
         vm.expectRevert(ReserveRegistry.InvalidSignature.selector);
-        registry.proveReserve(wallet, block.timestamp, signature);
+        registry.proveReserve(wallet, signature);
     }
 
     function test_RejectsMalformedAndHighSSignatures() public {
         propose(wallet);
 
         vm.expectRevert(ReserveRegistry.InvalidSignature.selector);
-        registry.proveReserve(wallet, block.timestamp, hex"00");
+        registry.proveReserve(wallet, hex"00");
 
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, registry.reserveDigest(wallet, block.timestamp));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, registry.reserveDigest(wallet));
         uint256 n = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141;
         bytes memory twin = abi.encodePacked(r, bytes32(n - uint256(s)), v == 27 ? uint8(28) : uint8(27));
         vm.expectRevert(ReserveRegistry.InvalidSignature.selector);
-        registry.proveReserve(wallet, block.timestamp, twin);
-    }
-
-    function test_RejectsAnExpiredSignature() public {
-        propose(wallet);
-
-        bytes memory signature = sign(wallet, key, block.timestamp);
-        vm.warp(block.timestamp + 1);
-        vm.expectRevert(ReserveRegistry.SignatureExpired.selector);
-        registry.proveReserve(wallet, block.timestamp - 1, signature);
+        registry.proveReserve(wallet, twin);
     }
 
     function test_SignatureIsBoundToChainAndRegistry() public {
-        bytes memory signature = sign(wallet, key, block.timestamp);
+        bytes memory signature = sign(wallet, key);
 
-        Registry other = new Registry(company, auditor);
+        Registry other = newRegistry();
         vm.prank(company);
         other.proposeReserve(wallet);
         vm.expectRevert(ReserveRegistry.InvalidSignature.selector);
-        other.proveReserve(wallet, block.timestamp, signature);
+        other.proveReserve(wallet, signature);
 
         propose(wallet);
         vm.chainId(block.chainid + 1);
         vm.expectRevert(ReserveRegistry.InvalidSignature.selector);
-        registry.proveReserve(wallet, block.timestamp, signature);
+        registry.proveReserve(wallet, signature);
     }
 
     function test_SignatureCannotBeReplayedAfterRemoval() public {
-        uint256 expiry = block.timestamp + 1 days;
-        bytes memory signature = sign(wallet, key, expiry);
+        bytes memory signature = sign(wallet, key);
 
         propose(wallet);
-        registry.proveReserve(wallet, expiry, signature);
+        registry.proveReserve(wallet, signature);
         vm.prank(company);
         registry.removeReserve(wallet);
 
         propose(wallet);
         vm.expectRevert(ReserveRegistry.InvalidSignature.selector);
-        registry.proveReserve(wallet, expiry, signature);
-    }
-
-    function test_SignatureCollectedBeforeRemovalCannotBeUsedAfter() public {
-        propose(wallet);
-        uint256 expiry = block.timestamp + 1 days;
-        bytes memory signature = sign(wallet, key, expiry);
-
-        vm.prank(company);
-        registry.removeReserve(wallet);
-        propose(wallet);
-        vm.expectRevert(ReserveRegistry.InvalidSignature.selector);
-        registry.proveReserve(wallet, expiry, signature);
+        registry.proveReserve(wallet, signature);
     }
 
     function test_ContractWalletProvesControlThroughERC1271() public {
@@ -442,9 +654,9 @@ contract ReserveRegistryTest is Test {
         propose(address(multisig));
 
         vm.expectRevert(ReserveRegistry.InvalidSignature.selector);
-        registry.proveReserve(address(multisig), block.timestamp, hex"bad0");
+        registry.proveReserve(address(multisig), hex"bad0");
 
-        registry.proveReserve(address(multisig), block.timestamp, hex"c0ffee");
+        registry.proveReserve(address(multisig), hex"c0ffee");
         assertEq(status(address(multisig)), uint256(ReserveRegistry.ReserveStatus.Proven));
     }
 }

@@ -23,6 +23,8 @@ Generate the ledger and proofs with the arm's existing CLI or Foundry workflow. 
 | ZK circuit | `epoch.json` from `make zk-fixtures` | `proof.bin` from `make zk-prove`; three oracle round IDs |
 | KZG | `epoch.json` from `make kzg-epoch` | `range-proof.json` |
 
+Before each epoch, every reserve wallet re-proves control (a signature over a recent block hash) and the auditor calls `sampleReserves` in an earlier block; the registry counts the lower of the sampled and the live balance. A sample taken before a wallet re-proved counts that wallet at zero; the auditor retracts it with `discardSample` and samples again. Epochs must be at least `minEpochInterval` apart. The site checks this window and the auditor's sample before preparing a submission, and shows the number of missed deadlines (`lapses`) next to the freshness.
+
 The site checks the artifact against the selected register where possible, simulates the contract call and requests confirmation from the browser wallet. The wallet must be on the same chain as the RPC and hold the contract's company role. A successful wallet response is a **submitted transaction**, not a confirmed epoch; reload after it is mined. Do not add private bundles, witness files, account salts or internal ledgers to the static site.
 
 ## Legacy demo site

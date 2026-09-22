@@ -12,6 +12,7 @@ import {
   http,
   parseEther,
   toHex,
+  createTestClient,
   type Abi,
   type Account,
   type Address,
@@ -24,6 +25,7 @@ import { prepareEpoch } from "../prover/buildMultiAssetTree.ts";
 import { createBundle, epochContext, parseHoldingsCsv, verifyBundle, type Customer } from "../prover/multiAssetTree.ts";
 
 const MAX_EPOCH_AGE = 86_400n;
+const MIN_EPOCH_INTERVAL = 60n;
 
 const company = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 const auditor = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d");
@@ -109,12 +111,13 @@ test("Anvil: signed reserve, auditor approval, real proof per epoch, customer ve
 
     const wallet = (account: Account) => createWalletClient({ account, chain: foundry, transport: http(rpc) });
     const registryAbi = artifact("MultiAssetSolvencyRegistry.sol", "MultiAssetSolvencyRegistry").abi;
+    const testClient = createTestClient({ mode: "anvil", chain: foundry, transport: http(rpc) });
     const tokenAbi = artifact("DemoMocks.sol", "MockToken").abi;
 
-    async function deploy(source: string, name: string, args: unknown[] = [], libraries: Record<string, Address> = {}) {
+    async function deploy(source: string, name: string, args: unknown[] = [], libraries: Record<string, Address> = {}, from: Account = company) {
       const { abi, bytecode, linkReferences } = artifact(source, name);
       const linked = link(bytecode, linkReferences, libraries);
-      const hash = await wallet(company).deployContract({ abi, bytecode: linked, args });
+      const hash = await wallet(from).deployContract({ abi, bytecode: linked, args });
       const { contractAddress } = await publicClient.waitForTransactionReceipt({ hash });
       return contractAddress!;
     }
@@ -126,6 +129,7 @@ test("Anvil: signed reserve, auditor approval, real proof per epoch, customer ve
       assert.equal(receipt.status, "success", functionName);
     }
 
+    const directory = await deploy("ReserveDirectory.sol", "ReserveDirectory", [], {}, auditor);
     const btc = await deploy("DemoMocks.sol", "MockToken");
     const usdc = await deploy("DemoMocks.sol", "MockToken");
     const feeds = [
@@ -148,6 +152,8 @@ test("Anvil: signed reserve, auditor approval, real proof per epoch, customer ve
       assets,
       verifier,
       MAX_EPOCH_AGE,
+      MIN_EPOCH_INTERVAL,
+      directory,
     ]);
     const read = (functionName: string, args: unknown[] = []) =>
       publicClient.readContract({ address: registry, abi: registryAbi, functionName, args }) as Promise<any>;
@@ -162,31 +168,55 @@ test("Anvil: signed reserve, auditor approval, real proof per epoch, customer ve
     await send(company, registry, registryAbi, "proposeReserve", [reserve.address]);
     await assert.rejects(send(auditor, registry, registryAbi, "reviewReserve", [reserve.address, true]), /BadReserve/);
 
-    const expiry = BigInt(Math.floor(Date.now() / 1000) + 3600);
-    const typedData = {
-      domain: { name: "MultiAssetSolvencyRegistry", version: "1", chainId: foundry.id, verifyingContract: registry },
-      types: {
-        ReserveControl: [
-          { name: "wallet", type: "address" },
-          { name: "nonce", type: "uint256" },
-          { name: "expiry", type: "uint256" },
-        ],
-      },
-      primaryType: "ReserveControl",
-      message: { wallet: reserve.address, nonce: 0n, expiry },
-    } as const;
+    const directoryNonce = (await publicClient.readContract({
+      address: directory,
+      abi: artifact("ReserveDirectory.sol", "ReserveDirectory").abi,
+      functionName: "nonces",
+      args: [reserve.address],
+    })) as bigint;
+    async function control(nonce: bigint) {
+      const challenge = (await publicClient.readContract({
+        address: registry,
+        abi: registryAbi,
+        functionName: "windowChallenge",
+      })) as Hex;
+      const typedData = {
+        domain: { name: "ReserveDirectory", version: "1", chainId: foundry.id, verifyingContract: directory },
+        types: {
+          ReserveControl: [
+            { name: "wallet", type: "address" },
+            { name: "registry", type: "address" },
+            { name: "nonce", type: "uint256" },
+            { name: "challenge", type: "bytes32" },
+          ],
+        },
+        primaryType: "ReserveControl",
+        message: { wallet: reserve.address, registry, nonce, challenge },
+      } as const;
+      return { challenge, typedData };
+    }
+    const proveControl = async (nonce: bigint) => {
+      const { typedData } = await control(nonce);
+      await send(company, registry, registryAbi, "proveReserve", [reserve.address, await reserve.signTypedData(typedData)]);
+    };
+    const sample = async () => {
+      await send(auditor, registry, registryAbi, "sampleReserves", []);
+      await testClient.mine({ blocks: 1 });
+    };
 
-    const forged = await privateKeyToAccount(generatePrivateKey()).signTypedData(typedData);
+    const first = await control(directoryNonce);
+    const forged = await privateKeyToAccount(generatePrivateKey()).signTypedData(first.typedData);
     await assert.rejects(
-      send(company, registry, registryAbi, "proveReserve", [reserve.address, expiry, forged]),
+      send(company, registry, registryAbi, "proveReserve", [reserve.address, forged]),
       /InvalidSignature/,
     );
-    const signature = await reserve.signTypedData(typedData);
-    await send(company, registry, registryAbi, "proveReserve", [reserve.address, expiry, signature]);
+    await proveControl(directoryNonce);
 
     assert.deepEqual(await read("reserveUnits"), [0n, 0n, 0n], "proven but unapproved reserves do not count");
     await assert.rejects(send(company, registry, registryAbi, "reviewReserve", [reserve.address, true]), /NotAuditor/);
     await send(auditor, registry, registryAbi, "reviewReserve", [reserve.address, true]);
+    assert.deepEqual(await read("reserveUnits"), [0n, 0n, 0n], "nothing counts before the auditor samples");
+    await sample();
 
     const holdings = parseHoldingsCsv(readFileSync("arms/zk-circuit/prover/customers.csv", "utf8"));
     const seed = () => toHex(crypto.getRandomValues(new Uint8Array(32)));
@@ -230,7 +260,11 @@ test("Anvil: signed reserve, auditor approval, real proof per epoch, customer ve
       );
     }
 
-    await assert.rejects(submit(company, proof0, epoch0));
+    await assert.rejects(submit(company, proof0, epoch0), /ReservesNotSampled/);
+    await testClient.increaseTime({ seconds: Number(MIN_EPOCH_INTERVAL) });
+    await testClient.mine({ blocks: 1 });
+    await proveControl(directoryNonce + 1n);
+    await sample();
     const snapshot1 = await fetchSnapshot(rpc, registry);
     assert.equal(snapshot1.epochId, 1n);
     const epoch1 = prepareEpoch(holdings, snapshot1, seed());
@@ -241,6 +275,10 @@ test("Anvil: signed reserve, auditor approval, real proof per epoch, customer ve
     assert.equal((await read("getEpoch", [0n])).rootHash, epoch0.rootHash);
     assert.equal((await read("latestEpoch")).rootHash, epoch1.rootHash);
 
+    await testClient.increaseTime({ seconds: Number(MIN_EPOCH_INTERVAL) });
+    await testClient.mine({ blocks: 1 });
+    await proveControl(directoryNonce + 2n);
+    await sample();
     await send(auditor, registry, registryAbi, "removeReserve", [reserve.address]);
     await assert.rejects(submit(company, proof0, epoch1), /Insolvent/);
   } finally {

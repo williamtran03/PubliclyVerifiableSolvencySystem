@@ -13,7 +13,7 @@ const abi = parseAbi([
   "struct Epoch { bytes32 snapshotId; uint256[] rootHashes; uint256[] liabilities; uint256[] reserves; uint64 timestamp; }",
   "function epochCount() view returns (uint256)", "function getEpoch(uint256) view returns (Epoch)",
   "function assets(uint256) view returns (address)", "function isCurrent() view returns (bool)",
-  "function epochAge() view returns (uint64)", "function maxEpochAge() view returns (uint64)",
+  "function epochAge() view returns (uint64)", "function maxEpochAge() view returns (uint64)", "function lapses() view returns (uint64)",
   "function submitLedger(bytes32 snapshotId, uint256[][] identities, uint256[][] amounts)",
   "event LedgerSubmitted(uint256 indexed epochId, bytes32 indexed snapshotId, uint256[] rootHashes, uint256[] liabilities, uint256[] reserves)",
 ]);
@@ -41,7 +41,7 @@ for (const mode of ["direct", "contract-wallet", "unavailable-history", "malform
           value: "0x0", nonce: "0x0", gas: "0x100000", gasPrice: "0x1", type: "0x0", v: "0x1b", r: "0x1", s: "0x1" };
       } else {
         const { functionName } = decodeFunctionData({ abi, data: request.params[0].data });
-        const values: Record<string, unknown> = { epochCount: 1n, getEpoch: { snapshotId, rootHashes: roots, liabilities: [100n], reserves: [200n], timestamp: 1800000000n }, assets: zeroAddress, isCurrent: true, epochAge: 10n, maxEpochAge: 86400n };
+        const values: Record<string, unknown> = { epochCount: 1n, getEpoch: { snapshotId, rootHashes: roots, liabilities: [100n], reserves: [200n], timestamp: 1800000000n }, assets: zeroAddress, isCurrent: true, epochAge: 10n, maxEpochAge: 86400n, lapses: 0n };
         result = encodeFunctionResult({ abi, functionName: functionName as "epochCount", result: values[functionName] as bigint });
       }
       return new Response(JSON.stringify({ jsonrpc: "2.0", id: request.id, result }), { headers: { "content-type": "application/json" } });

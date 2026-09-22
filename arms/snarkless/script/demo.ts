@@ -5,12 +5,12 @@ import type { Abi } from "viem";
 import { loadSrs, g2ForPrecompile, type G1Point } from "../prover/srs.ts";
 import { buildGrandSumEpoch, epochContext, identityOf, proveInclusion, type Account } from "../prover/grandSum.ts";
 import { proveRange } from "../prover/range.ts";
-import { auditor, company, demoChain, isMain, maxEpochAge, outputDirectory, writeJson } from "../../../scripts/demo/chain.ts";
+import { auditor, company, demoChain, isMain, maxEpochAge, minEpochInterval, outputDirectory, writeJson } from "../../../scripts/demo/chain.ts";
 
 const point = (p: G1Point) => p.toAffine();
 
 export async function runKzgDemo(rpc: string, output: string) {
-  const { client, artifact, deploy, send, approveReserve, chain } = await demoChain(rpc);
+  const { client, artifact, deploy, deployDirectory, send, proveReserve, approveReserve, sampleReserves, chain } = await demoChain(rpc);
   const srs = loadSrs("arms/snarkless/fixtures/srs.json");
   const g2 = (p: typeof srs.g2) => {
     const [xImag, xReal, yImag, yReal] = g2ForPrecompile(p);
@@ -18,10 +18,11 @@ export async function runKzgDemo(rpc: string, output: string) {
   };
   const token = await deploy("DemoAsset.sol", "DemoAsset", ["TEST", 0]);
   const abi = artifact("KzgSolvencyRegistry.sol", "KzgSolvencyRegistry").abi as Abi;
-  const registry = await deploy("KzgSolvencyRegistry.sol", "KzgSolvencyRegistry", [company.address, auditor.address, token, 0, { g2: g2(srs.g2), tauG2: g2(srs.tauG2), boundG2: g2(srs.boundG2) }, maxEpochAge]);
+  const registry = await deploy("KzgSolvencyRegistry.sol", "KzgSolvencyRegistry", [company.address, auditor.address, token, 0, { g2: g2(srs.g2), tauG2: g2(srs.tauG2), boundG2: g2(srs.boundG2) }, maxEpochAge, minEpochInterval, await deployDirectory()]);
   const reserve = privateKeyToAccount(generatePrivateKey());
   await send(company, token, artifact("DemoAsset.sol", "DemoAsset").abi, "mint", [reserve.address, 50000n]);
   await approveReserve(registry, abi, reserve);
+  await sampleReserves(registry, abi);
   const accounts: Account[] = readFileSync("shared/customers.csv", "utf8").trim().split("\n").slice(1).map(row => {
     const [username, balance, salt] = row.split(",");
     return { username, balance: BigInt(balance), salt: BigInt(salt) };
@@ -47,7 +48,9 @@ export async function runKzgDemo(rpc: string, output: string) {
       }
     }
   }
-  await assert.rejects(send(company, registry, abi, "submitEpoch", [sum, submitted!]), /reverted|InvalidRangeProof/, "the transcript binds to the epoch, so epoch 0's proof is not a valid epoch 1");
+  await proveReserve(registry, abi, reserve);
+  await sampleReserves(registry, abi);
+  await assert.rejects(send(company, registry, abi, "submitEpoch", [sum, submitted!]), /InvalidRangeProof/, "the transcript binds to the epoch, so epoch 0's proof is not a valid epoch 1");
   const connection = { rpc, registry, chainId: chain.id };
   writeJson(output, "kzg-connection.json", connection);
   console.log(`KZG: ${rpc} · ${registry}\nArtifacts: ${output}`);

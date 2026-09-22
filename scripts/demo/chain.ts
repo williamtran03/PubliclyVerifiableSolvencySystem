@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, existsSync, readdi
 import { tmpdir } from "node:os";
 import { join, resolve, relative, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
-import { createPublicClient, createWalletClient, http, type Abi, type Account, type Address, type Hex } from "viem";
+import { createPublicClient, createTestClient, createWalletClient, http, type Abi, type Account, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 
@@ -10,6 +10,7 @@ import { foundry } from "viem/chains";
 export const company = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 export const auditor = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d");
 export const maxEpochAge = 86400n;
+export const minEpochInterval = 60n;
 export const isMain = (url: string) => !!process.argv[1] && url === pathToFileURL(resolve(process.argv[1])).href;
 export function outputDirectory() {
   const directory = resolve(process.env.DEMO_OUTPUT || mkdtempSync(join(tmpdir(), "opensolvency-")));
@@ -33,7 +34,7 @@ export async function demoChain(rpc: string) {
   const client = createPublicClient({ chain, transport });
   const wallet = (account: Account) => createWalletClient({ account, chain, transport });
   const artifact = (source: string, name: string) => JSON.parse(readFileSync(`out/${source}/${name}.json`, "utf8"));
-  async function deploy(source: string, name: string, args: unknown[] = [], libraries: Record<string, Address> = {}) {
+  async function deploy(source: string, name: string, args: unknown[] = [], libraries: Record<string, Address> = {}, from: Account = company) {
     const json = artifact(source, name);
     let bytecode = (json.bytecode.object as string).replace(/^0x/, "");
     for (const names of Object.values(json.bytecode.linkReferences ?? {}) as Record<string, { start: number; length: number }[]>[]) {
@@ -42,7 +43,7 @@ export async function demoChain(rpc: string) {
         for (const { start, length } of positions) bytecode = bytecode.slice(0, start * 2) + libraries[library].slice(2).padStart(length * 2, "0") + bytecode.slice((start + length) * 2);
       }
     }
-    const hash = await wallet(company).deployContract({ abi: json.abi as Abi, bytecode: `0x${bytecode}`, args });
+    const hash = await wallet(from).deployContract({ abi: json.abi as Abi, bytecode: `0x${bytecode}`, args });
     const receipt = await client.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success" || !receipt.contractAddress) throw new Error(`Deployment failed: ${name}`);
     return receipt.contractAddress;
@@ -52,13 +53,24 @@ export async function demoChain(rpc: string) {
     const receipt = await client.waitForTransactionReceipt({ hash: await wallet(account).writeContract(request) });
     if (receipt.status !== "success") throw new Error(`${functionName} reverted`);
   }
+  const deployDirectory = () => deploy("ReserveDirectory.sol", "ReserveDirectory", [], {}, auditor);
+  async function proveReserve(registry: Address, abi: Abi, reserve: ReturnType<typeof privateKeyToAccount>) {
+    const digest = await client.readContract({ address: registry, abi, functionName: "reserveDigest", args: [reserve.address] }) as Hex;
+    await send(company, registry, abi, "proveReserve", [reserve.address, await reserve.sign({ hash: digest })]);
+  }
   async function approveReserve(registry: Address, abi: Abi, reserve: ReturnType<typeof privateKeyToAccount>) {
     await send(company, registry, abi, "proposeReserve", [reserve.address]);
-    const expiry = (await client.getBlock()).timestamp + 3600n;
-    const digest = await client.readContract({ address: registry, abi, functionName: "reserveDigest", args: [reserve.address, expiry] }) as Hex;
-    const signature = await reserve.sign({ hash: digest });
-    await send(company, registry, abi, "proveReserve", [reserve.address, expiry, signature]);
+    await proveReserve(registry, abi, reserve);
     await send(auditor, registry, abi, "reviewReserve", [reserve.address, true]);
   }
-  return { rpc, chain, client, wallet, artifact, deploy, send, approveReserve };
+  const testClient = createTestClient({ mode: "anvil", chain, transport });
+  async function sampleReserves(registry: Address, abi: Abi) {
+    await send(auditor, registry, abi, "sampleReserves", []);
+    await testClient.mine({ blocks: 1 });
+  }
+  async function advance(seconds: bigint) {
+    await testClient.increaseTime({ seconds: Number(seconds) });
+    await testClient.mine({ blocks: 1 });
+  }
+  return { rpc, chain, client, wallet, artifact, deploy, deployDirectory, send, proveReserve, approveReserve, sampleReserves, advance };
 }

@@ -16,7 +16,7 @@ export const zk: Solution = {
   name: "Zero-Knowledge Circuit",
   description: "Private liabilities with public reserve floors for each asset.",
   disclosure: "Individual balances and total liabilities remain private. The circuit supports three assets.",
-  publication: ["Fetch the snapshot and reserve context: make zk-snapshot REGISTRY=0x…", "Build the witness and customer bundles: make zk-fixtures", "Generate and verify the proof: make zk-prove", "Publish with the company key: make zk-demo (local demo)"],
+  publication: ["Before each epoch: re-prove control of every reserve wallet, then have the auditor call sampleReserves.", "Fetch the snapshot and reserve context: make zk-snapshot REGISTRY=0x…", "Build the witness and customer bundles: make zk-fixtures", "Generate and verify the proof: make zk-prove", "Publish with the company key: make zk-demo (local demo)"],
   async read(connection) {
     const c = client(connection);
     const blockNumber = await c.getBlockNumber({ cacheTime: 0 });

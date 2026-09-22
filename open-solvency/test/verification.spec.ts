@@ -16,6 +16,7 @@ const abi = parseAbi([
   "function isCurrent() view returns (bool)",
   "function epochAge() view returns (uint64)",
   "function maxEpochAge() view returns (uint64)",
+  "function lapses() view returns (uint64)",
 ]);
 
 async function setup(page: Page) {
@@ -41,7 +42,7 @@ async function setup(page: Page) {
       const values = {
         epochCount: BigInt(request.params[1]),
         getEpoch: { snapshotId, rootHashes: prepared.ledger.assets.map(a => a.rootHash), liabilities: [100n], reserves: [200n], timestamp: 1_800_000_000n },
-        assets: zeroAddress, isCurrent: true, epochAge: 10n, maxEpochAge: 86400n,
+        assets: zeroAddress, isCurrent: true, epochAge: 10n, maxEpochAge: 86400n, lapses: 0n,
       };
       result = encodeFunctionResult({ abi, functionName, result: values[functionName] });
     } else throw new Error(`Unexpected RPC method ${request.method}`);
