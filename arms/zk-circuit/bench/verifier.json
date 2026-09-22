@@ -1,0 +1,84 @@
+{
+  "measuredAt": "2026-09-16T20:29:14.040Z",
+  "eip170": 24576,
+  "rows": [
+    {
+      "n": 8,
+      "form": "chained",
+      "proofBytes": 7616,
+      "paddedN": 8192,
+      "logN": 13,
+      "publicInputSlots": 13,
+      "runtimeBytes": 24200,
+      "eip170MarginBytes": 376,
+      "deployable": true,
+      "verifyGas": 2791039,
+      "calldataBytes": 7776
+    },
+    {
+      "n": 32,
+      "form": "chained",
+      "proofBytes": 8000,
+      "paddedN": 16384,
+      "logN": 14,
+      "publicInputSlots": 13,
+      "runtimeBytes": 24203,
+      "eip170MarginBytes": 373,
+      "deployable": true,
+      "verifyGas": 2865143,
+      "calldataBytes": 8160
+    },
+    {
+      "n": 128,
+      "form": "chained",
+      "proofBytes": 8768,
+      "paddedN": 65536,
+      "logN": 16,
+      "publicInputSlots": 13,
+      "runtimeBytes": 24203,
+      "eip170MarginBytes": 373,
+      "deployable": true,
+      "verifyGas": 3013626,
+      "calldataBytes": 8928
+    },
+    {
+      "n": 512,
+      "form": "chained",
+      "proofBytes": 9152,
+      "paddedN": 131072,
+      "logN": 17,
+      "publicInputSlots": 13,
+      "runtimeBytes": 24201,
+      "eip170MarginBytes": 375,
+      "deployable": true,
+      "verifyGas": 3087938,
+      "calldataBytes": 9312
+    },
+    {
+      "n": 2048,
+      "form": "chained",
+      "proofBytes": 9920,
+      "paddedN": 524288,
+      "logN": 19,
+      "publicInputSlots": 13,
+      "runtimeBytes": 24204,
+      "eip170MarginBytes": 372,
+      "deployable": true,
+      "verifyGas": 3236702,
+      "calldataBytes": 10080
+    },
+    {
+      "n": 8192,
+      "form": "chained",
+      "proofBytes": 10688,
+      "paddedN": 2097152,
+      "logN": 21,
+      "publicInputSlots": 13,
+      "runtimeBytes": 24200,
+      "eip170MarginBytes": 376,
+      "deployable": true,
+      "verifyGas": 3385655,
+      "calldataBytes": 10848
+    }
+  ]
+}
