@@ -1,11 +1,12 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { http, isHex, type Abi, type Address, type Hex, type TransactionReceipt } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { sepolia } from "viem/chains";
 import { artifact, auditor as anvilAuditor, company as anvilCompany, connect } from "../demo/chain.ts";
+import { saveRecord } from "./record.ts";
 
 export const ARMS = {
   "published-ledger": { source: "MerkleSumRegistry.sol", name: "MerkleSumRegistry", reserveKey: "LEDGER_RESERVE_PRIVATE_KEY" },
@@ -84,10 +85,7 @@ export async function sepoliaNetwork() {
     contracts: {}, reserves: {}, deployBlocks: {}, epochs: [], transactions: [],
   };
   if (record.roles.company !== company.address || record.roles.auditor !== auditor.address) throw new Error(`${file} was deployed with other company or auditor keys.`);
-  const save = () => {
-    mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, JSON.stringify(record, null, 2) + "\n");
-  };
+  const save = () => saveRecord(file, record);
 
   let step = "";
   const transport = http(rpc, { timeout: 30000, retryCount: 3 });
