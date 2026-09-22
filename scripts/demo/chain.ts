@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, existsSync, readdi
 import { tmpdir } from "node:os";
 import { join, resolve, relative, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
-import { createPublicClient, createTestClient, createWalletClient, http, type Abi, type Account, type Address, type Hex } from "viem";
+import { createPublicClient, createTestClient, createWalletClient, http, type Abi, type Account, type Address, type Chain, type Hex, type TransactionReceipt, type Transport } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 
@@ -24,17 +24,11 @@ export function writeJson(directory: string, name: string, value: unknown) {
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   writeFileSync(join(directory, name), JSON.stringify(value, (_, v) => typeof v === "bigint" ? v.toString() : v, 2) + "\n", { mode: 0o600 });
 }
-export async function demoChain(rpc: string) {
-  const url = new URL(rpc);
-  if (!["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)) throw new Error("Demo keys may only be used with a local Anvil node.");
-  const transport = http(rpc, { timeout: 10000 });
-  const probe = createPublicClient({ transport });
-  if (!(await probe.request({ method: "web3_clientVersion" })).toLowerCase().includes("anvil")) throw new Error("The demo requires Anvil.");
-  const chain = { ...foundry, id: await probe.getChainId() };
+export const artifact = (source: string, name: string) => JSON.parse(readFileSync(`out/${source}/${name}.json`, "utf8"));
+export function connect(transport: Transport, chain: Chain, deployer: Account, onReceipt: (label: string, receipt: TransactionReceipt) => void = () => {}) {
   const client = createPublicClient({ chain, transport });
   const wallet = (account: Account) => createWalletClient({ account, chain, transport });
-  const artifact = (source: string, name: string) => JSON.parse(readFileSync(`out/${source}/${name}.json`, "utf8"));
-  async function deploy(source: string, name: string, args: unknown[] = [], libraries: Record<string, Address> = {}, from: Account = company) {
+  async function deploy(source: string, name: string, args: unknown[] = [], libraries: Record<string, Address> = {}, from: Account = deployer) {
     const json = artifact(source, name);
     let bytecode = (json.bytecode.object as string).replace(/^0x/, "");
     for (const names of Object.values(json.bytecode.linkReferences ?? {}) as Record<string, { start: number; length: number }[]>[]) {
@@ -46,13 +40,26 @@ export async function demoChain(rpc: string) {
     const hash = await wallet(from).deployContract({ abi: json.abi as Abi, bytecode: `0x${bytecode}`, args });
     const receipt = await client.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success" || !receipt.contractAddress) throw new Error(`Deployment failed: ${name}`);
+    onReceipt(`deploy ${name}`, receipt);
     return receipt.contractAddress;
   }
   async function send(account: Account, address: Address, abi: Abi, functionName: string, args: unknown[]) {
     const { request } = await client.simulateContract({ account, address, abi, functionName, args });
     const receipt = await client.waitForTransactionReceipt({ hash: await wallet(account).writeContract(request) });
     if (receipt.status !== "success") throw new Error(`${functionName} reverted`);
+    onReceipt(functionName, receipt);
+    return receipt;
   }
+  return { client, wallet, artifact, deploy, send };
+}
+export async function demoChain(rpc: string) {
+  const url = new URL(rpc);
+  if (!["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)) throw new Error("Demo keys may only be used with a local Anvil node.");
+  const transport = http(rpc, { timeout: 10000 });
+  const probe = createPublicClient({ transport });
+  if (!(await probe.request({ method: "web3_clientVersion" })).toLowerCase().includes("anvil")) throw new Error("The demo requires Anvil.");
+  const chain = { ...foundry, id: await probe.getChainId() };
+  const { client, wallet, artifact, deploy, send } = connect(transport, chain, company);
   const deployDirectory = () => deploy("ReserveDirectory.sol", "ReserveDirectory", [], {}, auditor);
   async function proveReserve(registry: Address, abi: Abi, reserve: ReturnType<typeof privateKeyToAccount>) {
     const digest = await client.readContract({ address: registry, abi, functionName: "reserveDigest", args: [reserve.address] }) as Hex;

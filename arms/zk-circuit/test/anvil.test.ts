@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,13 +23,13 @@ import { foundry } from "viem/chains";
 import { fetchSnapshot, type Snapshot } from "../prover/fetchSnapshot.ts";
 import { prepareEpoch } from "../prover/buildMultiAssetTree.ts";
 import { createBundle, epochContext, parseHoldingsCsv, verifyBundle, type Customer } from "../prover/multiAssetTree.ts";
+import { prove } from "../prover/prove.ts";
 
 const MAX_EPOCH_AGE = 86_400n;
 const MIN_EPOCH_INTERVAL = 60n;
 
 const company = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 const auditor = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d");
-const CIRCUIT = "arms/zk-circuit/circuit";
 
 type LinkReferences = Record<string, Record<string, { start: number; length: number }[]>>;
 
@@ -63,29 +63,6 @@ async function freePort(): Promise<number> {
   const { port } = server.address() as { port: number };
   await new Promise<void>((resolve) => server.close(() => resolve()));
   return port;
-}
-
-function prove(proverToml: string, workDir: string): Hex {
-  const name = `e2e-${process.pid}-${Date.now()}`;
-  const toml = join(CIRCUIT, `${name}.toml`);
-  writeFileSync(toml, proverToml);
-  try {
-    execFileSync("nargo", ["execute", "--prover-name", name, name], { cwd: CIRCUIT, stdio: "ignore" });
-    const bb = (args: string[]) => execFileSync("bb", args, { cwd: CIRCUIT, stdio: "ignore" });
-    const vk = join(workDir, "vk");
-    if (!existsSync(join(vk, "vk"))) {
-      bb(["write_vk", "-s", "ultra_honk", "-b", "target/circuit_multiasset.json", "-o", vk, "--oracle_hash", "keccak"]);
-    }
-    const out = join(workDir, name);
-    bb([
-      "prove", "-s", "ultra_honk", "-b", "target/circuit_multiasset.json", "-w", `target/${name}.gz`,
-      "-o", out, "-k", join(vk, "vk"), "--oracle_hash", "keccak",
-    ]);
-    return toHex(readFileSync(join(out, "proof")));
-  } finally {
-    rmSync(toml, { force: true });
-    rmSync(join(CIRCUIT, "target", `${name}.gz`), { force: true });
-  }
 }
 
 test("Anvil: signed reserve, auditor approval, real proof per epoch, customer verification", async () => {
