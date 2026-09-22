@@ -2,9 +2,11 @@
 
 `npm run sepolia` deploys the three arms to Sepolia and publishes their epochs. It uses the
 same contracts, customer set and provers as the local demo, with real keys, the live
-Chainlink feeds and the ceremony SRS. Every step can be re-run. The script reads what is
-already on chain and skips finished steps, so a failed transaction or an empty wallet
-means fixing the cause and running the same command again.
+Chainlink feeds and the ceremony SRS. Deployment reads the recorded addresses and
+on-chain reserve state to skip completed steps. The operations drill saves resumable
+checkpoints. Epoch publication creates the next epoch on each successful invocation;
+it is not an idempotent retry command. See the recovery limits below before retrying
+after an interruption.
 
 ## What gets deployed
 
@@ -35,7 +37,7 @@ then copy `.env.example` to `.env` (gitignored) and fill it in:
 | --- | --- | --- |
 | `COMPANY_PRIVATE_KEY` | Deploys everything, submits epochs, funds and mints the reserves | yes, about 0.1 ETH (see below) |
 | `AUDITOR_PRIVATE_KEY` | Approves reserve wallets, samples balances | yes, about 0.01 ETH |
-| `LEDGER_RESERVE_PRIVATE_KEY`, `ZK_RESERVE_PRIVATE_KEY`, `KZG_RESERVE_PRIVATE_KEY` | Reserve wallets. They only sign; the company relays the signature | no |
+| `LEDGER_RESERVE_PRIVATE_KEY`, `ZK_RESERVE_PRIVATE_KEY`, `KZG_RESERVE_PRIVATE_KEY` | Reserve wallets. Normally only sign; the company relays the signature. The operations drill temporarily uses them as role holders | no faucet funding; the drill funds their transactions |
 | `SEPOLIA_RPC_URL` | Any Sepolia HTTPS RPC. It is never written to the record, so it may contain an API key | |
 
 Optional settings: `MAX_EPOCH_AGE` (default 604800 s, 7 days, after which the site shows
@@ -139,6 +141,38 @@ To check a customer, use the files in `PRIVATE_OUTPUT`. The secrets and balances
 same as in the local demo (`scripts/demo/README.md`).
 
 ## Before the first real run
+
+Still outstanding (2026-09-22):
+
+- Fund the company and auditor, verify RPC access and install the pinned proving
+  tools on the epoch machine. The version check does not install them.
+- Regenerate/check the verifier and run `npm run test:integration` with fresh ZK
+  proofs. The three-chain demo uses committed proofs; it is not that validation.
+- Deploy, publish epochs and run `exercise` on public Sepolia, then publish a fresh
+  epoch after the drill. These workflows have local test coverage, not public
+  testnet receipts.
+- Commit the resulting public `deployments/sepolia.json`, rebuild the site, select
+  a host and publish `open-solvency/dist/`. Never publish `.env` or private bundles.
+- Record real receipt gas and capture reproducible traces. The historical ZK gas
+  difference is not fully reconciled; the old fork block and traces are missing.
+
+### Recovery limits
+
+The deployment JSON is replaced atomically: readers see the previous complete
+record or the new complete record, not a partially overwritten JSON file. This
+does not make the on-chain transaction and the local record one atomic operation,
+and does not add a concurrent-writer lock.
+
+The scripts do not persist a pending transaction hash before awaiting its receipt.
+After a connection failure, inspect the sender's transactions before rerunning.
+A deployment mined before its address is saved can otherwise be deployed again.
+Likewise, epoch bundles are currently written **after** submission; a process crash
+between mining and writing can lose the random inputs required to recover a private
+bundle. A later `epoch` invocation publishes a new epoch rather than recovering the
+missing bundle. A write-ahead transaction/proof journal and a dedicated recovery
+command are still needed to close these gaps.
+
+### Rehearsal and measurements
 
 - Rehearse on a fork. Start
   `anvil --fork-url <sepolia rpc> --port 18545 --block-time 12`, point `SEPOLIA_RPC_URL`
