@@ -31,12 +31,15 @@ Automatic decoding of arbitrary multisig transactions is not implemented.
 
 ## Before real customer use
 
-- **Deploy and authenticate the contracts.** Existing TypeScript demo deployers
-  accept only local Anvil nodes and use public development keys. Add a reviewed
-  deployment workflow using real company and independent auditor signers, correct
-  asset addresses and decimal scales, validated oracle feeds and freshness limits.
-  Record the deployed chain/address, verifier and setup identifiers. Exercise role
-  transfer, reserve approval/removal and epoch publication on the target testnet.
+- **Deploy and authenticate the contracts.** The demo deployers accept only local
+  Anvil nodes and use public development keys. `npm run sepolia`
+  ([`scripts/sepolia/README.md`](../scripts/sepolia/README.md)) deploys to Sepolia with
+  keys from `.env`, checks the Chainlink feeds, sets per-feed freshness limits and
+  records every address and receipt in `deployments/sepolia.json`. Its assets are
+  test tokens with unrestricted minting. A real deployment needs real asset
+  addresses and decimal scales, and a company key and an auditor key held by
+  different parties. Role transfer and reserve removal are not yet exercised on the
+  testnet.
 - **Make ZK proving reproducible.** Pin compatible Noir and Barretenberg versions,
   regenerate and check the verifier from the committed circuit, and run the real
   proof integration suite. Current fixture proofs are bound to their original

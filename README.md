@@ -87,6 +87,7 @@ needs batching or recursion across many proofs.
 - `shared/` — the reserve registry base, the directory, the tree core, the customer set
 - `open-solvency/` — the customer and company website for the three arms (`npm run web`)
 - `scripts/demo/` — the reproducible three-chain demo (`npm run demo`)
+- `scripts/sepolia/` — deploys the three arms to Sepolia and publishes epochs (`npm run sepolia`)
 - `docs/` — comparison, limitations, manipulations, related work, deployment
 - `lib/` — vendored dependencies
 
@@ -107,7 +108,9 @@ Per-arm make targets are prefixed by arm (`ledger-`, `zk-`, `kzg-`, `single-`); 
 
 All three arms run end to end, on local chains, with tests covering the contracts, the
 provers, the three-chain demo and the website in a real browser. GitHub Actions runs
-`npm run validate` on every push and pull request. Not done: a public testnet
+`npm run validate` on every push and pull request. The Sepolia tooling in
+[`scripts/sepolia/`](scripts/sepolia/README.md) has been rehearsed on a Sepolia fork,
+not yet run on Sepolia itself. Not done: a public testnet
 deployment, an independent audit, and a non-cryptographic baseline (a bond plus an
 attested customer count) that would test whether ZK is needed at all. Read
 [`docs/deployment.md`](docs/deployment.md) before hosting the website or deploying
