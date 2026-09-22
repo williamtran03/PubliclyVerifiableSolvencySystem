@@ -3,7 +3,7 @@
 This is the Phase 2 deliverable: not any single approach, but what we learned by
 building three and measuring them against each other.
 
-All gas figures are `make compare` (`forge test --gas-report`) at domain size
+Unless explicitly labelled otherwise, gas figures below are `make compare` (`forge test --gas-report`) at domain size
 N = 8, on the committed fixtures, with the optimizer off (the `foundry.toml`
 default). They are call-level numbers including dispatch overhead, and N = 8 is a
 toy size — see *Gaps* below. Revised 2026-09-13 after the per-asset redesign and
@@ -124,6 +124,54 @@ while leaving the range check off-chain. With the degree bound and the range
 argument verified on-chain — both needed for the total to mean anything — the
 snarkless registry costs **2.07M against 3.76M, about 1.8× cheaper** — on one asset
 against three, which is the comparison *What the measurements say about the choice* revisits.
+
+## Sepolia rehearsal versus fixture probes
+
+The earlier Sepolia-fork rehearsal reported **4,536,849** gas for ZK submission
+and **1,679,229** for KZG, approximately **28.4M** for deployment and **6.9M** per
+three-arm epoch round. These are historical rehearsal figures, **not public
+Sepolia receipts**. No transaction hashes or pinned fork block accompany them.
+Do not use them as verified testnet measurements or compute a speedup against the
+older 3,766,705 / 2,074,669 fixture probes.
+
+There is a measurable harness artifact: the original `gasleft()` interval includes
+copying the proof from the **test contract's storage** into call arguments. A real
+transaction supplies those arguments as calldata. `test_GasForPreparedSubmission`
+encodes the payload before starting the timer; the older probe remains available
+so the difference is reproducible:
+
+```sh
+forge test --match-test 'test_GasFor(ASuccessful|Prepared)Submission' -vv
+```
+
+Measured on 2026-09-22 with Foundry 1.8.1 (`982849d`), solc 0.8.28,
+optimizer disabled, Cancun EVM, committed fixtures:
+
+| Arm | Original probe | Prepared-call probe | Harness difference |
+|---|---:|---:|---:|
+| ZK | 3,918,721 | 3,389,790 | 528,931 |
+| KZG | 2,201,721 | 1,683,829 | 517,892 |
+
+Isolation mode gives the same results on this toolchain. Both columns still measure
+an internal call, not receipt gas; payload preparation also changes memory and
+warm-access state. The difference is a harness measurement, not a correction to
+subtract from an arbitrary transaction. In particular it explains why a receipt
+can be *lower* than the old KZG probe despite including intrinsic/calldata gas.
+The older table was measured with another Foundry version and is retained as
+historical evidence, not silently relabelled as a current measurement.
+
+For ZK, live Chainlink proxy/aggregator reads replace mock feeds, and transaction
+calldata, cold-access state, fixture contents, compiler/toolchain and chain rules
+also differ. Those effects have **not** been individually quantified for the old
+fork receipts; attributing the entire gap to oracle reads would be unsupported.
+A full reconciliation requires the fork block, exact input and `debug_traceTransaction`
+for each receipt, plus matching compiler and EVM settings. The historical rehearsal
+cannot supply that evidence retroactively.
+
+For the public run, use the receipt `gasUsed`, hash and block recorded in
+`deployments/sepolia.json`, and keep deployment, reserve maintenance and submission
+costs separate. At 1 gwei the rehearsal totals correspond to roughly 0.0284 ETH
+and 0.0069 ETH; these are budgeting examples, not a current gas-price quote.
 
 ## How it scales
 

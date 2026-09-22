@@ -110,11 +110,7 @@ same as in the local demo (`scripts/demo/README.md`).
   at `http://127.0.0.1:18545` and `DEPLOYMENT_FILE` at a scratch path, and fund the two
   role keys with `cast rpc anvil_setBalance`. The fork keeps chain ID 11155111 and the
   real feeds.
-- Every gas figure in `docs/comparison.md` comes from `make compare` on Anvil. Once the
-  deployment is real, the Sepolia receipts in `deployments/sepolia.json` are the source
-  for Sepolia figures. They are not directly comparable. The two `submitEpoch` figures
-  there are execution-only `gasleft()` probes against mock feeds, while a receipt also
-  counts the 21,000 base gas, the calldata and the live feed reads. On the fork, ZK
-  `submitEpoch` receipts were 4,536,849 gas (probe: 3,766,705) and KZG receipts
-  1,679,229 (probe: 2,074,669). Explain the gap before putting the two side by side.
-  Deployment receipts matched the gas report, for example 5,279,139 for the verifier.
+- See [the gas reconciliation](../../docs/comparison.md#sepolia-rehearsal-versus-fixture-probes)
+  before comparing receipts with fixture probes. The probes include test-storage
+  reads; the historical fork receipts lack traces and a pinned block. Public Sepolia
+  measurements must cite the recorded transaction hashes.

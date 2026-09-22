@@ -126,6 +126,17 @@ contract MultiAssetSolvencyRegistryTest is Test {
         assertLt(used, 4_200_000, "a regression beyond the figure the comparison quotes");
     }
 
+    function test_GasForPreparedSubmission() public {
+        bytes memory payload = abi.encodeCall(registry.submitEpoch, (proof, rootHash, floors, latestRounds()));
+        address target = address(registry);
+        vm.prank(company);
+        uint256 before = gasleft();
+        (bool ok,) = target.call(payload);
+        uint256 used = before - gasleft();
+        assertTrue(ok);
+        emit log_named_uint("zk prepared submitEpoch gas", used);
+    }
+
     function test_RegistryIsNotCurrentBeforeAnyEpoch() public view {
         assertFalse(registry.isCurrent());
         assertEq(registry.epochAge(), type(uint64).max);
