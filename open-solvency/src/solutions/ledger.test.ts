@@ -19,7 +19,7 @@ const abi = parseAbi([
 ]);
 const json = (value: unknown) => JSON.stringify(value, (_, v) => typeof v === "bigint" ? v.toString() : v);
 
-for (const mode of ["direct", "contract-wallet", "unavailable-history", "malformed-calldata"] as const) {
+for (const mode of ["direct", "range-limited", "contract-wallet", "unavailable-history", "malformed-calldata"] as const) {
   test(`ledger read supports ${mode} without losing private verification`, async () => {
     const original = globalThis.fetch;
     globalThis.fetch = async (_input, init) => {
@@ -27,17 +27,23 @@ for (const mode of ["direct", "contract-wallet", "unavailable-history", "malform
       let result: unknown;
       if (request.method === "eth_blockNumber") result = "0x20";
       else if (request.method === "eth_getLogs") {
-        assert.equal(request.params[0].fromBlock, "0x0");
+        if (mode === "range-limited" && request.params[0].fromBlock === "0x0") {
+          return new Response(JSON.stringify({ jsonrpc: "2.0", id: request.id, error: { code: -32701, message: "exceed maximum block range: 50000" } }), { headers: { "content-type": "application/json" } });
+        }
+        assert.equal(request.params[0].fromBlock, mode === "range-limited" ? "0x10" : "0x0");
         assert.equal(request.params[0].toBlock, "0x20");
         if (mode === "unavailable-history") throw new Error("History unavailable");
         result = [{ address: registry, blockNumber: "0x10", blockHash: transactionHash, transactionHash, transactionIndex: "0x0", logIndex: "0x0", removed: false,
           topics: encodeEventTopics({ abi, eventName: "LedgerSubmitted", args: { epochId: 0n, snapshotId } }),
           data: encodeAbiParameters([{ type: "uint256[]" }, { type: "uint256[]" }, { type: "uint256[]" }], [roots, [100n], [200n]]),
         }];
+      } else if (request.method === "eth_getBlockByNumber") {
+        const timestamp = 1800000000n + (BigInt(request.params[0]) - 16n) * 12n;
+        result = { number: request.params[0], hash: transactionHash, parentHash: transactionHash, timestamp: `0x${timestamp.toString(16)}`, transactions: [] };
       } else if (request.method === "eth_getTransactionByHash") {
         result = { hash: transactionHash, blockHash: transactionHash, blockNumber: "0x10", transactionIndex: "0x0", from: zeroAddress,
           to: mode === "contract-wallet" ? zeroAddress : registry,
-          input: mode === "direct" ? encodeFunctionData({ abi, functionName: "submitLedger", args: [snapshotId, [prepared.ledger.assets[0].entries.map(e => e.identityHash)], [[100n]]] }) : "0xdeadbeef",
+          input: mode === "direct" || mode === "range-limited" ? encodeFunctionData({ abi, functionName: "submitLedger", args: [snapshotId, [prepared.ledger.assets[0].entries.map(e => e.identityHash)], [[100n]]] }) : "0xdeadbeef",
           value: "0x0", nonce: "0x0", gas: "0x100000", gasPrice: "0x1", type: "0x0", v: "0x1b", r: "0x1", s: "0x1" };
       } else {
         const { functionName } = decodeFunctionData({ abi, data: request.params[0].data });
@@ -50,7 +56,7 @@ for (const mode of ["direct", "contract-wallet", "unavailable-history", "malform
       const connection = { rpc: "https://ledger.test", registry } as const;
       const snapshot = await ledger.read(connection);
       assert.equal(snapshot.epoch, 0n);
-      assert.equal(Boolean(snapshot.publicLedger), mode === "direct");
+      assert.equal(Boolean(snapshot.publicLedger), mode === "direct" || mode === "range-limited");
       assert.deepEqual(readPublicLedgerArtifact(snapshot, json(prepared.ledger))[0].entries.map(e => e.amount), [100n]);
       assert.equal((await ledger.verify(connection, snapshot, json(prepared.bundles[0]), "alice", new Map([[0, 100n]]), "")).valid, true);
     } finally { globalThis.fetch = original; }

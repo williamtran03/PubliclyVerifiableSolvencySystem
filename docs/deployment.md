@@ -18,8 +18,10 @@ configuration is not included in the static build. Customers must receive their
 private proof files through an authenticated private channel.
 
 The published-ledger reader queries historical events from block zero through the
-snapshot block. Some RPC providers limit historical ranges; a missing history or
-contract-wallet wrapper does not block snapshot loading or private verification.
+snapshot block. When the provider refuses that range, as public Sepolia RPCs do, it
+finds the submission block by the epoch's timestamp and queries the 50 blocks from
+there. A missing history or contract-wallet wrapper does not block snapshot loading or
+private verification.
 Customers can select the public `ledger.json` to view its tree. The browser checks
 its snapshot ID, recomputed roots and totals against the on-chain snapshot.
 Automatic decoding of arbitrary multisig transactions is not implemented.

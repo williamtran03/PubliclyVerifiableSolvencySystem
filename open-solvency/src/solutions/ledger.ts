@@ -32,18 +32,34 @@ function identity(bundle: Bundle, assetId: number, partIndex: number, salt: Hex)
   )));
 }
 
-async function publicLedger(c: ReturnType<typeof client>, registry: `0x${string}`, epoch: bigint, snapshotId: Hex, roots: readonly bigint[], liabilities: readonly bigint[], blockNumber: bigint): Promise<PublicLedgerAsset[] | undefined> {
-  const logs = await c.getLogs({ address: registry, fromBlock: 0n, toBlock: blockNumber, event: {
-    type: "event",
-    name: "LedgerSubmitted",
-    inputs: [
-      { indexed: true, name: "epochId", type: "uint256" },
-      { indexed: true, name: "snapshotId", type: "bytes32" },
-      { indexed: false, name: "rootHashes", type: "uint256[]" },
-      { indexed: false, name: "liabilities", type: "uint256[]" },
-      { indexed: false, name: "reserves", type: "uint256[]" },
-    ],
-  }, args: { epochId: epoch, snapshotId } });
+const ledgerSubmitted = {
+  type: "event",
+  name: "LedgerSubmitted",
+  inputs: [
+    { indexed: true, name: "epochId", type: "uint256" },
+    { indexed: true, name: "snapshotId", type: "bytes32" },
+    { indexed: false, name: "rootHashes", type: "uint256[]" },
+    { indexed: false, name: "liabilities", type: "uint256[]" },
+    { indexed: false, name: "reserves", type: "uint256[]" },
+  ],
+} as const;
+
+async function submissionLogs(c: ReturnType<typeof client>, registry: `0x${string}`, epoch: bigint, snapshotId: Hex, timestamp: bigint, blockNumber: bigint) {
+  const query = (fromBlock: bigint, toBlock: bigint) => c.getLogs({ address: registry, fromBlock, toBlock, event: ledgerSubmitted, args: { epochId: epoch, snapshotId } });
+  try { return await query(0n, blockNumber); } catch {
+    let low = 0n;
+    let high = blockNumber;
+    while (low < high) {
+      const middle = (low + high) / 2n;
+      if ((await c.getBlock({ blockNumber: middle })).timestamp < timestamp) low = middle + 1n;
+      else high = middle;
+    }
+    return query(low, low + 49n < blockNumber ? low + 49n : blockNumber);
+  }
+}
+
+async function publicLedger(c: ReturnType<typeof client>, registry: `0x${string}`, epoch: bigint, snapshotId: Hex, timestamp: bigint, roots: readonly bigint[], liabilities: readonly bigint[], blockNumber: bigint): Promise<PublicLedgerAsset[] | undefined> {
+  const logs = await submissionLogs(c, registry, epoch, snapshotId, timestamp, blockNumber);
   const log = logs[0];
   if (!log?.transactionHash) return undefined;
   const transaction = await c.getTransaction({ hash: log.transactionHash });
@@ -105,7 +121,7 @@ export const ledger: Solution = {
       epoch, timestamp: value.timestamp, commitment: value.snapshotId,
       assets,
       freshness: await readFreshness(c, connection.registry, blockNumber),
-      publicLedger: await publicLedger(c, connection.registry, epoch, value.snapshotId, value.rootHashes, value.liabilities, blockNumber).catch(() => undefined),
+      publicLedger: await publicLedger(c, connection.registry, epoch, value.snapshotId, value.timestamp, value.rootHashes, value.liabilities, blockNumber).catch(() => undefined),
       data: { snapshotId: value.snapshotId, roots: value.rootHashes, liabilities: value.liabilities },
     };
   },
