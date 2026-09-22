@@ -46,7 +46,7 @@ test = "test"
 out = "out"
 libs = ["lib"]
 solc = "0.8.28"
-evm_version = "cancun"
+evm_version = "osaka"
 fs_permissions = [{ access = "read", path = "./" }]
 
 [fmt]

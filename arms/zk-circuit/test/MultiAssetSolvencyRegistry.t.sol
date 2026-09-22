@@ -123,7 +123,7 @@ contract MultiAssetSolvencyRegistryTest is Test {
         registry.submitEpoch(proof, rootHash, floors, roundIds);
         uint256 used = before - gasleft();
         emit log_named_uint("zk submitEpoch gas", used);
-        assertLt(used, 4_200_000, "a regression beyond the figure the comparison quotes");
+        assertLt(used, 5_200_000, "a regression beyond the figure the comparison quotes");
     }
 
     function test_GasForPreparedSubmission() public {

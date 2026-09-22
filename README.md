@@ -72,8 +72,12 @@ Full figures and the reasoning are in [`docs/comparison.md`](docs/comparison.md)
 | Arm | Submission gas | Scaling |
 |---|---:|---|
 | Published ledger | 408,350 | grows with the number of parts |
-| ZK circuit | 3,766,705 | constant on-chain; proving is the limit |
-| Snarkless (KZG) | 2,074,669 | constant on-chain |
+| ZK circuit | 4,366,256 | constant on-chain; proving is the limit |
+| Snarkless (KZG) | 1,556,777 | constant on-chain |
+
+Execution gas under the Osaka rules Ethereum runs today, without the 21,000 base cost
+and calldata. Real transactions on a Sepolia fork cost 4,536,873 (ZK) and 1,679,265
+(KZG); the comparison explains the difference.
 
 The ZK circuit as committed compiles up to 8,192 leaves; a flat-array rewrite reaches
 16,384 at 6.5 GiB peak memory and fails inside Barretenberg at 32,768

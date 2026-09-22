@@ -6,7 +6,7 @@ script = "arms"
 out = "out"
 libs = ["lib"]
 solc = "0.8.28"
-evm_version = "cancun"
+evm_version = "osaka"
 fs_permissions = [{ access = "read", path = "./arms" }]
 # nargo/bb drop generated verifier copies here; they are not sources
 skip = ["arms/*/circuit/target/**"]

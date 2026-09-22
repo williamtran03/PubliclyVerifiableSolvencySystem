@@ -1,5 +1,5 @@
 {
-  "measuredAt": "2026-09-16T20:29:14.040Z",
+  "measuredAt": "2026-09-22T18:39:04.875Z",
   "eip170": 24576,
   "rows": [
     {
@@ -12,7 +12,7 @@
       "runtimeBytes": 24200,
       "eip170MarginBytes": 376,
       "deployable": true,
-      "verifyGas": 2791039,
+      "verifyGas": 3919521,
       "calldataBytes": 7776
     },
     {
@@ -25,7 +25,7 @@
       "runtimeBytes": 24203,
       "eip170MarginBytes": 373,
       "deployable": true,
-      "verifyGas": 2865143,
+      "verifyGas": 4026013,
       "calldataBytes": 8160
     },
     {
@@ -38,7 +38,7 @@
       "runtimeBytes": 24203,
       "eip170MarginBytes": 373,
       "deployable": true,
-      "verifyGas": 3013626,
+      "verifyGas": 4239272,
       "calldataBytes": 8928
     },
     {
@@ -51,7 +51,7 @@
       "runtimeBytes": 24201,
       "eip170MarginBytes": 375,
       "deployable": true,
-      "verifyGas": 3087938,
+      "verifyGas": 4345972,
       "calldataBytes": 9312
     },
     {
@@ -64,7 +64,7 @@
       "runtimeBytes": 24204,
       "eip170MarginBytes": 372,
       "deployable": true,
-      "verifyGas": 3236702,
+      "verifyGas": 4559512,
       "calldataBytes": 10080
     },
     {
@@ -77,7 +77,7 @@
       "runtimeBytes": 24200,
       "eip170MarginBytes": 376,
       "deployable": true,
-      "verifyGas": 3385655,
+      "verifyGas": 4773241,
       "calldataBytes": 10848
     }
   ]

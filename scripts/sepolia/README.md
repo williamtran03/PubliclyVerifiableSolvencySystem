@@ -189,7 +189,10 @@ command at a time.
   at `http://127.0.0.1:18545` and `DEPLOYMENT_FILE` at a scratch path, and fund the two
   role keys with `cast rpc anvil_setBalance`. The fork keeps chain ID 11155111 and the
   real feeds.
-- See [the gas reconciliation](../../docs/comparison.md#sepolia-rehearsal-versus-fixture-probes)
-  before comparing receipts with fixture probes. The probes include test-storage
-  reads; the historical fork receipts lack traces and a pinned block. Public Sepolia
-  measurements must cite the recorded transaction hashes.
+- Pin the fork (`--fork-block-number`) so the receipts can be reproduced and traced
+  with `cast rpc debug_traceTransaction <hash> '{"tracer":"callTracer"}'`.
+- Read [the gas reconciliation](../../docs/comparison.md#sepolia-rehearsal-versus-fixture-probes)
+  before comparing receipts with the `forge test` figures. It accounts for the test
+  storage reads, the transaction overhead, and the MODEXP repricing that Fusaka applies
+  to the ZK verifier. Public Sepolia measurements must cite the recorded transaction
+  hashes.
