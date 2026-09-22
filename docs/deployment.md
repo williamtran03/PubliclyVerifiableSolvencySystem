@@ -45,9 +45,16 @@ Automatic decoding of arbitrary multisig transactions is not implemented.
   proof integration suite. Current fixture proofs are bound to their original
   registry, chain and epoch; a new deployment needs new proofs. The required versions are nargo `1.0.0-beta.26` and bb
   `6.0.0-nightly.20260902`; the prover checks these before generating a proof.
-- **Review the cryptographic setup.** `arms/snarkless/prover/srs.ts` creates a
-  single-process BN254 KZG setup. Establish reviewed setup provenance and a
-  verifiable ceremony/import process before relying on it with real customers.
+- **Review the cryptographic setup.** `make kzg-setup` imports BN254 powers from the
+  Perpetual Powers of Tau ceremony file `ppot_0080_08.ptau`.
+  `arms/snarkless/script/setup.ts` pins its SHA-256 to
+  `5c411c13838e8e3ff80b6f87b81a0a92a66d2e64e82dd6af88ffc8ea89a548f6`;
+  `arms/snarkless/prover/ceremony.ts` validates the curve, points and successive
+  powers with pairing checks before writing the SRS. The Sepolia deployer loads
+  the committed `arms/snarkless/fixtures/srs.json`; it does not generate a new tau.
+  Compare deployed `getSrs()` points with that artifact and independently review
+  the ceremony provenance and importer before real customer use. The hash and
+  pairing checks do not themselves prove that contributors destroyed their secrets.
   Ethereum's blob KZG setup is for a different curve and cannot simply replace
   this project's setup. Do not regenerate the SRS for an existing deployment.
 - **Review security and capacity.** Obtain an independent review of the contracts,
