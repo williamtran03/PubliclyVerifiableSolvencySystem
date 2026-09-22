@@ -51,8 +51,6 @@ test("three demo deployments support the site's verification and publication ada
     assert.deepEqual(config.solutions, demo.connections);
     assert.equal(JSON.stringify(config).includes("secret"), false);
     assert.equal((await fetch(`http://127.0.0.1:${demo.webPort}/`)).status, 200);
-    // Run the public-network operations code against every actual registry.
-    // Interrupt after each mined mutation, before the checkpoint advances.
     for (const arm of Object.keys(ARMS) as (keyof typeof ARMS)[]) {
       const { rpc, registry } = demo.connections[arm];
       const chain = await demoChain(rpc);

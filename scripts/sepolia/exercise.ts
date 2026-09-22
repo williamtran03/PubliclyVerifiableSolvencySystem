@@ -5,8 +5,6 @@ import type { Arm, Network } from "./network.ts";
 
 const directoryAbi = parseAbi(["function registryOf(address) view returns (address)"]);
 
-// A test-token deployment drill, not a permanent role-rotation command. The
-// existing reserve key temporarily accepts each role, then hands it back.
 export async function exerciseOperations(network: Network, arm: Arm) {
   const { company, auditor, record, client } = network;
   const temporary = network.reserves[arm];
@@ -31,8 +29,6 @@ export async function exerciseOperations(network: Network, arm: Arm) {
   }
   progress[arm] = start;
   network.save();
-  // Four transactions are sent by the temporary holder. Re-evaluate on resume
-  // so a fee spike or an exhausted temporary wallet can be recovered.
   const fees = await client.estimateFeesPerGas();
   const required = (fees.maxFeePerGas ?? fees.gasPrice ?? 0n) * 200_000n;
   const balance = await client.getBalance({ address: temporary.address });

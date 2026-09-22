@@ -146,8 +146,6 @@ contract KzgSolvencyRegistryTest is Test {
         assertLt(used, 2_500_000, "a regression beyond the figure the comparison quotes");
     }
 
-    // Materialize the payload before measuring: a real sender supplies calldata,
-    // not cold SLOADs from this test contract's fixture storage.
     function test_GasForPreparedSubmission() public {
         bytes memory payload = abi.encodeCall(registry.submitEpoch, (sum, range));
         address target = address(registry);
