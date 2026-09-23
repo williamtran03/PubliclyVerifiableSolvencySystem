@@ -9,6 +9,7 @@ const arms: SolutionId[] = ["published-ledger", "zk-circuit", "snarkless"];
 
 export function deployedNetworks(records: unknown[]): Network[] {
   return records.flatMap(record => {
+    if (typeof record === "object" && record !== null && Object.hasOwn(record, "pending")) return [];
     const { chainId, contracts } = (record ?? {}) as { chainId?: unknown; contracts?: Record<string, unknown> };
     const network = typeof chainId === "number" ? known[chainId] : undefined;
     const registries = arms.map(arm => contracts?.[arm]);

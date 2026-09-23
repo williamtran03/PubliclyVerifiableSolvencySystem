@@ -1,11 +1,23 @@
 import { defineConfig } from "vite";
 import { resolve } from "node:path";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 
 export default defineConfig({
   root: "open-solvency",
   base: "./",
   plugins: [{
+    name: "completed-deployments-only",
+    buildStart() {
+      const directory = resolve(import.meta.dirname, "deployments");
+      if (!existsSync(directory)) return;
+      for (const name of readdirSync(directory).filter(name => name.endsWith(".json"))) {
+        const record = JSON.parse(readFileSync(resolve(directory, name), "utf8"));
+        if (record && Object.hasOwn(record, "pending")) {
+          throw new Error(`${name}: resolve and remove the pending transaction before building or serving the website.`);
+        }
+      }
+    },
+  }, {
     name: "local-demo-connections",
     configureServer(server) {
       server.middlewares.use("/demo-config.json", (_request, response) => {

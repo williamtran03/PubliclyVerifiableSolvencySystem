@@ -24,6 +24,7 @@ test("partial, unknown-chain and malformed deployment records are ignored", () =
     { chainId: 31337, contracts },
     { chainId: "11155111", contracts },
     { chainId: 11155111, contracts: { ...contracts, "zk-circuit": "0x1234" } },
+    { chainId: 11155111, contracts, pending: { serializedTransaction: "0x1234" } },
     null,
   ]), []);
 });
