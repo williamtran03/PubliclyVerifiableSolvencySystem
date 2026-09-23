@@ -7,7 +7,9 @@ operator has encrypted backup access. Only one process may write to the deployme
 
 ## 1. Assign owners and confirm the schedule
 
-Complete the outstanding entries in [open-decisions.md](open-decisions.md):
+The consolidated questions and external setup steps are in
+[remaining release inputs](release-inputs.md). Complete the outstanding entries
+in [open-decisions.md](open-decisions.md):
 operator, recovery operator, machine, deployment reviewer, RPC provider/fallback,
 private backup location and retention period, and grading dates.
 
