@@ -106,6 +106,7 @@ Per-arm make targets are prefixed by arm (`ledger-`, `zk-`, `kzg-`, `single-`); 
 | [`docs/limitations.md`](docs/limitations.md) | What the system does not prove, stated plainly |
 | [`docs/manipulations.md`](docs/manipulations.md) | Fifteen ways a dishonest custodian could try to pass, and what stops each |
 | [`docs/related-work.md`](docs/related-work.md) | The prior schemes this builds on and where it differs |
+| [`docs/public-demo-release.md`](docs/public-demo-release.md) | Step-by-step coursework release, GitHub Pages, examples and remaining responsibilities |
 | [`docs/deployment.md`](docs/deployment.md) | What must be true before hosting the website or deploying contracts |
 
 ## Status

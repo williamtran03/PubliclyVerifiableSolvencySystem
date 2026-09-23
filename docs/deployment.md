@@ -3,6 +3,9 @@
 The website can be hosted as a research prototype. The repository is not yet a
 production deployment package for real customer solvency attestations.
 
+For the coursework release sequence, owner prerequisites, public sample export and
+GitHub Pages setup, see [the public demo release runbook](public-demo-release.md).
+
 ## Host the website
 
 Use Node 22 and install the locked dependencies with `npm ci`. Run

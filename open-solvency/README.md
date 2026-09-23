@@ -4,6 +4,21 @@ Start with `npm run web` from the repository root. Run `npm run web:build` for a
 
 The site has a public customer view and a company view. Select **Merkle-Sum Tree** (`arms/published-ledger`), **ZK circuit**, or **KZG** first; each adapter reads the matching registry contract. The Merkle-Sum implementation uses one tree per asset and publishes the pseudonymous ledger so the contract can recompute every root and sum. The selected RPC and registry are remembered separately for each arm. They are user supplied because the three registries are separate contracts and deployments. When the build finds a complete record in `deployments/*.json`, such as the one `npm run sepolia` writes, a **Use Sepolia deployment** button fills in all three and links each registry to the block explorer.
 
+## Automatic refresh and public examples
+
+After loading a snapshot, the visible tab checks the selected registry every 30
+seconds and checks immediately when returning to the tab. RPC failures retain the
+last snapshot with an outdated-data warning. A changed epoch clears the old proof
+selection and verification result; input amounts remain when asset definitions are
+unchanged. This refreshes recorded snapshot data, not proof generation or publication.
+
+For the public coursework demo, `npm run demo:export -- --publish-synthetic-example`
+exports verified examples after a public Sepolia run. The website shows the download
+and input values only for a matching registry, method, epoch and commitment. This is
+an explicit exception for the documented fictional customers; all other bundles
+remain private. Re-export and rebuild after each new epoch. See the
+[release runbook](../docs/public-demo-release.md) for the complete procedure.
+
 ## Customer
 
 1. Select the implementation and load the current on-chain snapshot.
