@@ -205,3 +205,7 @@ command at a time.
   storage reads, the transaction overhead, and the MODEXP repricing that Fusaka applies
   to the ZK verifier. Public Sepolia measurements must cite the recorded transaction
   hashes.
+
+## Decisions before publication
+
+The team discussion checklist is in [open-decisions.md](../../docs/open-decisions.md).
