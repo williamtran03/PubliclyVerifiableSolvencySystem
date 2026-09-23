@@ -23,8 +23,10 @@ branch, not a public Sepolia deployment or an executed GitHub Pages release.
 - Production website build and GitHub Pages project-subpath browser smoke test.
 - A temporary deployment record with `pending` caused the website build to fail
   without printing its signed-transaction test value; the test record was removed.
-- Workflow YAML structure checked locally. Actual GitHub Actions execution remains
-  required; local checks do not validate repository permissions or Pages settings.
+- Workflow YAML structure checked locally. GitHub Actions
+  [run 35931512335](https://github.com/williamtran03/PubliclyVerifiableSolvencySystem/actions/runs/35931512335)
+  passed with Node 22 and Foundry 1.7.1. Feature-branch deployment was skipped.
+  This does not validate Pages permissions or hosting eligibility.
 
 Local network tests initially failed under filesystem/network sandbox restrictions;
 Anvil and browser tests passed when allowed to open their local ports.
