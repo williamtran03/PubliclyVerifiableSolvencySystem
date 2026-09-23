@@ -140,9 +140,6 @@ export async function publishEpoch(network: Network, arm: Arm) {
   for (const [name, value] of files) writePrivate(staging, name, value);
   const receipt = await network.send(network.company, network.registryOf(arm), network.abiOf(arm), functionName, args);
   renameSync(staging, output);
-  const block = await network.client.getBlock({ blockNumber: receipt.blockNumber });
-  network.record.epochs.push({ arm, epochId: epochId.toString(), hash: receipt.transactionHash, block: receipt.blockNumber.toString(), gasUsed: receipt.gasUsed.toString(), timestamp: block.timestamp.toString() });
-  network.save();
   network.setStep("");
 
   const connection = { rpc: network.rpc, registry: network.registryOf(arm) as Address };

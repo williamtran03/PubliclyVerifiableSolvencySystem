@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, existsSync, readdi
 import { tmpdir } from "node:os";
 import { join, resolve, relative, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
-import { createPublicClient, createTestClient, createWalletClient, http, type Abi, type Account, type Address, type Chain, type Hex, type TransactionReceipt, type Transport } from "viem";
+import { encodeDeployData, encodeFunctionData, createPublicClient, createTestClient, createWalletClient, http, type Abi, type Account, type Address, type Chain, type Hex, type TransactionReceipt, type Transport } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 
@@ -24,7 +24,8 @@ export function writeJson(directory: string, name: string, value: unknown) {
   writeFileSync(join(directory, name), JSON.stringify(value, (_, v) => typeof v === "bigint" ? v.toString() : v, 2) + "\n", { mode: 0o600 });
 }
 export const artifact = (source: string, name: string) => JSON.parse(readFileSync(`out/${source}/${name}.json`, "utf8"));
-export function connect(transport: Transport, chain: Chain, deployer: Account, onReceipt: (label: string, receipt: TransactionReceipt) => void = () => {}, onSent: (label: string, hash: Hex) => void = () => {}) {
+export type SubmitTransaction = (account: Account, label: string, request: { to?: Address; data?: Hex; value?: bigint }) => Promise<Hex>;
+export function connect(transport: Transport, chain: Chain, deployer: Account, onReceipt: (label: string, receipt: TransactionReceipt) => void | Promise<void> = () => {}, onSent: (label: string, hash: Hex) => void = () => {}, submit?: SubmitTransaction) {
   const client = createPublicClient({ chain, transport });
   const wallet = (account: Account) => createWalletClient({ account, chain, transport });
   async function deploy(source: string, name: string, args: unknown[] = [], libraries: Record<string, Address> = {}, from: Account = deployer) {
@@ -36,20 +37,24 @@ export function connect(transport: Transport, chain: Chain, deployer: Account, o
         for (const { start, length } of positions) bytecode = bytecode.slice(0, start * 2) + libraries[library].slice(2).padStart(length * 2, "0") + bytecode.slice((start + length) * 2);
       }
     }
-    const hash = await wallet(from).deployContract({ abi: json.abi as Abi, bytecode: `0x${bytecode}`, args });
+    const hash = submit
+      ? await submit(from, `deploy ${name}`, { data: encodeDeployData({ abi: json.abi as Abi, bytecode: `0x${bytecode}`, args }) })
+      : await wallet(from).deployContract({ abi: json.abi as Abi, bytecode: `0x${bytecode}`, args });
     onSent(`deploy ${name}`, hash);
     const receipt = await client.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success" || !receipt.contractAddress) throw new Error(`Deployment failed: ${name}`);
-    onReceipt(`deploy ${name}`, receipt);
+    await onReceipt(`deploy ${name}`, receipt);
     return receipt.contractAddress;
   }
   async function send(account: Account, address: Address, abi: Abi, functionName: string, args: unknown[]) {
     const { request } = await client.simulateContract({ account, address, abi, functionName, args });
-    const hash = await wallet(account).writeContract(request);
+    const hash = submit
+      ? await submit(account, functionName, { to: address, data: encodeFunctionData({ abi, functionName, args }) })
+      : await wallet(account).writeContract(request);
     onSent(functionName, hash);
     const receipt = await client.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") throw new Error(`${functionName} reverted`);
-    onReceipt(functionName, receipt);
+    await onReceipt(functionName, receipt);
     return receipt;
   }
   return { client, wallet, artifact, deploy, send };

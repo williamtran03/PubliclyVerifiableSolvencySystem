@@ -2,11 +2,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { getAddress, http, isHex, TransactionReceiptNotFoundError, type Abi, type Address, type Hex, type TransactionReceipt } from "viem";
+import { http, isHex, keccak256, TransactionReceiptNotFoundError, type Abi, type Address, type Hex, type TransactionReceipt } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { sepolia } from "viem/chains";
-import { artifact, auditor as anvilAuditor, company as anvilCompany, connect } from "../demo/chain.ts";
+import { artifact, auditor as anvilAuditor, company as anvilCompany, connect, type SubmitTransaction } from "../demo/chain.ts";
 import { saveRecord } from "./record.ts";
+import { broadcastJournaled, finalizeTransaction, type PendingTransaction } from "./journal.ts";
 
 export const ARMS = {
   "published-ledger": { source: "MerkleSumRegistry.sol", name: "MerkleSumRegistry", reserveKey: "LEDGER_RESERVE_PRIVATE_KEY" },
@@ -34,7 +35,7 @@ export type Deployment = {
   epochs: { arm: Arm; epochId: string; hash: Hex; block: string; gasUsed: string; timestamp: string }[];
   transactions: Transaction[];
   operations?: Partial<Record<Arm, number>>;
-  pending?: { step: string; label: string; hash: Hex };
+  pending?: PendingTransaction;
 };
 
 function privateKey(name: string): Hex {
@@ -61,7 +62,7 @@ export function privateOutput(...parts: string[]) {
 }
 
 export function writePrivate(directory: string, name: string, value: unknown) {
-  writeFileSync(join(directory, name), JSON.stringify(value, (_, v) => typeof v === "bigint" ? v.toString() : v, 2) + "\n", { mode: 0o600 });
+  writeFileSync(join(directory, name), JSON.stringify(value, (_, v) => typeof v === "bigint" ? v.toString() : v, 2) + "\n", { mode: 0o600, flush: true });
 }
 
 export async function sepoliaNetwork() {
@@ -90,16 +91,32 @@ export async function sepoliaNetwork() {
 
   let step = "";
   const transport = http(rpc, { timeout: 30000, retryCount: 3 });
-  const onSent = (label: string, hash: Hex) => {
-    record.pending = { step, label, hash };
-    save();
+  const persist = (next: Deployment) => saveRecord(file, next);
+  const submit: SubmitTransaction = async (account, label, request) => {
+    if (record.pending) throw new Error("Recover the pending transaction before sending another.");
+    const signer = wallet(account);
+    const prepared = await signer.prepareTransactionRequest({ ...request, account });
+    const serializedTransaction = await signer.signTransaction(prepared);
+    const hash = keccak256(serializedTransaction);
+    const epochId = (label === "submitEpoch" || label === "submitLedger") && armNames.includes(step as Arm)
+      ? (await read<bigint>(step as Arm, "epochCount")).toString() : undefined;
+    return broadcastJournaled(record, persist, {
+      step, label, hash, serializedTransaction, sender: account.address, nonce: prepared.nonce, epochId,
+    }, raw => client.sendRawTransaction({ serializedTransaction: raw }));
   };
-  const onReceipt = (label: string, receipt: TransactionReceipt) => {
-    record.transactions.push({ step: step ? `${step} ${label}` : label, hash: receipt.transactionHash, block: receipt.blockNumber.toString(), gasUsed: receipt.gasUsed.toString() });
-    delete record.pending;
-    save();
+  const onReceipt = async (_label: string, receipt: TransactionReceipt) => {
+    const pending = record.pending;
+    if (!pending) throw new Error("Missing pending transaction.");
+    let epoch: Deployment["epochs"][number] | undefined;
+    if (receipt.status === "success" && (pending.label === "submitEpoch" || pending.label === "submitLedger") && armNames.includes(pending.step as Arm)) {
+      const arm = pending.step as Arm;
+      const epochId = pending.epochId ?? ((await client.readContract({ address: registryOf(arm), abi: abiOf(arm), functionName: "epochCount", blockNumber: receipt.blockNumber }) as bigint) - 1n).toString();
+      const block = await client.getBlock({ blockNumber: receipt.blockNumber });
+      epoch = { arm, epochId, hash: receipt.transactionHash, block: receipt.blockNumber.toString(), gasUsed: receipt.gasUsed.toString(), timestamp: block.timestamp.toString() };
+    }
+    finalizeTransaction(record, persist, receipt, epoch);
   };
-  const { client, wallet, deploy, send } = connect(transport, sepolia, company, onReceipt, onSent);
+  const { client, wallet, deploy, send } = connect(transport, sepolia, company, onReceipt, undefined, submit);
   const chainId = await client.getChainId();
   if (chainId !== sepolia.id) throw new Error(`SEPOLIA_RPC_URL serves chain ${chainId}, not Sepolia (${sepolia.id}).`);
 
@@ -112,13 +129,37 @@ export async function sepoliaNetwork() {
   const read = <T>(arm: Arm, functionName: string, args: unknown[] = []) =>
     client.readContract({ address: registryOf(arm), abi: abiOf(arm), functionName, args }) as Promise<T>;
   async function transfer(to: Address, value: bigint) {
-    const hash = await wallet(company).sendTransaction({ to, value });
-    onSent("transfer", hash);
+    const hash = await submit(company, "transfer", { to, value });
     const receipt = await client.waitForTransactionReceipt({ hash });
+    await onReceipt("transfer", receipt);
     if (receipt.status !== "success") throw new Error(`Transfer to ${to} failed`);
-    onReceipt("transfer", receipt);
   }
   async function recover() {
+    const pending = record.pending;
+    if (pending) {
+      let receipt = await client.getTransactionReceipt({ hash: pending.hash }).catch(error => {
+        if (error instanceof TransactionReceiptNotFoundError) return undefined;
+        throw error;
+      });
+      if (!receipt) {
+        if (!pending.serializedTransaction || !pending.sender || pending.nonce === undefined) {
+          throw new Error(`Legacy pending transaction ${pending.hash} has no signed journal. Resolve it manually; it will not be discarded.`);
+        }
+        if (keccak256(pending.serializedTransaction) !== pending.hash) throw new Error("Signed transaction hash mismatch.");
+        const mined = await client.getTransactionCount({ address: pending.sender, blockTag: "latest" });
+        if (mined > pending.nonce) throw new Error(`Nonce ${pending.nonce} was consumed but receipt ${pending.hash} is unavailable. Check for a replacement; the journal is retained.`);
+        try {
+          await client.sendRawTransaction({ serializedTransaction: pending.serializedTransaction });
+        } catch (error) {
+          // An RPC can reject a duplicate broadcast after having accepted the original.
+          const known = await client.getTransaction({ hash: pending.hash }).catch(() => undefined);
+          if (!known) throw error;
+        }
+        receipt = await client.waitForTransactionReceipt({ hash: pending.hash });
+      }
+      await onReceipt(pending.label, receipt);
+      console.log(`${pending.step} ${pending.label}: recovered ${receipt.status} transaction ${pending.hash}.`);
+    }
     for (const account of [company, auditor, ...Object.values(reserves)]) {
       const [mined, sent] = await Promise.all([
         client.getTransactionCount({ address: account.address, blockTag: "latest" }),
@@ -126,37 +167,6 @@ export async function sepoliaNetwork() {
       ]);
       if (sent > mined) throw new Error(`${account.address} has a transaction in the mempool. Wait until it is mined or replaced, then run the command again.`);
     }
-    const pending = record.pending;
-    if (!pending) return;
-    const receipt = await client.getTransactionReceipt({ hash: pending.hash }).catch(error => {
-      if (error instanceof TransactionReceiptNotFoundError) return undefined;
-      throw error;
-    });
-    step = pending.step;
-    if (!receipt) {
-      delete record.pending;
-      save();
-      console.warn(`${pending.step} ${pending.label}: transaction ${pending.hash} was never mined; the step will be repeated.`);
-      return;
-    }
-    onReceipt(pending.label, receipt);
-    if (receipt.status !== "success") {
-      console.warn(`${pending.step} ${pending.label}: transaction ${pending.hash} reverted; the step will be repeated.`);
-      return;
-    }
-    if (pending.label.startsWith("deploy ") && receipt.contractAddress) {
-      record.contracts[pending.step] = getAddress(receipt.contractAddress);
-      record.deployBlocks[pending.step] = receipt.blockNumber.toString();
-    }
-    if ((pending.label === "submitEpoch" || pending.label === "submitLedger") && armNames.includes(pending.step as Arm)) {
-      const arm = pending.step as Arm;
-      const epochId = await read<bigint>(arm, "epochCount") - 1n;
-      const block = await client.getBlock({ blockNumber: receipt.blockNumber });
-      record.epochs.push({ arm, epochId: epochId.toString(), hash: receipt.transactionHash, block: receipt.blockNumber.toString(), gasUsed: receipt.gasUsed.toString(), timestamp: block.timestamp.toString() });
-    }
-    save();
-    step = "";
-    console.log(`${pending.step} ${pending.label}: recovered mined transaction ${pending.hash}.`);
   }
   async function blockAfter(block: bigint) {
     while (await client.getBlockNumber({ cacheTime: 0 }) <= block) await delay(3000);

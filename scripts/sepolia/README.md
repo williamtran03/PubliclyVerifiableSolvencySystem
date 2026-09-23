@@ -160,16 +160,25 @@ all succeeded, and so did the recovery below after the process was killed mid-su
 
 ### Recovery
 
-Each transaction's hash is written to `deployments/sepolia.json` as `pending` as soon as
-it is broadcast, before the script waits for the receipt. Before anything else, the next
-`deploy`, `epoch` or `exercise`:
+Transactions are prepared and signed locally. The signed transaction, its hash,
+sender, nonce and (for publication) epoch ID are saved atomically to the deployment
+record **before broadcast**. If the process stops before or after broadcast, the next
+`deploy`, `epoch` or `exercise` checks that exact hash and rebroadcasts the same signed
+transaction when necessary. It never invents a new transaction for an uncertain outcome.
 
-- stops if the company, the auditor or a reserve wallet still has a transaction in the
-  mempool, until it is mined or replaced;
-- records the `pending` transaction if it was mined. A mined deployment has its
-  address saved, so it is not deployed a second time. A mined epoch submission gets
-  its entry in `epochs`. A transaction that was never mined or that reverted is
-  dropped, and the step runs again.
+The receipt, deployment address or epoch entry, and removal of `pending` are saved in
+one atomic record replacement. If that write fails, the persisted pending entry remains
+available for recovery. Epoch metadata is gathered before replacing the record.
+
+A consumed nonce without the expected receipt requires manual investigation of a
+possible replacement. Old hash-only pending entries can still recover mined receipts;
+an unmined legacy entry is retained for manual resolution. RPC errors retain the journal.
+Other pending transactions from the role wallets block further work. Do not operate the
+same keys or registries concurrently.
+
+Only commit a completed deployment record with no `pending` entry. While pending,
+the record contains a signed transaction that can be broadcast by anyone who reads it;
+keep that working record local until recovery is complete. It never contains private keys.
 
 Epoch bundles are written to `PRIVATE_OUTPUT/<arm>/epoch-<n>.pending/` **before** the
 submission is sent, then renamed to `epoch-<n>/` once it is mined. On the next `epoch`
