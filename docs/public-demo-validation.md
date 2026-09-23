@@ -5,6 +5,14 @@ branch, not a public Sepolia deployment or an executed GitHub Pages release.
 
 ## Passed
 
+- Pinned proving tools installed locally: nargo 1.0.0-beta.26 and bb
+  6.0.0-nightly.20260902. Official archive checksums and executable versions verified.
+  The installer also rejected a deliberately modified archive before installation.
+- Fresh-proof integration passed with those tools: two newly generated ZK epoch
+  proofs, on-chain submission, customer verification and invalid-submission checks
+  on a disposable local Anvil chain.
+- The pinned tools regenerated `MultiAssetHonkVerifier.sol` byte for byte.
+  SHA-256: `284203a0819b355d06db9f27819ce421dff7d36c69266446b3a5569281bf41b4`.
 - TypeScript type checking and Solidity formatting.
 - Foundry: 110 reported tests passed, including the reserve registry invariants.
 - Node: all 19 test files passed, including synthetic export filtering and example matching.
@@ -25,9 +33,12 @@ Anvil and browser tests passed when allowed to open their local ports.
 
 - This environment used Node 26.10.0 and Foundry 1.8.1. CI remains configured for
   Node 22 and Foundry 1.7.1. Confirm the pinned release environment before deploying.
-- Fresh-proof integration was attempted and failed because nargo 1.0.0-beta.26 is
-  unavailable on PATH. bb is also absent from PATH. Install both pinned tools and
-  rerun `npm run test:integration`; fixture tests are not a substitute.
+- Add `$HOME/.local/share/opensolvency/proving-tools/bin` to PATH in the operator's
+  shell. The installer intentionally leaves shell startup files unchanged.
+- Existing local role keys have valid formats but their intended ownership and
+  backup arrangements remain unconfirmed. A read-only Sepolia check found all five
+  balances at zero. No keys were generated, replaced, copied into the repository or
+  sent to an external service.
 - No public Sepolia deployment, drill, funding transaction or epoch was performed.
 - The synthetic exporter has local filtering/verification tests, but its full
   public Sepolia run and resulting example files still require a deployed system.
