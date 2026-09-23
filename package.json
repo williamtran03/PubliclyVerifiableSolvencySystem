@@ -10,6 +10,7 @@
     "web": "vite --config vite.opensolvency.config.ts",
     "web:build": "vite build --config vite.opensolvency.config.ts",
     "demo": "node --import tsx scripts/demo/run.ts",
+    "demo:export": "node --import tsx scripts/sepolia/export-example.ts",
     "sepolia": "node --import tsx scripts/sepolia/run.ts",
     "test:demo": "node --import tsx --test --test-reporter=spec scripts/demo/*.test.ts",
     "ledger": "node --import tsx arms/published-ledger/cli/verify.ts",
