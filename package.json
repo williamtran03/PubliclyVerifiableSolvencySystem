@@ -15,6 +15,7 @@
     "test:demo": "node --import tsx --test --test-reporter=spec scripts/demo/*.test.ts",
     "ledger": "node --import tsx arms/published-ledger/cli/verify.ts",
     "inclusion": "node --import tsx arms/single-asset/cli/verify-inclusion.ts",
+    "test:pages": "playwright test --config playwright.pages.config.ts",
     "test:browser": "playwright test",
     "validate": "npm run check && forge fmt --check && forge test && npm test && npm run web:build && npm run test:demo && npm run test:browser"
   },
