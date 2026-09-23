@@ -33,6 +33,8 @@ Anvil and browser tests passed when allowed to open their local ports.
   public Sepolia run and resulting example files still require a deployed system.
 - No deployment addresses or sample files were fabricated. Export, review and
   commit them after the public run.
+- The repository is private; confirm the owner plan supports GitHub Pages for
+  private repositories. Repository visibility has not been changed.
 - Pages must be enabled by the repository owner, the reviewed work integrated into
   main, and the final hosted URL tested. A feature-branch push does not publish it.
 - Name the operator, recovery operator and reviewer; confirm grading dates,
