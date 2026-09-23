@@ -7,6 +7,7 @@ import { kzg } from "./solutions/kzg.ts";
 import { inspectArtifact } from "./solutions/company.ts";
 import { publicationCall, submitWithWallet } from "./solutions/publish.ts";
 import { deployedNetworks, explorerLink } from "./networks.ts";
+import { matchingExample, type PublicExamples } from "./examples.ts";
 import type { Connection, Snapshot, Solution, SolutionId } from "./types.ts";
 import "./style.css";
 
@@ -25,6 +26,8 @@ if (stored.rpc && stored.registry && !connections[selected.id]) connections[sele
 let demoConnections: Record<string, { rpc: string; registry: string }> | undefined;
 const networks = deployedNetworks(Object.values(import.meta.glob("../../deployments/*.json", { eager: true, import: "default" })));
 
+const publicExamples = Object.values(import.meta.glob("../public-examples/*.json", { eager: true, import: "default" })) as PublicExamples[];
+
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
   <header class="topbar"><div class="shell topbar-inner"><a class="wordmark" href="./">Open<span>Solvency</span></a><span class="top-note">Research prototype</span></div></header>
@@ -33,7 +36,7 @@ app.innerHTML = `
     <div class="role-switch" role="tablist" aria-label="View"><button id="customerTab" class="active" role="tab" aria-selected="true">For customers</button><button id="companyTab" role="tab" aria-selected="false">For companies</button></div>
     <section class="panel selector"><div class="section-heading"><div><span class="eyebrow">1. Method</span><h2>Select a proof method</h2></div></div><div id="solutions" class="solution-grid"></div><p id="disclosure" class="hint"></p><div class="presets"><button id="demo" class="secondary" hidden>Use local demo</button>${networks.map((network, i) => `<button class="secondary network" data-network="${i}">Use ${escapeHtml(network.name)} deployment</button>`).join("")}</div></section>
     <section class="panel"><div class="section-heading"><div><span class="eyebrow">2. Registry</span><h2>Load a snapshot</h2></div></div><div class="form-grid"><label>RPC endpoint<input id="rpc" type="url" placeholder="https://…" value="${escapeHtml(stored.rpc ?? "http://127.0.0.1:8545")}" /></label><label>Registry address<input id="registry" spellcheck="false" placeholder="0x…" value="${escapeHtml(stored.registry ?? "")}" /></label></div><div class="actions"><button id="load" class="primary">Load latest snapshot</button><span id="loadStatus" role="status"></span></div><p id="refreshStatus" class="hint" role="status"></p><div id="snapshot" class="snapshot" hidden></div><div id="publicLedger" class="public-ledger" hidden></div></section>
-    <section id="customerView" class="panel"><div class="section-heading"><div><span class="eyebrow">3. Balances</span><h2>Verify my balances</h2></div><span class="section-note">No wallet needed</span></div><p id="customerHelp" class="hint"></p><div class="form-grid"><label>Customer ID<input id="account" autocomplete="off" placeholder="e.g. customer-123" /></label><label>Private customer proof (.json)<input id="proof" type="file" accept=".json,application/json" /></label></div><label class="unit-mode">Amount units<select id="unitMode"><option value="human">Token amounts</option><option value="proof">Proof units (integers)</option></select></label><div id="balances" class="balances"></div><label id="secretLabel">Account secret<input id="secret" autocomplete="off" placeholder="ZK and KZG only" /></label><div class="actions"><button id="verify" class="primary">Verify proof</button><span id="verifyStatus" role="status"></span></div></section>
+    <section id="customerView" class="panel"><div class="section-heading"><div><span class="eyebrow">3. Balances</span><h2>Verify my balances</h2></div><span class="section-note">No wallet needed</span></div><p id="customerHelp" class="hint"></p><div id="publicExample" class="company-callout" hidden></div><div class="form-grid"><label>Customer ID<input id="account" autocomplete="off" placeholder="e.g. customer-123" /></label><label>Private customer proof (.json)<input id="proof" type="file" accept=".json,application/json" /></label></div><label class="unit-mode">Amount units<select id="unitMode"><option value="human">Token amounts</option><option value="proof">Proof units (integers)</option></select></label><div id="balances" class="balances"></div><label id="secretLabel">Account secret<input id="secret" autocomplete="off" placeholder="ZK and KZG only" /></label><div class="actions"><button id="verify" class="primary">Verify proof</button><span id="verifyStatus" role="status"></span></div></section>
     <section id="companyView" class="panel" hidden><div class="section-heading"><div><span class="eyebrow">3. Publication</span><h2>Publish a snapshot</h2></div><span class="section-note">Company wallet</span></div><p class="hint">Generate the proofs with the CLI, then select the files below to publish the next epoch. Use a wallet authorized by the registry. Keep customer bundles private.</p><ol id="publication" class="steps"></ol><div class="company-callout"><strong>Review the current epoch</strong><p id="companyCheck">Load the registry above to review its epoch and reserves.</p></div><div class="artifact"><label>Compare an already published artifact<input id="artifact" type="file" accept=".json,application/json" /></label><button id="inspect" class="secondary">Compare with registry</button><p id="inspectStatus" role="status" class="hint"></p></div><div class="publish"><h3>Submit the next epoch</h3><div class="form-grid"><label id="nextLabel">New artifact<input id="nextArtifact" type="file" accept=".json,application/json" /></label><label id="supplementLabel">Additional proof<input id="supplement" type="file" /></label></div><label id="roundsLabel">Oracle round IDs (three comma-separated values)<input id="rounds" placeholder="123, 456, 789" /></label><div class="actions"><button id="publish" class="primary">Publish with company wallet</button><span id="publishStatus" role="status"></span></div></div></section>
   </main>`;
 
@@ -100,6 +103,7 @@ function invalidate() {
   snapshotConnection = null;
   setStatus("refreshStatus", "");
   el<HTMLElement>("snapshot").hidden = true;
+  el<HTMLElement>("publicExample").hidden = true;
   el<HTMLElement>("publicLedger").hidden = true;
   for (const id of ["verifyStatus", "inspectStatus", "publishStatus"]) setStatus(id, "");
   el<HTMLElement>("companyCheck").textContent = "Load the registry above to review its epoch and reserves.";
@@ -116,6 +120,19 @@ function connection(): Connection {
   if (!isAddress(registry)) throw new Error("Enter a valid registry address.");
   return { rpc, registry };
 }
+function renderExample(value: Snapshot, registry: string) {
+  const panel = el<HTMLElement>("publicExample");
+  const example = matchingExample(publicExamples, selected.id, registry, value);
+  panel.replaceChildren();
+  panel.hidden = !example;
+  if (!example) return;
+  panel.innerHTML = `<strong>Public fictional customer · epoch ${escapeHtml(example.epoch)}</strong><p>This example deliberately publishes its proof and account details. Select Proof units (integers), enter the values below, download the file and select it as your customer proof.</p><p>Customer ID: <code>${escapeHtml(example.account)}</code><br>${example.balances.map(([asset, amount]) => `Asset ${asset}: <code>${escapeHtml(amount)}</code> proof units`).join("<br>")}${example.secret ? `<br>Account secret: <code>${escapeHtml(example.secret)}</code>` : ""}</p>`;
+  const download = document.createElement("a");
+  download.textContent = "Download fictional customer proof";
+  download.download = `${example.method}-epoch-${example.epoch}-example.json`;
+  download.href = `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(example.bundle, null, 2))}`;
+  panel.append(download);
+}
 function renderSnapshot(value: Snapshot, registry: string, rebuildInputs = true, rebuildLedger = true) {
   const explorer = explorerLink(networks, selected.id, registry);
   const amount = (raw: bigint | undefined, asset: Snapshot["assets"][number]) => raw === undefined ? "private" : `${escapeHtml(displayAmount(raw, asset))}<small>${raw} proof units</small>`;
@@ -124,6 +141,7 @@ function renderSnapshot(value: Snapshot, registry: string, rebuildInputs = true,
   panel.innerHTML = `<p id="freshness" role="status"></p><div class="snapshot-meta"><div><span>Epoch</span><strong>${value.epoch}</strong></div><div><span>Published</span><strong>${new Date(Number(value.timestamp) * 1000).toLocaleString("en-GB")}</strong></div></div><div class="commitment"><span>Commitment / snapshot ID</span><code>${escapeHtml(value.commitment)}</code></div>${explorer ? `<p class="hint"><a href="${escapeHtml(explorer.url)}" target="_blank" rel="noopener">View the registry on ${escapeHtml(explorer.name)} Etherscan</a></p>` : ""}<div class="table-wrap"><table><thead><tr><th>Asset</th><th>Reserves</th><th>Liabilities</th><th>Reserve floor</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   panel.hidden = false;
   showFreshness(value);
+  renderExample(value, registry);
   el<HTMLElement>("companyCheck").textContent = `Current snapshot: epoch ${value.epoch}, published ${new Date(Number(value.timestamp) * 1000).toLocaleString("en-GB")}. Compare these figures with your internal records before creating a new proof.`;
   if (rebuildInputs) renderBalances();
   if (!rebuildLedger) return;
