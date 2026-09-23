@@ -21,10 +21,16 @@ const abi = parseAbi([
 
 async function setup(page: Page) {
   let block = 1;
+  let current = true;
+  let fail = false;
   let pause: (() => Promise<void>) | undefined;
   let completedReads = 0;
   await page.route(rpc, async route => {
     const request = route.request().postDataJSON();
+    if (fail) {
+      await route.fulfill({ json: { jsonrpc: "2.0", id: request.id, error: { code: -32602, message: "Test RPC unavailable" } } });
+      return;
+    }
     let result: unknown;
     if (request.method === "eth_blockNumber") {
       const capturedBlock = block;
@@ -42,7 +48,7 @@ async function setup(page: Page) {
       const values = {
         epochCount: BigInt(request.params[1]),
         getEpoch: { snapshotId, rootHashes: prepared.ledger.assets.map(a => a.rootHash), liabilities: [100n], reserves: [200n], timestamp: 1_800_000_000n },
-        assets: zeroAddress, isCurrent: true, epochAge: 10n, maxEpochAge: 86400n, lapses: 0n,
+        assets: zeroAddress, isCurrent: current, epochAge: 10n, maxEpochAge: 86400n, lapses: 0n,
       };
       result = encodeFunctionResult({ abi, functionName, result: values[functionName] });
     } else throw new Error(`Unexpected RPC method ${request.method}`);
@@ -60,6 +66,8 @@ async function setup(page: Page) {
   await page.locator("#proof").setInputFiles(upload(prepared.bundles[0]));
   return {
     setBlock(value: number) { block = value; },
+    expire() { current = false; },
+    fail(value: boolean) { fail = value; },
     get reads() { return completedReads; },
     pauseNext() {
       let release!: () => void;
@@ -136,4 +144,67 @@ test("public ledger fallback rejects tampering and displays authenticated entrie
   await expect(page.locator("#publicLedgerStatus")).toHaveClass("error");
   await page.locator("#publicLedgerFile").setInputFiles(upload(prepared.ledger));
   await expect(page.locator("#publicLedger svg")).toBeVisible();
+});
+
+
+test("automatic refresh preserves inputs and clears results when the epoch changes", async ({ page }) => {
+  await page.clock.install();
+  const state = await setup(page);
+  await page.locator("#verify").click();
+  await expect(page.locator("#verifyStatus")).toHaveClass("good");
+  await page.clock.runFor(30_000);
+  await expect.poll(() => state.reads).toBe(3);
+  await expect(page.locator(".balance")).toHaveValue("100");
+  await expect(page.locator("#verifyStatus")).toHaveClass("good");
+  state.setBlock(2);
+  await page.clock.runFor(30_000);
+  await expect(page.locator(".snapshot-meta strong").first()).toHaveText("1");
+  await expect(page.locator("#verifyStatus")).toContainText("Select the matching customer bundle");
+  await expect(page.locator("#proof")).toHaveValue("");
+  await expect(page.locator(".balance")).toHaveValue("100");
+  await expect(page.locator("#refreshStatus")).toContainText("Last updated:");
+});
+
+test("automatic refresh marks expired snapshots and recovers from RPC failures", async ({ page }) => {
+  await page.clock.install();
+  const state = await setup(page);
+  await page.locator("#verify").click();
+  await expect(page.locator("#verifyStatus")).toHaveClass("good");
+  state.expire();
+  await page.clock.runFor(30_000);
+  await expect(page.locator("#verifyStatus")).toContainText("expired");
+  await expect(page.locator("#freshness")).toHaveClass("warning");
+  state.fail(true);
+  await page.clock.runFor(30_000);
+  await expect(page.locator("#refreshStatus")).toContainText("Refresh failed");
+  await expect(page.locator("#snapshot")).toBeVisible();
+  state.fail(false);
+  await page.clock.runFor(30_000);
+  await expect(page.locator("#refreshStatus")).not.toContainText("Refresh failed");
+});
+
+test("a refresh cannot overwrite a changed connection", async ({ page }) => {
+  await page.clock.install();
+  const state = await setup(page);
+  const pending = state.pauseNext();
+  await page.clock.runFor(30_000);
+  await pending.waiting;
+  await page.locator("#registry").fill("0x2222222222222222222222222222222222222222");
+  pending.release();
+  await expect.poll(() => state.reads).toBe(2);
+  await expect(page.locator("#snapshot")).toBeHidden();
+  await expect(page.locator("#refreshStatus")).toBeEmpty();
+});
+
+test("hidden tabs pause refresh and becoming visible refreshes immediately", async ({ page }) => {
+  await page.clock.install();
+  const state = await setup(page);
+  await page.evaluate(() => Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" }));
+  await page.clock.runFor(60_000);
+  expect(state.reads).toBe(1);
+  await page.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect.poll(() => state.reads).toBe(2);
 });

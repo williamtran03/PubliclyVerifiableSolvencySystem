@@ -32,7 +32,7 @@ app.innerHTML = `
     <div class="hero"><h1>Check a solvency snapshot</h1><p>Read the published reserves and verify that your balances are included.</p></div>
     <div class="role-switch" role="tablist" aria-label="View"><button id="customerTab" class="active" role="tab" aria-selected="true">For customers</button><button id="companyTab" role="tab" aria-selected="false">For companies</button></div>
     <section class="panel selector"><div class="section-heading"><div><span class="eyebrow">1. Method</span><h2>Select a proof method</h2></div></div><div id="solutions" class="solution-grid"></div><p id="disclosure" class="hint"></p><div class="presets"><button id="demo" class="secondary" hidden>Use local demo</button>${networks.map((network, i) => `<button class="secondary network" data-network="${i}">Use ${escapeHtml(network.name)} deployment</button>`).join("")}</div></section>
-    <section class="panel"><div class="section-heading"><div><span class="eyebrow">2. Registry</span><h2>Load a snapshot</h2></div></div><div class="form-grid"><label>RPC endpoint<input id="rpc" type="url" placeholder="https://…" value="${escapeHtml(stored.rpc ?? "http://127.0.0.1:8545")}" /></label><label>Registry address<input id="registry" spellcheck="false" placeholder="0x…" value="${escapeHtml(stored.registry ?? "")}" /></label></div><div class="actions"><button id="load" class="primary">Load latest snapshot</button><span id="loadStatus" role="status"></span></div><div id="snapshot" class="snapshot" hidden></div><div id="publicLedger" class="public-ledger" hidden></div></section>
+    <section class="panel"><div class="section-heading"><div><span class="eyebrow">2. Registry</span><h2>Load a snapshot</h2></div></div><div class="form-grid"><label>RPC endpoint<input id="rpc" type="url" placeholder="https://…" value="${escapeHtml(stored.rpc ?? "http://127.0.0.1:8545")}" /></label><label>Registry address<input id="registry" spellcheck="false" placeholder="0x…" value="${escapeHtml(stored.registry ?? "")}" /></label></div><div class="actions"><button id="load" class="primary">Load latest snapshot</button><span id="loadStatus" role="status"></span></div><p id="refreshStatus" class="hint" role="status"></p><div id="snapshot" class="snapshot" hidden></div><div id="publicLedger" class="public-ledger" hidden></div></section>
     <section id="customerView" class="panel"><div class="section-heading"><div><span class="eyebrow">3. Balances</span><h2>Verify my balances</h2></div><span class="section-note">No wallet needed</span></div><p id="customerHelp" class="hint"></p><div class="form-grid"><label>Customer ID<input id="account" autocomplete="off" placeholder="e.g. customer-123" /></label><label>Private customer proof (.json)<input id="proof" type="file" accept=".json,application/json" /></label></div><label class="unit-mode">Amount units<select id="unitMode"><option value="human">Token amounts</option><option value="proof">Proof units (integers)</option></select></label><div id="balances" class="balances"></div><label id="secretLabel">Account secret<input id="secret" autocomplete="off" placeholder="ZK and KZG only" /></label><div class="actions"><button id="verify" class="primary">Verify proof</button><span id="verifyStatus" role="status"></span></div></section>
     <section id="companyView" class="panel" hidden><div class="section-heading"><div><span class="eyebrow">3. Publication</span><h2>Publish a snapshot</h2></div><span class="section-note">Company wallet</span></div><p class="hint">Generate the proofs with the CLI, then select the files below to publish the next epoch. Use a wallet authorized by the registry. Keep customer bundles private.</p><ol id="publication" class="steps"></ol><div class="company-callout"><strong>Review the current epoch</strong><p id="companyCheck">Load the registry above to review its epoch and reserves.</p></div><div class="artifact"><label>Compare an already published artifact<input id="artifact" type="file" accept=".json,application/json" /></label><button id="inspect" class="secondary">Compare with registry</button><p id="inspectStatus" role="status" class="hint"></p></div><div class="publish"><h3>Submit the next epoch</h3><div class="form-grid"><label id="nextLabel">New artifact<input id="nextArtifact" type="file" accept=".json,application/json" /></label><label id="supplementLabel">Additional proof<input id="supplement" type="file" /></label></div><label id="roundsLabel">Oracle round IDs (three comma-separated values)<input id="rounds" placeholder="123, 456, 789" /></label><div class="actions"><button id="publish" class="primary">Publish with company wallet</button><span id="publishStatus" role="status"></span></div></div></section>
   </main>`;
@@ -98,6 +98,7 @@ function invalidate() {
   stateVersion++;
   snapshot = null;
   snapshotConnection = null;
+  setStatus("refreshStatus", "");
   el<HTMLElement>("snapshot").hidden = true;
   el<HTMLElement>("publicLedger").hidden = true;
   for (const id of ["verifyStatus", "inspectStatus", "publishStatus"]) setStatus(id, "");
@@ -115,7 +116,7 @@ function connection(): Connection {
   if (!isAddress(registry)) throw new Error("Enter a valid registry address.");
   return { rpc, registry };
 }
-function renderSnapshot(value: Snapshot, registry: string) {
+function renderSnapshot(value: Snapshot, registry: string, rebuildInputs = true, rebuildLedger = true) {
   const explorer = explorerLink(networks, selected.id, registry);
   const amount = (raw: bigint | undefined, asset: Snapshot["assets"][number]) => raw === undefined ? "private" : `${escapeHtml(displayAmount(raw, asset))}<small>${raw} proof units</small>`;
   const rows = value.assets.map((asset, i) => `<tr><td>${escapeHtml(asset.label)}<small>Asset ${i}</small><small class="token-address">${escapeHtml(asset.token ?? "")}</small></td><td>${amount(asset.reserves, asset)}</td><td>${amount(asset.liabilities, asset)}</td><td>${asset.floor === undefined ? "—" : amount(asset.floor, asset)}</td></tr>`).join("");
@@ -124,7 +125,8 @@ function renderSnapshot(value: Snapshot, registry: string) {
   panel.hidden = false;
   showFreshness(value);
   el<HTMLElement>("companyCheck").textContent = `Current snapshot: epoch ${value.epoch}, published ${new Date(Number(value.timestamp) * 1000).toLocaleString("en-GB")}. Compare these figures with your internal records before creating a new proof.`;
-  renderBalances();
+  if (rebuildInputs) renderBalances();
+  if (!rebuildLedger) return;
   const publicLedger = el<HTMLElement>("publicLedger");
   publicLedger.replaceChildren();
   publicLedger.hidden = selected.id !== "published-ledger";
@@ -155,8 +157,57 @@ el<HTMLButtonElement>("load").addEventListener("click", async () => {
   setStatus("loadStatus", "Reading the smart contract …");
   const version = stateVersion;
   const solution = selected;
-  try { const c = connection(); const value = await solution.read(c); if (version !== stateVersion) return; snapshot = value; snapshotConnection = `${c.rpc}|${c.registry.toLowerCase()}`; save(); renderSnapshot(value, c.registry); setStatus("loadStatus", "Snapshot loaded from the registry.", true); }
+  try { const c = connection(); const value = await solution.read(c); if (version !== stateVersion) return; snapshot = value; snapshotConnection = `${c.rpc}|${c.registry.toLowerCase()}`; save(); renderSnapshot(value, c.registry); markRefreshed(); setStatus("loadStatus", "Snapshot loaded from the registry.", true); }
   catch (error) { if (version === stateVersion) setStatus("loadStatus", error instanceof Error ? error.message : String(error), false); }
+});
+let refreshInFlight = false;
+let lastRefresh = "";
+function markRefreshed() {
+  lastRefresh = new Date().toLocaleString("en-GB");
+  setStatus("refreshStatus", `Last updated: ${lastRefresh}. Checks every 30 seconds while this tab is visible.`);
+}
+async function refreshSnapshot() {
+  if (document.visibilityState !== "visible" || !snapshot || refreshInFlight) return;
+  refreshInFlight = true;
+  const version = stateVersion;
+  const solution = selected;
+  const previous = snapshot;
+  try {
+    const c = connection();
+    const value = await solution.read(c);
+    if (version !== stateVersion) return;
+    const changed = value.epoch !== previous.epoch || value.commitment !== previous.commitment;
+    const assetsChanged = value.assets.length !== previous.assets.length || value.assets.some((asset, i) =>
+      asset.token !== previous.assets[i].token || asset.unitDecimals !== previous.assets[i].unitDecimals);
+    if (changed) {
+      // Ignore outstanding checks against the old epoch, including ledger uploads.
+      stateVersion++;
+      verificationVersion++;
+      inspectionVersion++;
+      el<HTMLInputElement>("proof").value = "";
+      setStatus("verifyStatus", "The snapshot changed. Select the matching customer bundle and verify again.");
+      setStatus("inspectStatus", "The snapshot changed. Compare the artifact again.");
+      setStatus("loadStatus", "A different on-chain snapshot was loaded. Check its epoch before verifying.");
+    } else if (!value.freshness?.current) {
+      invalidateVerification();
+      inspectionVersion++;
+      setStatus("verifyStatus", "This snapshot has expired or its freshness is unavailable. Verify again for the current status.");
+      setStatus("inspectStatus", "");
+    }
+    snapshot = value;
+    renderSnapshot(value, c.registry, assetsChanged, changed);
+    markRefreshed();
+  } catch (error) {
+    if (version !== stateVersion) return;
+    invalidateVerification();
+    inspectionVersion++;
+    setStatus("inspectStatus", "");
+    setStatus("refreshStatus", `Refresh failed. Displayed data may be outdated. Last updated: ${lastRefresh}. ${error instanceof Error ? error.message : String(error)}`, false);
+  } finally { refreshInFlight = false; }
+}
+setInterval(() => { void refreshSnapshot(); }, 30_000);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") void refreshSnapshot();
 });
 el<HTMLButtonElement>("verify").addEventListener("click", async () => {
   setStatus("verifyStatus", "Verifying …");
