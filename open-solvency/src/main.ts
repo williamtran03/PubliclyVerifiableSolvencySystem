@@ -27,7 +27,7 @@ const networks = deployedNetworks(Object.values(import.meta.glob("../../deployme
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
-  <header class="topbar"><div class="shell topbar-inner"><a class="wordmark" href="/">Open<span>Solvency</span></a><span class="top-note">Research prototype</span></div></header>
+  <header class="topbar"><div class="shell topbar-inner"><a class="wordmark" href="./">Open<span>Solvency</span></a><span class="top-note">Research prototype</span></div></header>
   <main class="shell">
     <div class="hero"><h1>Check a solvency snapshot</h1><p>Read the published reserves and verify that your balances are included.</p></div>
     <div class="role-switch" role="tablist" aria-label="View"><button id="customerTab" class="active" role="tab" aria-selected="true">For customers</button><button id="companyTab" role="tab" aria-selected="false">For companies</button></div>
