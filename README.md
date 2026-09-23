@@ -27,8 +27,11 @@ website against all three. Ctrl+C stops only what it started. The walkthrough is
 [`scripts/demo/README.md`](scripts/demo/README.md).
 
 Node 22 and Foundry 1.7.1, pinned in CI. Noir
-(`nargo`) and Barretenberg (`bb`) are needed only to regenerate the ZK proof and are not
-yet pinned; the committed fixtures run without them.
+(`nargo`) and Barretenberg (`bb`) are needed to generate fresh ZK proofs. The prover
+requires nargo 1.0.0-beta.26 and bb 6.0.0-nightly.20260902; Linux x86_64 users can run
+`python3 scripts/install-proving-tools.py` and follow the
+[release runbook](docs/public-demo-release.md) to set PATH. The committed fixtures
+run without these tools.
 
 ## The three arms
 
