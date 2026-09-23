@@ -21,7 +21,23 @@ not automatically each week.
 ## 2. Prepare and validate locally
 
 Install Node 22, Foundry 1.7.1, nargo 1.0.0-beta.26 and bb
-6.0.0-nightly.20260902. Use the committed dependency lockfile:
+6.0.0-nightly.20260902. On Linux x86_64, install the pinned proving tools with:
+
+```sh
+python3 scripts/install-proving-tools.py
+export PATH="$HOME/.local/share/opensolvency/proving-tools/bin:$PATH"
+nargo --version
+bb --version
+```
+
+The installer checks Noir's release SHA-256 and the official Barretenberg npm
+package's SHA-512 integrity before installing the expected executable. It runs each
+binary's version check before replacing it. Installation is local to the user;
+system tools and shell startup files are unchanged. Other operating systems need
+the corresponding official release binaries. Sources: [Noir release](https://github.com/noir-lang/noir/releases/tag/v1.0.0-beta.26)
+and [Barretenberg package](https://www.npmjs.com/package/@aztec-foundation/bb-linux-x64/v/6.0.0-nightly.20260902).
+
+Use the committed dependency lockfile:
 
 ```sh
 npm ci
