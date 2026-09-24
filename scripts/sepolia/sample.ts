@@ -30,7 +30,6 @@ const array = (parse: Parser): Parser => value => {
 };
 const object = (fields: Record<string, Parser>): Parser => value => {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid example object.");
-  // Reconstruct only documented fields; never copy arbitrary private metadata.
   return Object.fromEntries(Object.entries(fields).map(([key, parse]) => [key, parse(value[key])]));
 };
 

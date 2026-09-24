@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Install the committed verifier's pinned Linux x86_64 proving tools."""
 
 import argparse
 import base64
@@ -35,7 +34,7 @@ TOOLS = (
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description="Install the committed verifier's pinned Linux x86_64 proving tools.")
     parser.add_argument("--archive-dir", type=Path, help="Use already downloaded, checksum-verified archives instead of network downloads")
     parser.add_argument("--destination", type=Path, default=Path.home() / ".local/share/opensolvency/proving-tools/bin")
     args = parser.parse_args()
@@ -59,7 +58,6 @@ def main():
             if not member.isfile():
                 raise RuntimeError("The expected binary is not a regular file.")
             binary = package.extractfile(member).read()
-        # Copy only the expected member, never extract paths supplied by an archive.
         fd, staging = tempfile.mkstemp(prefix=f".{tool['name']}-", dir=args.destination)
         try:
             with os.fdopen(fd, "wb") as output:

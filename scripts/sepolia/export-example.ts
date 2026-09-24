@@ -10,7 +10,6 @@ import { kzg } from "../../open-solvency/src/solutions/kzg.ts";
 import { saveRecord } from "./record.ts";
 import { publicSampleBundle, samples } from "./sample.ts";
 
-// This read-only command needs no wallet keys and never broadcasts transactions.
 if (process.argv.slice(2).join(" ") !== "--publish-synthetic-example") {
   throw new Error("Usage: npm run demo:export -- --publish-synthetic-example (deliberately exports the documented fictional customers).");
 }

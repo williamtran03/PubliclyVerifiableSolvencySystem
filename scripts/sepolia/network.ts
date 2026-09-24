@@ -151,7 +151,6 @@ export async function sepoliaNetwork() {
         try {
           await client.sendRawTransaction({ serializedTransaction: pending.serializedTransaction });
         } catch (error) {
-          // An RPC can reject a duplicate broadcast after having accepted the original.
           const known = await client.getTransaction({ hash: pending.hash }).catch(() => undefined);
           if (!known) throw error;
         }

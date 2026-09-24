@@ -48,7 +48,6 @@ test("signed Sepolia journal resumes before broadcast and after mining on Anvil"
     network.record.pending = { step: "TEST", label: "deploy DemoAsset", hash, serializedTransaction: raw, sender: network.company.address, nonce: prepared.nonce };
     network.save();
 
-    // Simulate process death after journaling but before broadcast.
     network = await sepoliaNetwork();
     await network.recover();
     assert.ok(network.record.contracts.TEST);
@@ -57,7 +56,6 @@ test("signed Sepolia journal resumes before broadcast and after mining on Anvil"
     await network.recover();
     assert.equal(await client.getTransactionCount({ address: network.company.address }), 1);
 
-    // Simulate a mined transfer whose RPC response never reached the process.
     const recipient = network.auditor.address;
     const transfer = await signer.prepareTransactionRequest({ to: recipient, value: 7n });
     const signed = await signer.signTransaction(transfer);
@@ -72,7 +70,6 @@ test("signed Sepolia journal resumes before broadcast and after mining on Anvil"
     assert.equal(await client.getBalance({ address: recipient }), 7n);
     assert.equal(network.record.transactions.length, 2);
 
-    // Normal deployment, contract call and transfer use the same journal path.
     network.setStep("SECOND");
     const second = await network.deploy("DemoAsset.sol", "DemoAsset", ["SECOND", 0]);
     assert.equal(network.record.contracts.SECOND.toLowerCase(), second.toLowerCase());
@@ -84,7 +81,6 @@ test("signed Sepolia journal resumes before broadcast and after mining on Anvil"
     assert.equal(saved.pending, undefined);
     assert.equal(saved.transactions.length, 5);
 
-    // A replacement consuming the nonce must never silently discard the original.
     const original = await signer.prepareTransactionRequest({ to: recipient, value: 2n });
     const originalRaw = await signer.signTransaction(original);
     network.record.pending = { step: "fund", label: "transfer", hash: keccak256(originalRaw), serializedTransaction: originalRaw, sender: network.company.address, nonce: original.nonce };

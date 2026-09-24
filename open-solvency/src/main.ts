@@ -198,7 +198,6 @@ async function refreshSnapshot() {
     const assetsChanged = value.assets.length !== previous.assets.length || value.assets.some((asset, i) =>
       asset.token !== previous.assets[i].token || asset.unitDecimals !== previous.assets[i].unitDecimals);
     if (changed) {
-      // Ignore outstanding checks against the old epoch, including ledger uploads.
       stateVersion++;
       verificationVersion++;
       inspectionVersion++;
