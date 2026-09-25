@@ -37,9 +37,8 @@ async function status(network: Network) {
 try {
   const { command, arms } = parseArguments(process.argv.slice(2));
   try {
-    execFileSync("forge", ["build"], { stdio: "pipe" });
-  } catch (error) {
-    process.stderr.write((error as { stderr?: Buffer }).stderr ?? "");
+    execFileSync("forge", ["build"], { stdio: ["ignore", "ignore", "inherit"] });
+  } catch {
     throw new Error("forge build failed.");
   }
   if (command === "epoch" && arms.includes("zk-circuit")) checkProvingTools();

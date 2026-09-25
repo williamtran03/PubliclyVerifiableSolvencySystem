@@ -75,7 +75,7 @@ export async function sepoliaNetwork() {
   const addresses = [company, auditor, ...Object.values(reserves)].map(account => account.address);
   if (new Set(addresses).size !== addresses.length) throw new Error("Company, auditor and the three reserve wallets need five different keys: the directory gives a reserve wallet to one registry at a time.");
   if ([anvilCompany.address, anvilAuditor.address].some(address => addresses.includes(address))) throw new Error("Public Anvil development keys must not hold roles on a public network.");
-  const maxEpochAge = seconds("MAX_EPOCH_AGE", 604800n);
+  const maxEpochAge = seconds("MAX_EPOCH_AGE", 2592000n);
   const minEpochInterval = seconds("MIN_EPOCH_INTERVAL", 60n);
   if (maxEpochAge === 0n || minEpochInterval > maxEpochAge) throw new Error("MIN_EPOCH_INTERVAL must not exceed MAX_EPOCH_AGE, and MAX_EPOCH_AGE must be positive.");
 

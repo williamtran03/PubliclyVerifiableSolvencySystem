@@ -41,7 +41,7 @@ then copy `.env.example` to `.env` (gitignored) and fill it in:
 | `LEDGER_RESERVE_PRIVATE_KEY`, `ZK_RESERVE_PRIVATE_KEY`, `KZG_RESERVE_PRIVATE_KEY` | Reserve wallets. Normally only sign; the company relays the signature. The operations drill temporarily uses them as role holders | no faucet funding; the drill funds their transactions |
 | `SEPOLIA_RPC_URL` | Any Sepolia HTTPS RPC. It is never written to the record, so it may contain an API key | |
 
-Optional settings: `MAX_EPOCH_AGE` (default 604800 s, 7 days, after which the site shows
+Optional settings: `MAX_EPOCH_AGE` (default 2592000 s, 30 days, after which the site shows
 the snapshot as expired), `MIN_EPOCH_INTERVAL` (default 60 s), `PRIVATE_OUTPUT`
 (default `~/opensolvency-sepolia`, must be outside the repository) and `DEPLOYMENT_FILE`
 (default `deployments/sepolia.json`). The two schedule values are fixed at deployment.
@@ -143,7 +143,9 @@ same as in the local demo (`scripts/demo/README.md`).
 
 ## Before the first real run
 
-Still outstanding (2026-09-22):
+Historical preparation checklist (2026-09-22). Public deployment, two epoch rounds,
+and the operations drill completed on 25 September 2026; see
+[release evidence](../../docs/sepolia-release-2026-09-25.md). The original checklist was:
 
 - Fund the company and auditor, check RPC access, and install the pinned proving tools
   on the machine that runs `epoch`. The version check does not install them.

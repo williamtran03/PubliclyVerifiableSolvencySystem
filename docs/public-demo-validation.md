@@ -58,3 +58,42 @@ Anvil and browser tests passed when allowed to open their local ports.
   it does not publish epochs, generate proofs or provide unattended alerts.
 
 Follow [the release runbook](public-demo-release.md) to complete the remaining work.
+
+## Release execution on 25 September 2026
+
+The following supersedes the preparation-only deployment and funding status above.
+
+- User selected 30-day validity (`2592000` seconds), retaining a 60-second minimum
+  interval, and confirmed that the five MetaMask accounts are backed up and recoverable.
+- Before deployment, Company held 0.2 Sepolia ETH and Auditor held 0.1 Sepolia ETH.
+- Type checking, Solidity formatting, 110 Foundry tests (including invariants),
+  all 19 Node test files, the production build, both demo/recovery tests,
+  13 browser tests, and the Pages subpath smoke test passed.
+- Fresh-proof integration passed with nargo 1.0.0-beta.26 and bb
+  6.0.0-nightly.20260902. Local Node was 26.10.0 and Foundry was 1.8.1;
+  this does not replace validation under the CI-pinned Node 22 / Foundry 1.7.1.
+- Local server tests required execution outside the network sandbox. The initial
+  aggregate validation stopped at those restrictions; the demo, browser, Pages,
+  and fresh-proof suites passed when rerun with local-port access.
+- Fixed the Sepolia CLI build subprocess to stream stderr instead of buffering it:
+  Foundry 1.8.1 lint output exceeded Node's default subprocess buffer before any
+  transaction was sent. Type checking and the public CLI preflight passed afterwards.
+- Public Sepolia deployment completed for all three registries. Receipt hashes,
+  addresses, and deployment parameters are in `deployments/sepolia.json`.
+- User enabled public repository visibility and Pages; GitHub API confirmed both.
+- None of the five current private keys was found in reachable local Git history;
+  `.env` remains ignored. This check is not a comprehensive historical secret audit.
+
+- Initial epoch 0 published for all three approaches. Every demo customer's bundle
+  verified through the website adapters; deliberately wrong balances were rejected.
+- All three operations drills reached checkpoint 14: original Company/Auditor roles
+  restored and reserves removed, re-proven and approved again.
+- Ledger and ZK reserve restoration each needed a checkpoint resume after an RPC
+  simulation/state-check disagreement immediately following confirmed transactions.
+  Resuming succeeded without editing checkpoints or changing contracts. This is
+  consistent with inconsistent latest-state reads from the public RPC; the provider
+  cause was not independently established.
+
+Post-drill epoch 1 and verified synthetic example export completed for all three
+approaches. See [the release record](sepolia-release-2026-09-25.md) for public
+addresses, transaction hashes and expiry dates. Hosted acceptance remains pending.

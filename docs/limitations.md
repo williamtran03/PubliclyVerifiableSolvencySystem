@@ -144,6 +144,7 @@ What an observer learns from a series of epochs:
 - **The single-asset control arm** passes live reserves as a public input, so one wei sent
   to a reserve between proving and submission invalidates its proof. It is kept only as
   a measurement control and does not use the shared reserve registry.
-- **Not yet done:** a public testnet deployment (Sepolia is next), an independent audit,
-  and the non-cryptographic "attestation" baseline (a bond plus an attested
+- **Public testnet:** all three approaches were deployed and exercised on Sepolia
+  on 25 September 2026; see [the release evidence](sepolia-release-2026-09-25.md).
+- **Not yet done:** an independent audit and the non-cryptographic "attestation" baseline (a bond plus an attested
   customer count) that would test whether ZK is needed at all.
