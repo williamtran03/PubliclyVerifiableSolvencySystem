@@ -143,9 +143,8 @@ same as in the local demo (`scripts/demo/README.md`).
 
 ## Before the first real run
 
-Historical preparation checklist (2026-09-22). Public deployment, two epoch rounds,
-and the operations drill completed on 25 September 2026; see
-[release evidence](../../docs/sepolia-release-2026-09-25.md). The original checklist was:
+Done on 25 September 2026; see
+[release evidence](../../docs/sepolia-release-2026-09-25.md). For a new deployment:
 
 - Fund the company and auditor, check RPC access, and install the pinned proving tools
   on the machine that runs `epoch`. The version check does not install them.
@@ -208,6 +207,3 @@ command at a time.
   to the ZK verifier. Public Sepolia measurements must cite the recorded transaction
   hashes.
 
-## Decisions before publication
-
-The team discussion checklist is in [open-decisions.md](../../docs/open-decisions.md).

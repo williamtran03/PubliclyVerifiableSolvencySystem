@@ -22,5 +22,6 @@ Node 26.10.0 / Foundry 1.8.1 were used locally; CI uses Node 22 / Foundry 1.7.1.
 Two operations checkpoints needed a resume after transient RPC simulation/state
 disagreements. No checkpoints were edited and no contracts changed for recovery.
 
-The repository is public and Pages is configured. GitHub CI, promotion to main,
-and live hosted verification remain pending.
+The release was merged into `main` (pull request #2), CI passed, and GitHub Pages
+serves it. At the hosted site, all three methods load their Sepolia snapshot, the
+public example customer verifies, and a balance changed by one unit is rejected.
