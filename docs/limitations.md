@@ -74,6 +74,59 @@ check sends the identity commitment, the balance and the opening to that endpoin
 (`isCurrent()`), and every late epoch is recorded permanently in `lapses()`, but an
 enforcement mechanism (a regulator, or a bond that is forfeited on a lapse) is not built.
 
+## One credential for two customers
+
+**The attack.** Every arm lets a customer find their own leaf with a credential the company
+issued: a username and salt in arms 2 and 3, a customer ID with per-part salts in arm 1
+(`shared/customers.csv`, `customers.example.json`). Nothing stops the company handing the
+same credential and the same bundle to two customers who are owed the same amounts. Both
+check, both find the leaf, both pass, and the liability is counted once. Each extra
+customer on a shared credential removes one balance from the total, and the solvency
+check then compares reserves against that smaller total (`manipulations.md` §4).
+
+**Why an inclusion check cannot see it.** Each customer asks one question: is my balance in
+the commitment? It is. The attack uses one valid leaf, so no circuit constraint, degree
+bound or merkle-sum check is violated. The two customers would notice only by comparing
+their credentials or bundles with each other.
+
+**Per arm.**
+
+| Arm | What must match for two customers to share | What binds the leaf today |
+|---|---|---|
+| 1, published ledger | Every per-asset total, since the site sums a customer's parts per asset and compares them with what they enter | `keccak(snapshot, customer ID, name, date of birth, asset, part, salt)`. The site checks the customer ID the customer enters; the name and date of birth come from the bundle, so they bind the leaf to a person only if the customer reads them |
+| 2, ZK circuit | The balance in every asset, since `verifyBundle` requires the customer's parts to sum to exactly what they enter, asset by asset | `Poseidon2(username, salt, asset, amount)`, both issued by the company |
+| 3, KZG | One balance, since the arm is single-asset | `Poseidon2(username, salt)`, both issued by the company |
+
+Multiple assets make the attack narrower, not impossible: in arms 1 and 2 two customers
+must hold identical portfolios. Small accounts that hold one round amount of one asset
+are common, so the pool of matching pairs is still large, and in arm 3 any two equal
+balances will do.
+
+**The fix: a secret the customer chooses.** At signup the customer picks a secret `s`
+and gives the company only a commitment `c = H(s)`. The leaf binds `c` in place of the
+company's salt, for example `Poseidon2(username, c, asset, amount)` in arm 2 and
+`Poseidon2(username, c)` in arm 3. A customer verifies by entering `s`, so the site
+recomputes `c` itself. Two customers chose different secrets, so no single leaf can
+satisfy both, and the company cannot pick a colliding `c` because it never sees `s`.
+Arm 1 would add `c` to its identity commitment and keep its fresh per-part salts, which
+keep parts unlinkable across epochs.
+
+**What it costs.** Nothing on-chain: the leaf hashes keep their arity, so the circuit,
+the verifier and the gas are unchanged. The cost is operational: a signup step, a secret
+the customer must keep (losing it loses the ability to check, not the claim), and a way
+to rotate it. The company also has to acknowledge which `c` belongs to which account;
+otherwise a dispute is one customer's word against the company's, which is the signed
+receipt gap above.
+
+**What it does not solve.** It stops one leaf serving two customers. It does not stop
+omission: a customer the company leaves out entirely is still found only if they check
+(completeness, above). It says nothing about customers who never verify, and it does
+not help if a customer hands their secret to someone else.
+
+**Status.** Not built. Every arm still uses company-issued salts. Publishing the leaf
+count, so that an auditor can compare it with an attested customer count, would at
+least expose the attack; that is not built either.
+
 ## Trusted setup
 
 - Arm 2 (UltraHonk, via Barretenberg) uses the SRS from Aztec's Ignition ceremony.
@@ -138,7 +191,8 @@ What an observer learns from a series of epochs:
 - **Arm 3 is single-asset.** A multi-asset version would need one range argument per
   asset.
 - **Salts are issued by the company** in every arm, so customers do not hold a secret of
-  their own, and nothing enforces one credential per customer (`manipulations.md` §4).
+  their own, and nothing enforces one credential per customer (*One credential for two
+  customers*, above; `manipulations.md` §4).
 - **Arm 2's committed demo proof** is bound to one registry address, which only arises on
   a fresh Anvil node where the company deploys at nonce 8.
 - **The single-asset control arm** passes live reserves as a public input, so one wei sent
