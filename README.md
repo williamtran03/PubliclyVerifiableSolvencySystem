@@ -101,8 +101,8 @@ Full figures and the reasoning are in [`docs/comparison.md`](docs/comparison.md)
 | Snarkless (KZG) | 1,556,777 | constant on-chain |
 
 Execution gas under the Osaka rules Ethereum runs today, without the 21,000 base cost
-and calldata. Real transactions on a Sepolia fork cost 4,536,873 (ZK) and 1,679,265
-(KZG); the comparison explains the difference.
+and calldata. The public Sepolia submissions cost 4,536,813 (ZK), 1,679,265 (KZG) and
+410,209 (ledger) in their first epoch; the comparison explains the difference.
 
 These rows differ in assets and customers. On the same three customers and one asset,
 the ledger costs 304,806, KZG 1,556,777 and a single-asset SNARK 4,023,440. Each extra
@@ -149,8 +149,8 @@ with tests covering the contracts, the provers, the three-chain demo and the web
 a real browser. GitHub Actions runs `npm run validate` on every push and pull request
 and publishes the website from `main`. Not done: an independent audit, and a
 non-cryptographic baseline (a bond plus an attested customer count) that would test
-whether ZK is needed at all. The gas figures above come from local measurements, not
-from Sepolia receipts.
+whether ZK is needed at all. The gas figures above come from local measurements; the Sepolia receipts are listed
+separately in the comparison.
 
 Coursework, not a production system. Contract sources carry MIT SPDX headers.
 

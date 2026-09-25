@@ -9,7 +9,8 @@ default), under the Osaka (Fusaka) gas rules that Ethereum has run since Decembe
 (`evm_version = "osaka"`). Until 2026-09-22 they were measured under `cancun`; the
 switch changed only the ZK verifier's figures (see *Sepolia rehearsal versus fixture
 probes*). They are call-level numbers including dispatch overhead, and N = 8 is a
-toy size — see *Gaps* below. Revised 2026-09-13 after the per-asset redesign and
+toy size — see *Gaps* below. The only on-chain receipts are in *Public Sepolia
+receipts*. Revised 2026-09-13 after the per-asset redesign and
 the fixes listed at the end; the previous figures are superseded.
 
 ## The three arms
@@ -210,9 +211,63 @@ precompile repricing moved the ratio by half, without any change to the contract
 The rehearsal as a whole used 28.4M gas to deploy and 6.93M for the first three-arm
 epoch round (one sample and one submission per arm). At 1 gwei that is 0.0284 ETH
 and 0.0069 ETH. These figures are for budgeting and do not quote a current gas price.
-For the public run, cite the receipt `gasUsed`, hash and block from
-`deployments/sepolia.json`, and keep deployment, reserve maintenance and submission
-costs separate.
+
+### Public Sepolia receipts
+
+The public deployment ran on Sepolia itself on 2026-09-25 (blocks 11,779,141 to
+11,779,264). The table lists the receipt `gasUsed` from `deployments/sepolia.json`; all
+twelve were re-read from the chain with `cast receipt` and match, all with status 1.
+These are the only receipt figures in this document. Every other figure is a Foundry
+measurement.
+
+| Arm | Epoch | `sampleReserves` | Submission | Submission tx | Fork rehearsal | Difference |
+|---|---:|---:|---:|---|---:|---:|
+| Published ledger | 0 | 100,291 | 410,209 | [`0x67c3…b00`](https://sepolia.etherscan.io/tx/0x67c38743f53afa7a2d5a1300de7e8601e5e9413e1921beda3a1d314427b5ab00), block 11,779,180 | — | — |
+| Published ledger | 1 | 63,291 | 376,485 | [`0x8bac…eb`](https://sepolia.etherscan.io/tx/0x8bac951d59681ce2b5464b1d30bb0fd4007610758700332839236f61d09e86eb), block 11,779,257 | — | — |
+| ZK circuit | 0 | 136,279 | 4,536,813 | [`0xdaff…7da`](https://sepolia.etherscan.io/tx/0xdaffc5b5b40dff9c825a6622fc115c42080d9a757b89cfb6b5cf67ff326637da), block 11,779,183 | 4,536,873 | −60 |
+| ZK circuit | 1 | 76,579 | 4,503,029 | [`0x5efd…2aa`](https://sepolia.etherscan.io/tx/0x5efd64a1c1213eefe6f1e12dd501770e96d9cf691f599034d22477d7ef0302aa), block 11,779,260 | 4,502,957 | +72 |
+| Snarkless (KZG) | 0 | 67,387 | 1,679,265 | [`0x9869…8f0`](https://sepolia.etherscan.io/tx/0x9869f95b4617debd1124dbdc545722f6f3a31716ccfafb5dd6ddc4ce1a7bd8f0), block 11,779,186 | 1,679,265 | 0 |
+| Snarkless (KZG) | 1 | 47,487 | 1,645,541 | [`0x1a4f…fa09`](https://sepolia.etherscan.io/tx/0x1a4fdb9cc08b8961c1b1cd60686c938d921a70ec36c50f4f5fe7057c3df9fa09), block 11,779,264 | 1,645,577 | −36 |
+
+- **The public run reproduces the fork rehearsal** to within 72 gas per submission.
+  The four-step reconciliation above therefore also holds for the public receipts, and
+  the ZK-to-KZG ratio stays at **2.7**. The residual differences of tens of gas are left
+  unattributed. Each epoch carries a fresh proof and fresh storage, so some variation is
+  expected.
+- **The second epoch is cheaper by almost the same amount in every arm**: 33,724 gas for
+  the ledger, 33,784 for ZK and 33,724 for KZG. This fits the shared epoch record
+  overwriting non-zero slots, as explained above, because all three arms inherit that
+  bookkeeping from `ReserveRegistry`.
+- **The ledger receipt is not the ledger figure in *Measured cost*.** On Sepolia the
+  ledger arm submits `arms/published-ledger/fixtures/customers.example.json`, split into
+  two parts per customer, over ETH and `TEST`. That is a different input from the
+  fixture behind the 408,350 in *Measured cost* (four parts, two assets) and from the
+  shared customers in *Like for like*. The 410,209 receipt is 1,859 gas above the gas
+  report's maximum. That difference is not broken down: the inputs differ, and the
+  ledger cost grows with the number of parts. The ledger arm was not part of the fork
+  rehearsal, so it has no rehearsal column.
+- **Sampling also costs less in epoch 1**: 37,000 gas less for the ledger, 59,700 for ZK
+  and 19,900 for KZG. The epoch-0 ledger sample (100,291) is 23 gas above the gas
+  report's 100,268. The ZK sample (136,279) is 3,461 gas above the 132,818. Neither
+  difference is broken down.
+
+The whole public run is 79 transactions and 43,780,186 gas, split into four groups:
+
+| Group | Transactions | Gas |
+|---|---:|---:|
+| Deployment (directory, four demo tokens, two Honk libraries, verifier, three registries) | 11 | 27,411,705 |
+| Reserve setup before epoch 0 (funding, minting, `proposeReserve` / `proveReserve` / `reviewReserve` per arm) | 15 | 973,595 |
+| Operations drill (two-step rotation of both roles and back, reserve removal and re-approval, five 21,000-gas funding transfers) | 41 | 1,752,230 |
+| Epochs 0 and 1 (one sample and one submission per arm, per epoch) | 12 | 13,642,656 |
+
+The first epoch round cost 6,930,244 gas and the second 6,712,412. Deployment plus
+reserve setup comes to 28,385,300 gas, consistent with the rehearsal's 28.4M. The
+deployment gas of `ReserveDirectory` (973,326) and `HonkVerifier` (5,279,139) equals the
+gas report. The registries do not match it exactly. `MerkleSumRegistry` used 4,131,957
+on Sepolia, 24 gas below the gas report, and `MultiAssetSolvencyRegistry` used
+5,196,817, 20,116 above it. `KzgSolvencyRegistry` used 5,274,655, 77,700 below the
+isolated probe's 5,352,355. The constructor arguments differ from the tests', and the
+differences are not broken down further.
 
 ## How it scales
 
@@ -557,6 +612,10 @@ customer to tell a solvent exchange from one that had stopped publishing.
   two and three assets" to "between two and five, depending on the KZG design". The
   single-asset verifier figure was the median of a failing call; the successful call
   costs 3,910,843, so its gap to arm 2 is 5,458 gas.
+- 2026-09-25 (later): *Public Sepolia receipts* adds the gas of the public run's twelve
+  epoch transactions, checked against the chain, and the run's total by group. The
+  public ZK and KZG submissions are within 72 gas of the fork rehearsal. No Foundry
+  figure changed.
 - 2026-09-22: gas is measured under the Osaka (Fusaka) rules Ethereum runs today instead
   of `cancun`. Fusaka's MODEXP repricing (EIP-7883) raises the ZK verifier from 2.79M to
   3.92M gas and the per-round cost from 74,327 to 106,715. The runtime bytecode is
