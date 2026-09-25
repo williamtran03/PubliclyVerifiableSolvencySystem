@@ -16,7 +16,7 @@ below).
 | `ReserveDirectory` | One for the chain. It gives each reserve wallet to one registry at a time, so each arm has its own reserve key. |
 | `BTC`, `WETH`, `USDC`, `TEST` | `DemoAsset` test tokens (8, 18, 6 and 0 decimals). Minting is unrestricted, so these reserves show the mechanism, not real backing. |
 | `RelationsLib`, `ZKTranscriptLib`, `HonkVerifier` | The generated UltraHonk verifier for the committed circuit. |
-| `MerkleSumRegistry` | Arm 1. Assets are native ETH and `TEST`, with the ledger fixture's customers (120 wei and 3 TEST). |
+| `MerkleSumRegistry` | Arm 1. Assets are native ETH and `TEST`, with the ledger fixture's customers (0.00012 ETH and 3 TEST). |
 | `MultiAssetSolvencyRegistry` | Arm 2. BTC, WETH and USDC, priced by the Chainlink BTC/USD, ETH/USD and USDC/USD feeds. |
 | `KzgSolvencyRegistry` | Arm 3. `TEST` with 0 decimals, the shared `customers.csv`. |
 

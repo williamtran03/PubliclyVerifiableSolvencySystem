@@ -7,8 +7,8 @@ import { publicSampleBundle, samples } from "./sample.ts";
 test("sample export strips private metadata while preserving a verifiable fictional ledger bundle", async () => {
   const snapshotId = `0x${"ab".repeat(32)}` as const;
   const { bundles, ledger: published } = buildSplitLiabilities([
-    { customerId: "alice", name: "Alice Example", dateOfBirth: "2000-01-01", parts: [{ assetId: 0, amount: 100n }, { assetId: 1, amount: 3n }] },
-    { customerId: "bob", name: "Bob Example", dateOfBirth: "2001-02-03", parts: [{ assetId: 0, amount: 20n }] },
+    { customerId: "alice", name: "Alice Example", dateOfBirth: "2000-01-01", parts: [{ assetId: 0, amount: 100000000000000n }, { assetId: 1, amount: 3n }] },
+    { customerId: "bob", name: "Bob Example", dateOfBirth: "2001-02-03", parts: [{ assetId: 0, amount: 20000000000000n }] },
   ], snapshotId, 2);
   const raw = JSON.parse(JSON.stringify(bundles[0], (_, v) => typeof v === "bigint" ? v.toString() : v));
   raw.privateNotes = "do not publish";
@@ -23,7 +23,7 @@ test("sample export strips private metadata while preserving a verifiable fictio
   const connection = { rpc: "https://unused.test", registry: `0x${"11".repeat(20)}` as const };
   const expected = new Map(samples["published-ledger"].balances.map(([i, n]) => [i, BigInt(n)]));
   assert.equal((await ledger.verify(connection, snapshot, text, "alice", expected, "")).valid, true);
-  expected.set(0, 101n);
+  expected.set(0, 100000000000001n);
   assert.equal((await ledger.verify(connection, snapshot, text, "alice", expected, "")).valid, false);
   assert.throws(() => publicSampleBundle("published-ledger", { ...raw, name: "Real customer" }), /fictional/);
 });
