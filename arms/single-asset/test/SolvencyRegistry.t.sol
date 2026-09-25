@@ -38,6 +38,30 @@ contract SolvencyRegistryTest is Test {
         assertEq(timestamp, block.timestamp);
     }
 
+    function test_GasForPreparedSubmission() public {
+        bytes memory payload = abi.encodeCall(registry.submitEpoch, (proof, rootHash));
+        address target = address(registry);
+        uint256 before = gasleft();
+        (bool ok,) = target.call(payload);
+        uint256 used = before - gasleft();
+        assertTrue(ok, "the committed proof over shared/customers.csv must verify");
+        emit log_named_uint("single-asset prepared submitEpoch gas", used);
+        emit log_named_uint("single-asset submitEpoch calldata bytes", payload.length);
+    }
+
+    function test_GasForPreparedVerification() public {
+        bytes32[] memory publicInputs = new bytes32[](2);
+        publicInputs[0] = bytes32(PROVEN_ASSETS);
+        publicInputs[1] = bytes32(rootHash);
+        bytes memory payload = abi.encodeCall(registry.verifier().verify, (proof, publicInputs));
+        address target = address(registry.verifier());
+        uint256 before = gasleft();
+        (bool ok, bytes memory result) = target.staticcall(payload);
+        uint256 used = before - gasleft();
+        assertTrue(ok && abi.decode(result, (bool)), "the committed proof over shared/customers.csv must verify");
+        emit log_named_uint("single-asset prepared HonkVerifier.verify gas", used);
+    }
+
     function test_DoesNotPublishLiabilities() public {
         registry.submitEpoch(proof, rootHash);
 

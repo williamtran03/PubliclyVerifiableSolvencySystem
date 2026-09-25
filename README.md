@@ -81,7 +81,8 @@ liabilities:
 - **Exclusivity.** `shared/contracts/ReserveDirectory.sol` is deployed once per chain
   and lets a wallet back one registry at a time.
 
-`shared/merkleSumTree.ts` is the Poseidon2 tree core. The demo customers differ per arm,
+`shared/merkleSumTree.ts` is the Poseidon2 tree core of the ZK arms; the ledger arm hashes
+with keccak. The demo customers differ per arm,
 because the arms model different things. `shared/customers.csv` (three customers, one
 asset) feeds the KZG arm. The ZK arm's `arms/zk-circuit/prover/customers.csv` reuses those
 usernames and salts, with one BTC, WETH or USDC holding each. The ledger arm's

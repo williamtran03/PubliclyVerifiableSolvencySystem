@@ -41,15 +41,15 @@ walks through what each of these stops.
 `arms/single-asset/` is superseded by arm 2, but it is not dead weight: it is the
 measurement that separates the two constructions. Its circuit proves a materially
 simpler statement — one asset, a merkle-sum tree, no context binding — and its
-verifier costs **3,910,447** gas against arm 2's **3,916,301**. A 0.15% difference,
-5,854 gas, for a much harder statement.
+verifier costs **3,910,843** gas against arm 2's **3,916,301**. A 0.14% difference,
+5,458 gas, for a much harder statement.
 
 That reads as the empirical form of "a SNARK's verification cost is set by the proof
 system, not by what is being proved" — but the scaling sweep (*How it scales*, below)
 shows the control is weaker than that. Both generated verifiers carry `N = 8192,
 LOG_N = 13`: the two circuits pad to the **same** power of two, and UltraHonk's cost is
 set by that padded size. So arm 4 measures that two circuits of equal padded size cost
-equally, which is true but close to tautological; the 5,854 gas between them is three
+equally, which is true but close to tautological; the 5,458 gas between them is three
 extra public inputs, not the harder statement.
 
 The claim that survives measurement, and which covers both arm 4 and the sweep, is
@@ -67,7 +67,7 @@ figures do not move when the shared base changes and the comparison stays like-f
 | `KzgSolvencyRegistry.verifyInclusion` | 150,233 ‡ | a view: free through `eth_call` |
 | `MultiAssetHonkVerifier.verify` | 3,916,301 | |
 | `MultiAssetSolvencyRegistry.submitEpoch` | 4,366,256 | verification + per-asset reserve check + oracle valuation + epoch record |
-| `HonkVerifier.verify` (single-asset) | 3,910,447 | |
+| `HonkVerifier.verify` (single-asset) | 3,910,843 | |
 | `readPrices` (3 Chainlink-style feeds) | 73,221 | |
 | `proposeReserve` / `proveReserve` / `reviewReserve` | 47,916 / 119,154 / 76,065 | `proveReserve` again once per window; same in every arm |
 | `sampleReserves` | 100,268 / 132,818 | once or more per window, by the auditor; 2 assets (arm 1) / 3 assets (arm 2), one wallet |
@@ -130,7 +130,34 @@ while leaving the range check off-chain. With the degree bound and the range
 argument verified on-chain — both needed for the total to mean anything — the
 snarkless registry costs **1.56M against 4.37M, about 2.8× cheaper** (2.7× in Sepolia-fork
 receipts; 1.8× under the pre-Fusaka rules and the older probe) — on one asset
-against three, which is the comparison *What the measurements say about the choice* revisits.
+against three, which *Like for like* below corrects.
+
+## Like for like: one asset, the same customers
+
+The table above compares arms with different assets and different customers. This one
+runs all three on `shared/customers.csv` (three customers, 49,550 units, one asset,
+50,000 reserve units), each through its own prover. Probes: `MerkleSumRegistrySharedCustomersTest`,
+the single-asset `test_GasForPrepared*` and `test_GasForTheSameSubmissionWithoutKzgVerification`.
+
+| Arm | Checking the liabilities | Full submission | Calldata | Public |
+|---|---:|---:|---:|---|
+| Published ledger, 1 part per customer | 15,420 | 304,806 | 484 B | every amount |
+| Published ledger, 2 parts per customer | 25,637 | 317,526 | 676 B | every part |
+| Snarkless (KZG) | ≈1,343,234 | 1,556,777 | 6,788 B | the total |
+| ZK, single-asset control | 3,915,741 | 4,023,440 | 7,716 B | nothing but the root |
+
+- **The ledger check** is `computeRoot` called on its own, a keccak merkle-sum tree.
+  It grows with the number of parts, up to 256 per asset.
+- **The KZG check** is 1,556,777 minus 213,543, the same `submitEpoch` with every KZG
+  check removed (`KzgBookkeepingOnly`). It is a difference of two probes, not one probe.
+- **The ZK row is not on the shared registry.** The control arm has no sampling, windows
+  or context binding, so its bookkeeping (about 108k) is lighter. On the shared registry
+  it would cost roughly 3.92M plus KZG's 214k, about 4.13M. That is an estimate.
+
+On one asset and the same data, KZG costs 2.6× less than ZK, and publishing the ledger
+costs another 5× less than KZG. Each step up buys privacy: the ledger hides only who
+owns which part, KZG hides every balance but publishes the total, and ZK hides the
+total too.
 
 ## Sepolia rehearsal versus fixture probes
 
