@@ -2,7 +2,11 @@ import { test, expect } from "@playwright/test";
 
 test("the production build loads and navigates under the GitHub Pages project path", async ({ page }) => {
   const errors: string[] = [];
+  const demoRequests: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
+  page.on("request", request => {
+    if (new URL(request.url()).pathname.endsWith("/demo-config.json")) demoRequests.push(request.url());
+  });
   await page.goto("./");
   await expect(page.getByRole("heading", { name: "Check a solvency snapshot" })).toBeVisible();
   await expect(page.locator("#demo")).toBeHidden();
@@ -13,4 +17,5 @@ test("the production build loads and navigates under the GitHub Pages project pa
   await expect(page).toHaveURL(/\/PubliclyVerifiableSolvencySystem\/$/);
   await expect(page.locator("#customerTab")).toBeVisible();
   expect(errors).toEqual([]);
+  expect(demoRequests).toEqual([]);
 });
