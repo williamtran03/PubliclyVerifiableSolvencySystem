@@ -1,7 +1,7 @@
 # Sepolia deployment
 
 `npm run sepolia` deploys the three arms to Sepolia and publishes their epochs. It uses the
-same contracts, customer set and provers as the local demo, with real keys, the live
+same contracts, per-arm customer fixtures and provers as the local demo, with real keys, the live
 Chainlink feeds and the ceremony SRS. Deployment reads the recorded addresses and
 on-chain reserve state to skip completed steps. The operations drill saves resumable
 checkpoints. Epoch publication creates the next epoch on each successful invocation,
