@@ -1,0 +1,574 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "roles": {
+    "company": "0x54b0904c6e6c235dD661089CdB6b1aB3A5Bd4A44",
+    "auditor": "0x75F8C15517dbc704a2C7953c63A4393Ab7a7dB98"
+  },
+  "parameters": {
+    "maxEpochAge": "2592000",
+    "minEpochInterval": "60"
+  },
+  "contracts": {
+    "ReserveDirectory": "0xEea559Dad97e6339afceAA4E6C10b5233B99415b",
+    "BTC": "0x10F4ca04BF4d260A972D834aa59e5e8Fca225070",
+    "WETH": "0xaDDaac47D0fE9cfc07b922f4de333703A41Bf58d",
+    "USDC": "0xcfcDc1d3Fea9D0041b0A462C42888845903D980A",
+    "TEST": "0x16bB2E584872AeA12976B49Ba8F4BC27569d04ce",
+    "RelationsLib": "0xA5c44cB17f7e489FBf4aF298034b8fB8dD0bF9C1",
+    "ZKTranscriptLib": "0x98A5aD12d9fcF13D01b1faDD6C08E9dBe3142B55",
+    "HonkVerifier": "0x3CddcA38A7d40F6892d00EA5A0E55073EACb2FDe",
+    "published-ledger": "0x7e176FABa50B4928DEB90533e0c6eBB546F944f9",
+    "zk-circuit": "0xbdECC34e173009cc44FDFf12886cCF7c9038452B",
+    "snarkless": "0x773413C774d07f9aE949d930d8aA6643674315Ce"
+  },
+  "reserves": {
+    "published-ledger": "0xF20ABEe11a57D1c6685cD0A59916E1D23bB70B15",
+    "zk-circuit": "0x63F5943935552B3165F4B8Cf1270b86791a2f820",
+    "snarkless": "0x3972dd314097e2d8aC4128717dC46AEb33AbaB21"
+  },
+  "deployBlocks": {
+    "ReserveDirectory": "11779141",
+    "BTC": "11779142",
+    "WETH": "11779144",
+    "USDC": "11779145",
+    "TEST": "11779146",
+    "RelationsLib": "11779148",
+    "ZKTranscriptLib": "11779149",
+    "HonkVerifier": "11779151",
+    "published-ledger": "11779152",
+    "zk-circuit": "11779159",
+    "snarkless": "11779166"
+  },
+  "epochs": [
+    {
+      "arm": "published-ledger",
+      "epochId": "0",
+      "hash": "0x67c38743f53afa7a2d5a1300de7e8601e5e9413e1921beda3a1d314427b5ab00",
+      "block": "11779180",
+      "gasUsed": "410209",
+      "timestamp": "1790338836"
+    },
+    {
+      "arm": "zk-circuit",
+      "epochId": "0",
+      "hash": "0xdaffc5b5b40dff9c825a6622fc115c42080d9a757b89cfb6b5cf67ff326637da",
+      "block": "11779183",
+      "gasUsed": "4536813",
+      "timestamp": "1790338872"
+    },
+    {
+      "arm": "snarkless",
+      "epochId": "0",
+      "hash": "0x9869f95b4617debd1124dbdc545722f6f3a31716ccfafb5dd6ddc4ce1a7bd8f0",
+      "block": "11779186",
+      "gasUsed": "1679265",
+      "timestamp": "1790338908"
+    },
+    {
+      "arm": "published-ledger",
+      "epochId": "1",
+      "hash": "0x8bac951d59681ce2b5464b1d30bb0fd4007610758700332839236f61d09e86eb",
+      "block": "11779257",
+      "gasUsed": "376485",
+      "timestamp": "1790339760"
+    },
+    {
+      "arm": "zk-circuit",
+      "epochId": "1",
+      "hash": "0x5efd64a1c1213eefe6f1e12dd501770e96d9cf691f599034d22477d7ef0302aa",
+      "block": "11779260",
+      "gasUsed": "4503029",
+      "timestamp": "1790339796"
+    },
+    {
+      "arm": "snarkless",
+      "epochId": "1",
+      "hash": "0x1a4fdb9cc08b8961c1b1cd60686c938d921a70ec36c50f4f5fe7057c3df9fa09",
+      "block": "11779264",
+      "gasUsed": "1645541",
+      "timestamp": "1790339844"
+    }
+  ],
+  "transactions": [
+    {
+      "step": "ReserveDirectory deploy ReserveDirectory",
+      "hash": "0xba970eabca44157fc663b2451aa9efad70f6dcfbc2d2e88a4392b3982c71ca52",
+      "block": "11779141",
+      "gasUsed": "973326"
+    },
+    {
+      "step": "BTC deploy DemoAsset",
+      "hash": "0x32a17529631b701b7d59dc742002fecd2332894ba7432b30abed81c256c6674c",
+      "block": "11779142",
+      "gasUsed": "361508"
+    },
+    {
+      "step": "WETH deploy DemoAsset",
+      "hash": "0x1a1cac18f9cce80bc5169a91f80a664c00678691df90e9eab233b55041749cbd",
+      "block": "11779144",
+      "gasUsed": "361520"
+    },
+    {
+      "step": "USDC deploy DemoAsset",
+      "hash": "0x002432cf4210fb817e66f97026afb5a1cf5030a81572c5a2e8f088caffaceef4",
+      "block": "11779145",
+      "gasUsed": "361520"
+    },
+    {
+      "step": "TEST deploy DemoAsset",
+      "hash": "0x5bbad1e9aa3a8228ba74ab2950fa5480d216782c2cf39dde803bffffe88c6f25",
+      "block": "11779146",
+      "gasUsed": "361508"
+    },
+    {
+      "step": "RelationsLib deploy RelationsLib",
+      "hash": "0x6fd0774204301a5ec2e1f0df05c835c183058ee2b8e5ac62bfa191dddbb28100",
+      "block": "11779148",
+      "gasUsed": "2717669"
+    },
+    {
+      "step": "ZKTranscriptLib deploy ZKTranscriptLib",
+      "hash": "0xfa63b0282e3952334845766f686a9e273021f0ca9fd90a182a8597f4e1597756",
+      "block": "11779149",
+      "gasUsed": "2392086"
+    },
+    {
+      "step": "HonkVerifier deploy HonkVerifier",
+      "hash": "0x12d3d7ac83d1ec36399d8f026ac9aeb80e39eaeece0294690960a38b16b99a2c",
+      "block": "11779151",
+      "gasUsed": "5279139"
+    },
+    {
+      "step": "published-ledger deploy MerkleSumRegistry",
+      "hash": "0xc6e62d6efe1b8469a8e0d4bec05079b27ede65e82a47f048989abfe700dcdac2",
+      "block": "11779152",
+      "gasUsed": "4131957"
+    },
+    {
+      "step": "published-ledger transfer",
+      "hash": "0x8956e0eceac9d7bdca3a9868c01ebc697edbcb6cd507a680b00667d57482265e",
+      "block": "11779153",
+      "gasUsed": "21000"
+    },
+    {
+      "step": "published-ledger mint",
+      "hash": "0x1986c2a3fd6cef4e9893ce8d7606419d7f18d7d5c75fa475a03cf5c1416d7982",
+      "block": "11779154",
+      "gasUsed": "44590"
+    },
+    {
+      "step": "published-ledger proposeReserve",
+      "hash": "0x80f20a6c9c241c4767effc8ec47902ce9dc3f7a016e9d019121e82975bc16fe3",
+      "block": "11779155",
+      "gasUsed": "47916"
+    },
+    {
+      "step": "published-ledger proveReserve",
+      "hash": "0x9a7ba0db7b95a633b40e694a5a2d2f2a774a374a9ec717ffdd1e5edb5e4d7c6d",
+      "block": "11779156",
+      "gasUsed": "119190"
+    },
+    {
+      "step": "published-ledger reviewReserve",
+      "hash": "0x7e36cc34e55ce0bb293c312efbb78f432b2cdd3ab04ec1b14f0c24ba303919cf",
+      "block": "11779157",
+      "gasUsed": "76065"
+    },
+    {
+      "step": "zk-circuit deploy MultiAssetSolvencyRegistry",
+      "hash": "0x2f58909512671777cbe669ab10ba00d444337231b412ee20b6694726480a0f73",
+      "block": "11779159",
+      "gasUsed": "5196817"
+    },
+    {
+      "step": "zk-circuit mint",
+      "hash": "0x7301c71a4c301cae56b7f95dfb8a2341387fbbd68c7e945bf2634211fe50a5df",
+      "block": "11779160",
+      "gasUsed": "44614"
+    },
+    {
+      "step": "zk-circuit mint",
+      "hash": "0x66c7a9f5056592159c9705394a7842130b015d1867231fec4053ae4b6c89741d",
+      "block": "11779161",
+      "gasUsed": "44650"
+    },
+    {
+      "step": "zk-circuit mint",
+      "hash": "0x9d7ad303fbd4a3fd86ffb27e98b89e95085c80767cf056c7dad1cd1805fb764b",
+      "block": "11779162",
+      "gasUsed": "44626"
+    },
+    {
+      "step": "zk-circuit proposeReserve",
+      "hash": "0x2d2a340e756a3ef8137558bf1df86783286713d5f6a9383ac7bf5c5b228cac22",
+      "block": "11779163",
+      "gasUsed": "47938"
+    },
+    {
+      "step": "zk-circuit proveReserve",
+      "hash": "0xc986876896640ed9e0119396a695dc623fa0d8b0ac3fcc8628e65ca4b24da20f",
+      "block": "11779164",
+      "gasUsed": "119234"
+    },
+    {
+      "step": "zk-circuit reviewReserve",
+      "hash": "0x0c6e392adae0f55761d472f8175729c8ab14e5693c9ead2629ff6f0266768b22",
+      "block": "11779165",
+      "gasUsed": "76021"
+    },
+    {
+      "step": "snarkless deploy KzgSolvencyRegistry",
+      "hash": "0x1d98f4910ae53ba2341f596dde7967cf4c23d4506fcf3498319d931ea1b2acd2",
+      "block": "11779166",
+      "gasUsed": "5274655"
+    },
+    {
+      "step": "snarkless mint",
+      "hash": "0x1c5dac1856910b887872de8dc0d6d3e432bd987bdbd420ab1189620e65ef4d45",
+      "block": "11779168",
+      "gasUsed": "44602"
+    },
+    {
+      "step": "snarkless proposeReserve",
+      "hash": "0x944cf09a54e78308d0b5f53d6439c66d946c74a4d337688d4841ea21f69d6ffe",
+      "block": "11779169",
+      "gasUsed": "47916"
+    },
+    {
+      "step": "snarkless proveReserve",
+      "hash": "0x90a8a7cb58e82e7e7145d0a2e6fabda0058bdad26947658d1109f61d869e694d",
+      "block": "11779171",
+      "gasUsed": "119212"
+    },
+    {
+      "step": "snarkless reviewReserve",
+      "hash": "0x3b86bfa6ca3a7e7ad41751aa765fb9fde7611509d9e0f0a009d6689c8b9038f1",
+      "block": "11779172",
+      "gasUsed": "76021"
+    },
+    {
+      "step": "published-ledger sampleReserves",
+      "hash": "0x12a527ada7e8492d70feb6edd057a1036f1ada74be299f83d489b56152218c65",
+      "block": "11779177",
+      "gasUsed": "100291"
+    },
+    {
+      "step": "published-ledger submitLedger",
+      "hash": "0x67c38743f53afa7a2d5a1300de7e8601e5e9413e1921beda3a1d314427b5ab00",
+      "block": "11779180",
+      "gasUsed": "410209"
+    },
+    {
+      "step": "zk-circuit sampleReserves",
+      "hash": "0x5aecee79ec36eb96ec8140a8c48f1cf9c7cdd6409f0d796788b64230d25e03d0",
+      "block": "11779181",
+      "gasUsed": "136279"
+    },
+    {
+      "step": "zk-circuit submitEpoch",
+      "hash": "0xdaffc5b5b40dff9c825a6622fc115c42080d9a757b89cfb6b5cf67ff326637da",
+      "block": "11779183",
+      "gasUsed": "4536813"
+    },
+    {
+      "step": "snarkless sampleReserves",
+      "hash": "0x8848de6e6ffe714ee4697a547e86a46bfe63b29a984ea3f82d085a05e1ffaaa2",
+      "block": "11779184",
+      "gasUsed": "67387"
+    },
+    {
+      "step": "snarkless submitEpoch",
+      "hash": "0x9869f95b4617debd1124dbdc545722f6f3a31716ccfafb5dd6ddc4ce1a7bd8f0",
+      "block": "11779186",
+      "gasUsed": "1679265"
+    },
+    {
+      "step": "published-ledger operations funding transfer",
+      "hash": "0x92c333656bbf9f658fd57e89f005dbcfc66ba1c6c40b2918ab5800288bc3d29a",
+      "block": "11779192",
+      "gasUsed": "21000"
+    },
+    {
+      "step": "published-ledger operations 0 transferCompany",
+      "hash": "0xef1a06c39b5b96a6b51edf348a66f814a4ebef78a14c6210710dcd3cb952856d",
+      "block": "11779193",
+      "gasUsed": "48426"
+    },
+    {
+      "step": "published-ledger operations 1 acceptCompany",
+      "hash": "0xc808bb8d56dbb2266bc729804d1478c020e2fd1758845d39a653ecd50ad9534c",
+      "block": "11779194",
+      "gasUsed": "31019"
+    },
+    {
+      "step": "published-ledger operations 2 transferCompany",
+      "hash": "0x280d401ba3c36e55684b7899eab0de159c979a488b367e65661a2a2687258f79",
+      "block": "11779195",
+      "gasUsed": "48426"
+    },
+    {
+      "step": "published-ledger operations 3 acceptCompany",
+      "hash": "0x7276d599a6fc4781e0026d78dd8cb3702edf2def7a344b71a8e4c24b3cf57eed",
+      "block": "11779196",
+      "gasUsed": "31019"
+    },
+    {
+      "step": "published-ledger operations 4 transferAuditor",
+      "hash": "0x04af05544ec476c3a08d7c1fd289f939df8e1c4f965c05a1e72a0ab7f1505085",
+      "block": "11779197",
+      "gasUsed": "31220"
+    },
+    {
+      "step": "published-ledger operations 5 acceptAuditor",
+      "hash": "0xf5f68f759213b31dd0b73147c3fc4886f52dbbdee2e53cde56c1b881703000da",
+      "block": "11779199",
+      "gasUsed": "35910"
+    },
+    {
+      "step": "published-ledger operations 6 transferAuditor",
+      "hash": "0x2ed84c9c4da02e27fcb0ca5d4aecab39ff76a8309a3e315c25dd4e15de3f15bb",
+      "block": "11779200",
+      "gasUsed": "31220"
+    },
+    {
+      "step": "published-ledger operations 7 acceptAuditor",
+      "hash": "0x51115b60d33b079f510ffcdde840cccd1e505ae89614e412e2e2277481b8dbee",
+      "block": "11779201",
+      "gasUsed": "35910"
+    },
+    {
+      "step": "published-ledger operations 8 removeReserve",
+      "hash": "0xe4698f21f916f2ab82f946cc27e1897f9911cdb28e5b33a029f5285e60453267",
+      "block": "11779202",
+      "gasUsed": "47018"
+    },
+    {
+      "step": "published-ledger operations 9 proposeReserve",
+      "hash": "0x6e371109484c5a7c25456c0d22cbd3e320289f1cdf5a44c23907e6985ca4b21a",
+      "block": "11779203",
+      "gasUsed": "47916"
+    },
+    {
+      "step": "published-ledger operations 10 proveReserve",
+      "hash": "0x749f96402f69941d14270da2c03a81e9964789a2ad0cf9c66e1d470239655866",
+      "block": "11779205",
+      "gasUsed": "84990"
+    },
+    {
+      "step": "published-ledger operations funding transfer",
+      "hash": "0x17b391e552b563695fa6f4f04f18892634079e4bc3ff98f182745218e17d779c",
+      "block": "11779213",
+      "gasUsed": "21000"
+    },
+    {
+      "step": "published-ledger operations 11 reviewReserve",
+      "hash": "0xa4eac8da000129cbcfe330a143023a1206dbba1e13050a42ed8ac2e80c920e84",
+      "block": "11779214",
+      "gasUsed": "76065"
+    },
+    {
+      "step": "zk-circuit operations funding transfer",
+      "hash": "0xc3e6451bcdf39c2e97edcb597b390a4313f2e684f7c3df84b1ca2de685ce8330",
+      "block": "11779215",
+      "gasUsed": "21000"
+    },
+    {
+      "step": "zk-circuit operations 0 transferCompany",
+      "hash": "0x47d1b23a1bf8b2c10c6f2361c6f31d96bf010f7bdad35911469cee9a0d46090a",
+      "block": "11779216",
+      "gasUsed": "48426"
+    },
+    {
+      "step": "zk-circuit operations 1 acceptCompany",
+      "hash": "0x10e5725ec10d23c66ff88be045ab94cfaa41c7524847f041d3dc182cbe3fa205",
+      "block": "11779217",
+      "gasUsed": "31019"
+    },
+    {
+      "step": "zk-circuit operations 2 transferCompany",
+      "hash": "0x7bddfbfc743ba0197b46096ff84df0d14c837051ff0c877e3dd7231db8b03639",
+      "block": "11779218",
+      "gasUsed": "48426"
+    },
+    {
+      "step": "zk-circuit operations 3 acceptCompany",
+      "hash": "0x3070cadeaf8b8c2419ba6d3a8724f16daac0a56bfd4cbd700e8128f895465d43",
+      "block": "11779219",
+      "gasUsed": "31019"
+    },
+    {
+      "step": "zk-circuit operations 4 transferAuditor",
+      "hash": "0x202a1ed4b7a685527a97a0cf998f183d79b7e6ff3cbd7762470eb7c69de55e6f",
+      "block": "11779220",
+      "gasUsed": "31242"
+    },
+    {
+      "step": "zk-circuit operations 5 acceptAuditor",
+      "hash": "0xae08c21dff02a8ead882332f8ba3f4f855e2e766b67eaa47963259257ca15bb4",
+      "block": "11779222",
+      "gasUsed": "35843"
+    },
+    {
+      "step": "zk-circuit operations 6 transferAuditor",
+      "hash": "0x6ef294a6c735fa198cadd87991cde95a5a0f5e4d6e76a3fc08dc3e6c6d6c1dfe",
+      "block": "11779223",
+      "gasUsed": "31242"
+    },
+    {
+      "step": "zk-circuit operations 7 acceptAuditor",
+      "hash": "0xff1b526c1f4a7080fd0584fdd93926a1502c5aeea745c887d89ce973ed230d34",
+      "block": "11779224",
+      "gasUsed": "35843"
+    },
+    {
+      "step": "zk-circuit operations 8 removeReserve",
+      "hash": "0xf10d18831597c983369e6ad7ea936ba8cfed87099b34e79caeb7636f333511b5",
+      "block": "11779225",
+      "gasUsed": "46983"
+    },
+    {
+      "step": "zk-circuit operations 9 proposeReserve",
+      "hash": "0xe5205cfb60fb674a832fbe047cdc80081ecb75883f065cc5791daa152ab10294",
+      "block": "11779226",
+      "gasUsed": "47938"
+    },
+    {
+      "step": "zk-circuit operations 10 proveReserve",
+      "hash": "0xc12bb6b0d0eb9c74eb0f82c60c998b74d03fbaa496c7983f438cdda639c900d6",
+      "block": "11779227",
+      "gasUsed": "85034"
+    },
+    {
+      "step": "zk-circuit operations funding transfer",
+      "hash": "0x228c70b88997a0dc1728dd9b4c82011acddab7379737562d05a076e56f11dfc0",
+      "block": "11779235",
+      "gasUsed": "21000"
+    },
+    {
+      "step": "zk-circuit operations 11 reviewReserve",
+      "hash": "0xd7926345d7e4ababf0353f6d1137abf37e70ddc84f2ccd357bf8d428eb6ae6cc",
+      "block": "11779236",
+      "gasUsed": "76021"
+    },
+    {
+      "step": "snarkless operations funding transfer",
+      "hash": "0xabea50a21b0086caa96875adff6881bc36ed90dd06f8351fb05b3b33b3681f1f",
+      "block": "11779237",
+      "gasUsed": "21000"
+    },
+    {
+      "step": "snarkless operations 0 transferCompany",
+      "hash": "0x4d8c80332ac38e696c9186d038dfd17cc7f78dc8ac14c4636ce8ba20680173e2",
+      "block": "11779238",
+      "gasUsed": "48404"
+    },
+    {
+      "step": "snarkless operations 1 acceptCompany",
+      "hash": "0x6c2317e1a2e3256bfd27ca3979c88f78b649167e3d72c855825f8458ebf3531d",
+      "block": "11779239",
+      "gasUsed": "31019"
+    },
+    {
+      "step": "snarkless operations 2 transferCompany",
+      "hash": "0x2cf33ee0c53193800cbe3184b6ad9c89e6f5cf954e24206ed1c66a26cea5255b",
+      "block": "11779240",
+      "gasUsed": "48404"
+    },
+    {
+      "step": "snarkless operations 3 acceptCompany",
+      "hash": "0xb6589df67fa95ff15c10f247aed378c42c7ae2376b35912dcfc1dad3941028e7",
+      "block": "11779241",
+      "gasUsed": "31019"
+    },
+    {
+      "step": "snarkless operations 4 transferAuditor",
+      "hash": "0x5038daffd36b17a1dc1fbdb38a802b911e74a5fc5e120e0b5a0a281023fa6f06",
+      "block": "11779243",
+      "gasUsed": "31220"
+    },
+    {
+      "step": "snarkless operations 5 acceptAuditor",
+      "hash": "0xc285f04f7a65a1ecda2d5e06d393cf6e23016a39917521dae499f5fa3bbf74ca",
+      "block": "11779244",
+      "gasUsed": "35910"
+    },
+    {
+      "step": "snarkless operations 6 transferAuditor",
+      "hash": "0x4921f5ddfaef1bbc6a09a16425b222bd7c125a472bb583dac359aa937bb4c680",
+      "block": "11779245",
+      "gasUsed": "31220"
+    },
+    {
+      "step": "snarkless operations 7 acceptAuditor",
+      "hash": "0x6fec35c0742eae249976b044e8c27372f00ff85d8de59353d9b0249cd5ecead8",
+      "block": "11779246",
+      "gasUsed": "35910"
+    },
+    {
+      "step": "snarkless operations 8 removeReserve",
+      "hash": "0x343a2cbd7609305be36281f39d65b45ebcc0cf15cc633292096b56499004f244",
+      "block": "11779247",
+      "gasUsed": "47000"
+    },
+    {
+      "step": "snarkless operations 9 proposeReserve",
+      "hash": "0xb3f47659f47e5d0fb5f45bd742e51d77aed992d8474c5a0bc2e88ee4cf1fdb74",
+      "block": "11779248",
+      "gasUsed": "47916"
+    },
+    {
+      "step": "snarkless operations 10 proveReserve",
+      "hash": "0xa5f75fd63362c269bfcdf627816b2be4e06995baadd85476e59ae76f5f3f9cd9",
+      "block": "11779250",
+      "gasUsed": "85012"
+    },
+    {
+      "step": "snarkless operations 11 reviewReserve",
+      "hash": "0x0bf387db63f8653a79a5987407a50bddf97c825658120b8a3d04b3996da72c22",
+      "block": "11779251",
+      "gasUsed": "76021"
+    },
+    {
+      "step": "published-ledger sampleReserves",
+      "hash": "0x62c9df6cef9120f2d93469852e12403c31493b50a354e797cf967a7d7ce4fb1f",
+      "block": "11779254",
+      "gasUsed": "63291"
+    },
+    {
+      "step": "published-ledger submitLedger",
+      "hash": "0x8bac951d59681ce2b5464b1d30bb0fd4007610758700332839236f61d09e86eb",
+      "block": "11779257",
+      "gasUsed": "376485"
+    },
+    {
+      "step": "zk-circuit sampleReserves",
+      "hash": "0x5bd9b150fadcd329b098616f4ddfcde0935f0394be884c3690437728157dbb71",
+      "block": "11779258",
+      "gasUsed": "76579"
+    },
+    {
+      "step": "zk-circuit submitEpoch",
+      "hash": "0x5efd64a1c1213eefe6f1e12dd501770e96d9cf691f599034d22477d7ef0302aa",
+      "block": "11779260",
+      "gasUsed": "4503029"
+    },
+    {
+      "step": "snarkless sampleReserves",
+      "hash": "0xf370683b8ab35513f4caf44ad1ad7bbebcd8b16d121c9ff6857865b96b2309cb",
+      "block": "11779261",
+      "gasUsed": "47487"
+    },
+    {
+      "step": "snarkless submitEpoch",
+      "hash": "0x1a4fdb9cc08b8961c1b1cd60686c938d921a70ec36c50f4f5fe7057c3df9fa09",
+      "block": "11779264",
+      "gasUsed": "1645541"
+    }
+  ],
+  "operations": {
+    "published-ledger": 14,
+    "zk-circuit": 14,
+    "snarkless": 14
+  }
+}

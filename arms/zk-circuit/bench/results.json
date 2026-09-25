@@ -1,0 +1,335 @@
+{
+  "measuredAt": "2026-09-16T20:28:08.889Z",
+  "platform": "darwin arm64",
+  "note": "One leaf per (customer, asset) holding; every slot filled.",
+  "rows": [
+    {
+      "n": 8,
+      "depth": 3,
+      "form": "chained",
+      "status": "ok",
+      "acirOpcodes": 129,
+      "execute": {
+        "seconds": 0.18,
+        "peakRssBytes": 116588544
+      },
+      "gates": 4795,
+      "writeVk": {
+        "seconds": 0.03,
+        "peakRssBytes": 19415040
+      },
+      "prove": {
+        "seconds": 0.08,
+        "peakRssBytes": 34684928
+      },
+      "verified": true,
+      "proofBytes": 7616,
+      "vkBytes": 1888
+    },
+    {
+      "n": 32,
+      "depth": 5,
+      "form": "chained",
+      "status": "ok",
+      "acirOpcodes": 441,
+      "execute": {
+        "seconds": 0.17,
+        "peakRssBytes": 116539392
+      },
+      "gates": 10557,
+      "writeVk": {
+        "seconds": 0.04,
+        "peakRssBytes": 30736384
+      },
+      "prove": {
+        "seconds": 0.11,
+        "peakRssBytes": 43335680
+      },
+      "verified": true,
+      "proofBytes": 8000,
+      "vkBytes": 1888
+    },
+    {
+      "n": 128,
+      "depth": 7,
+      "form": "chained",
+      "status": "ok",
+      "acirOpcodes": 1689,
+      "execute": {
+        "seconds": 0.19,
+        "peakRssBytes": 119144448
+      },
+      "gates": 33605,
+      "writeVk": {
+        "seconds": 0.09,
+        "peakRssBytes": 69812224
+      },
+      "prove": {
+        "seconds": 0.26,
+        "peakRssBytes": 104611840
+      },
+      "verified": true,
+      "proofBytes": 8768,
+      "vkBytes": 1888
+    },
+    {
+      "n": 512,
+      "depth": 9,
+      "form": "chained",
+      "status": "ok",
+      "acirOpcodes": 6681,
+      "execute": {
+        "seconds": 0.26,
+        "peakRssBytes": 120733696
+      },
+      "gates": 125797,
+      "writeVk": {
+        "seconds": 0.24,
+        "peakRssBytes": 206684160
+      },
+      "prove": {
+        "seconds": 0.68,
+        "peakRssBytes": 278986752
+      },
+      "verified": true,
+      "proofBytes": 9152,
+      "vkBytes": 1888
+    },
+    {
+      "n": 2048,
+      "depth": 11,
+      "form": "chained",
+      "status": "ok",
+      "acirOpcodes": 26649,
+      "execute": {
+        "seconds": 0.59,
+        "peakRssBytes": 137773056
+      },
+      "gates": 494565,
+      "writeVk": {
+        "seconds": 0.86,
+        "peakRssBytes": 832339968
+      },
+      "prove": {
+        "seconds": 2.49,
+        "peakRssBytes": 1092009984
+      },
+      "verified": true,
+      "proofBytes": 9920,
+      "vkBytes": 1888
+    },
+    {
+      "n": 8192,
+      "depth": 13,
+      "form": "chained",
+      "status": "ok",
+      "acirOpcodes": 106521,
+      "execute": {
+        "seconds": 2.12,
+        "peakRssBytes": 255819776
+      },
+      "gates": 1969637,
+      "writeVk": {
+        "seconds": 3.07,
+        "peakRssBytes": 3274375168
+      },
+      "prove": {
+        "seconds": 10.15,
+        "peakRssBytes": 4271030272
+      },
+      "verified": true,
+      "proofBytes": 10688,
+      "vkBytes": 1888
+    },
+    {
+      "n": 16384,
+      "depth": 14,
+      "form": "chained",
+      "status": "failed",
+      "execute": {
+        "seconds": 0.73,
+        "peakRssBytes": 182501376
+      },
+      "failedStage": "nargo execute",
+      "error": "error: Type is too complex (complexity: 100022, max: 100000)\n   ┌─ src/main.nr:49:19\n   │\n49 │     let level14 = combine_level(level13);\n   │                   ------------- This usually happens with exponentially growing types. Consider simplifying the type structure.\n   │\nAborting due to 1 previous error"
+    },
+    {
+      "n": 8,
+      "depth": 3,
+      "form": "flat",
+      "status": "ok",
+      "acirOpcodes": 129,
+      "execute": {
+        "seconds": 0.18,
+        "peakRssBytes": 120422400
+      },
+      "gates": 4795,
+      "writeVk": {
+        "seconds": 0.03,
+        "peakRssBytes": 19382272
+      },
+      "prove": {
+        "seconds": 0.07,
+        "peakRssBytes": 34521088
+      },
+      "verified": true,
+      "proofBytes": 7616,
+      "vkBytes": 1888
+    },
+    {
+      "n": 32,
+      "depth": 5,
+      "form": "flat",
+      "status": "ok",
+      "acirOpcodes": 441,
+      "execute": {
+        "seconds": 0.18,
+        "peakRssBytes": 116441088
+      },
+      "gates": 10557,
+      "writeVk": {
+        "seconds": 0.04,
+        "peakRssBytes": 29622272
+      },
+      "prove": {
+        "seconds": 0.12,
+        "peakRssBytes": 46006272
+      },
+      "verified": true,
+      "proofBytes": 8000,
+      "vkBytes": 1888
+    },
+    {
+      "n": 128,
+      "depth": 7,
+      "form": "flat",
+      "status": "ok",
+      "acirOpcodes": 1689,
+      "execute": {
+        "seconds": 0.18,
+        "peakRssBytes": 116899840
+      },
+      "gates": 33605,
+      "writeVk": {
+        "seconds": 0.09,
+        "peakRssBytes": 70238208
+      },
+      "prove": {
+        "seconds": 0.27,
+        "peakRssBytes": 109936640
+      },
+      "verified": true,
+      "proofBytes": 8768,
+      "vkBytes": 1888
+    },
+    {
+      "n": 512,
+      "depth": 9,
+      "form": "flat",
+      "status": "ok",
+      "acirOpcodes": 6681,
+      "execute": {
+        "seconds": 0.23,
+        "peakRssBytes": 119177216
+      },
+      "gates": 125797,
+      "writeVk": {
+        "seconds": 0.25,
+        "peakRssBytes": 208027648
+      },
+      "prove": {
+        "seconds": 0.75,
+        "peakRssBytes": 278708224
+      },
+      "verified": true,
+      "proofBytes": 9152,
+      "vkBytes": 1888
+    },
+    {
+      "n": 2048,
+      "depth": 11,
+      "form": "flat",
+      "status": "ok",
+      "acirOpcodes": 26649,
+      "execute": {
+        "seconds": 0.42,
+        "peakRssBytes": 127057920
+      },
+      "gates": 494565,
+      "writeVk": {
+        "seconds": 1.08,
+        "peakRssBytes": 830701568
+      },
+      "prove": {
+        "seconds": 2.63,
+        "peakRssBytes": 1093468160
+      },
+      "verified": true,
+      "proofBytes": 9920,
+      "vkBytes": 1888
+    },
+    {
+      "n": 8192,
+      "depth": 13,
+      "form": "flat",
+      "status": "ok",
+      "acirOpcodes": 106521,
+      "execute": {
+        "seconds": 1.28,
+        "peakRssBytes": 182665216
+      },
+      "gates": 1969637,
+      "writeVk": {
+        "seconds": 3.09,
+        "peakRssBytes": 3273834496
+      },
+      "prove": {
+        "seconds": 10.1,
+        "peakRssBytes": 4273045504
+      },
+      "verified": true,
+      "proofBytes": 10688,
+      "vkBytes": 1888
+    },
+    {
+      "n": 16384,
+      "depth": 14,
+      "form": "flat",
+      "status": "ok",
+      "acirOpcodes": 213017,
+      "execute": {
+        "seconds": 2.47,
+        "peakRssBytes": 249937920
+      },
+      "gates": 3936399,
+      "writeVk": {
+        "seconds": 13.37,
+        "peakRssBytes": 5787729920
+      },
+      "prove": {
+        "seconds": 19.78,
+        "peakRssBytes": 6979665920
+      },
+      "verified": true,
+      "proofBytes": 11072,
+      "vkBytes": 1888
+    },
+    {
+      "n": 32768,
+      "depth": 15,
+      "form": "flat",
+      "status": "failed",
+      "acirOpcodes": 426009,
+      "execute": {
+        "seconds": 4.89,
+        "peakRssBytes": 506937344
+      },
+      "writeVk": {
+        "seconds": 2.69,
+        "peakRssBytes": 7461552128
+      },
+      "failedStage": "bb write_vk",
+      "error": "Scheme is: ultra_honk, num threads: 8 (mem: 9.67 MiB)\nAssertion failed: (MAX_SMALL_RANGE_CONSTRAINT_VAL >= target_range)\n  Left   : 65535\n  Right  : 65541"
+    }
+  ]
+}

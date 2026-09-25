@@ -10,23 +10,30 @@ broadcast/*/dry-run/
 # node
 node_modules/
 
-fixtures/proof-*.json
-frontend/public/proofs/
+# noir: build artifacts, and Prover.toml holds raw customer balances
+arms/*/circuit/target/
+arms/*/circuit/Prover.toml
+arms/*/circuit/e2e-*.toml
 
-# frontend build output
-frontend/dist/
+# generated per-customer proofs and bundles
+arms/single-asset/fixtures/proof-*.json
+arms/single-asset/site/public/proofs/
+arms/*/site/dist/
+open-solvency/dist/
+arms/zk-circuit/fixtures/generated/
 
-# noir circuit: build artifacts, and Prover.toml holds raw customer balances
-circuit/target/
-circuit/Prover.toml
+# private split-liability inputs and outputs
+merkle-output/
+*.private.json
 
 # env / secrets
 .env
 .env.*
+!.env.example
 
 # os
 .DS_Store
-# Private split-liability inputs and outputs
-merkle-output/
-*.private.json
 
+# browser test artifacts
+test-results/
+playwright-report/

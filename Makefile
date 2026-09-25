@@ -1,40 +1,127 @@
-.PHONY: build test demo fixtures circuit-check circuit-prove circuit-verifier kzg-setup kzg-epoch frontend
+# Four arms live under arms/. Each is self-contained: contracts/, prover/,
+# test/, script/, fixtures/. Shared code is shared/contracts/ReserveRegistry.sol
+# (roles, signed reserves, epoch freshness), shared/merkleSumTree.ts and
+# shared/customers.csv, the common input every arm is measured on.
+#
+#   arms/published-ledger  publish the whole ledger, contract recomputes the root
+#   arms/zk-circuit        Noir/UltraHonk proof, per-asset solvency against public reserve floors
+#   arms/snarkless         KZG polynomial commitments, no circuit
+#   arms/single-asset      superseded by zk-circuit, kept for the gas comparison
+#
+# Target names are prefixed by arm: ledger-, zk-, kzg-, single-.
 
+.PHONY: build test integration check compare \
+        ledger-demo \
+        zk-fixtures zk-check zk-prove zk-verifier zk-snapshot zk-circuit-test zk-demo zk-bench \
+        kzg-setup kzg-epoch kzg-demo demo test-demo \
+        single-fixtures single-check single-proof single-prove single-verifier single-demo
+
+# ---- all arms ------------------------------------------------------------
 build:
 	forge build
 
 test:
-	forge test
-	node --import tsx --test prover/*.test.ts prover/kzg/*.test.ts prover/merkle-sum/*.test.ts
+	npm run validate
+	npm run test:integration
 
-demo: build
-	@npx tsx script/demo.ts
+# spawns its own anvil on a free port; needs forge build output in out/
+integration: build
+	node --import tsx --test arms/*/test/*.test.ts
 
-frontend: fixtures
-	npx vite
+check:
+	npx tsc --noEmit
+	forge fmt --check
 
-# writes fixtures/epoch.json + circuit/Prover.toml from customers.csv
-fixtures:
-	npx tsx prover/buildTree.ts
+# regenerates every number in docs/comparison.md in one pass
+compare:
+	forge test --gas-report
+	forge test --match-test '^test_Gas' -vv | grep ' gas'
 
-circuit-check: fixtures
-	cd circuit && nargo execute
+# ---- arm: published-ledger ----------------------------------------------
+# split + shuffle customers, publish the anonymised ledger, recompute on-chain
+ledger-demo: build
+	npx tsx arms/published-ledger/script/demo.ts
 
-circuit-prove: circuit-check
-	cd circuit && bb write_vk -s ultra_honk -b target/circuit.json -o target/vk --oracle_hash keccak
-	cd circuit && bb prove -s ultra_honk -b target/circuit.json -w target/circuit.gz -o target/proof -k target/vk/vk --oracle_hash keccak
-	cd circuit && bb verify -s ultra_honk -p target/proof/proof -k target/vk/vk -i target/proof/public_inputs --oracle_hash keccak
-	cp circuit/target/proof/proof fixtures/proof.bin
+# ---- arm: zk-circuit (multi-asset) --------------------------------------
+# publicInputs = [floor0, floor1, floor2, context, rootHash]
+zk-circuit-test:
+	cd arms/zk-circuit/circuit && nargo test
 
-# regenerate contracts/HonkVerifier.sol -- only needed when the circuit changes
-circuit-verifier: circuit-prove
-	cd circuit && bb write_solidity_verifier -k target/vk/vk -o ../contracts/HonkVerifier.sol -t evm
+# refresh snapshot.json (context, reserves, prices, rounds) from a deployed registry:
+# make zk-snapshot REGISTRY=0x...
+zk-snapshot:
+	npx tsx arms/zk-circuit/prover/fetchSnapshot.ts $(REGISTRY)
 
-# ---- arm 2: KZG grand sum (no circuit) ------------------------------------
-# one-time setup, the counterpart to the circuit's verification key
+# writes arms/zk-circuit/circuit/Prover.toml from customers.csv + snapshot.json
+zk-fixtures:
+	npx tsx arms/zk-circuit/prover/buildMultiAssetTree.ts
+
+zk-check: zk-fixtures
+	cd arms/zk-circuit/circuit && nargo execute
+
+zk-prove: zk-check
+	cd arms/zk-circuit/circuit && bb write_vk -s ultra_honk -b target/circuit_multiasset.json -o target/vk --oracle_hash keccak
+	cd arms/zk-circuit/circuit && bb prove -s ultra_honk -b target/circuit_multiasset.json -w target/circuit_multiasset.gz -o target/proof -k target/vk/vk --oracle_hash keccak
+	cd arms/zk-circuit/circuit && bb verify -s ultra_honk -p target/proof/proof -k target/vk/vk -i target/proof/public_inputs --oracle_hash keccak
+	npx tsx arms/zk-circuit/script/fixtures.ts
+
+# regenerate the Solidity verifier -- only when the circuit changes
+zk-verifier: zk-prove
+	cd arms/zk-circuit/circuit && bb write_solidity_verifier -k target/vk/vk -o ../contracts/MultiAssetHonkVerifier.sol -t evm
+
+# live demo; needs a local anvil first: anvil --silent &
+# the script signs as anvil dev accounts 0 (company) and 1 (auditor)
+zk-demo: build
+	node --import tsx arms/zk-circuit/script/demo.ts
+
+zk-bench:
+	npx tsx arms/zk-circuit/bench/scale.ts
+
+# ---- arm: snarkless (KZG) -----------------------------------------------
+# one-time setup, the counterpart to the circuit's verification key: extracts the
+# powers from the pinned Perpetual Powers of Tau file (80 contributions + beacon)
 kzg-setup:
-	npx tsx script/kzg-setup.ts
+	npx tsx arms/snarkless/script/setup.ts
 
-# per-epoch prover, the counterpart to circuit-prove; same customers.csv
+# per-epoch prover, the counterpart to zk-prove; same shared/customers.csv
+# writes epoch.json, range-proof.json, inclusion.json and attack.json, all bound
+# to the registry in the snapshot; srs.json comes from kzg-setup and is left alone.
+# Both default to the committed fixtures, which the Foundry tests read:
+#   make kzg-epoch SNAPSHOT=path/to/snapshot.json OUT=path/to/directory
 kzg-epoch:
-	npx tsx prover/kzg/buildEpoch.ts
+	npx tsx arms/snarkless/prover/buildEpoch.ts $(SNAPSHOT) $(OUT)
+
+# live demo; needs a local anvil first: anvil --silent --port 8547 &
+# deploys, binds the transcript to the deployed address, then proves and submits
+kzg-demo: build
+	node --import tsx arms/snarkless/script/demo.ts
+
+demo:
+	npm run demo
+
+test-demo: build
+	npm run test:demo
+
+# ---- arm: single-asset (superseded) -------------------------------------
+# writes arms/single-asset/fixtures/epoch.json + circuit/Prover.toml
+single-fixtures:
+	npx tsx arms/single-asset/prover/buildTree.ts
+
+single-check: single-fixtures
+	cd arms/single-asset/circuit && nargo execute
+
+# proves into circuit/target/proof; leaves the committed fixture alone
+single-proof: single-check
+	cd arms/single-asset/circuit && bb write_vk -s ultra_honk -b target/circuit.json -o target/vk --oracle_hash keccak
+	cd arms/single-asset/circuit && bb prove -s ultra_honk -b target/circuit.json -w target/circuit.gz -o target/proof -k target/vk/vk --oracle_hash keccak
+	cd arms/single-asset/circuit && bb verify -s ultra_honk -p target/proof/proof -k target/vk/vk -i target/proof/public_inputs --oracle_hash keccak
+
+# refreshes the committed fixture from a new proof
+single-prove: single-proof
+	cp arms/single-asset/circuit/target/proof/proof arms/single-asset/fixtures/proof.bin
+
+single-verifier: single-prove
+	cd arms/single-asset/circuit && bb write_solidity_verifier -k target/vk/vk -o ../contracts/HonkVerifier.sol -t evm
+
+single-demo: build
+	@npx tsx arms/single-asset/script/demo.ts

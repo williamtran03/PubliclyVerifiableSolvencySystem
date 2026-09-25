@@ -1,5 +1,0 @@
-[
-  { "customerId": "alice", "name": "Alice Example", "dateOfBirth": "2000-01-01", "amounts": ["40", "60"] },
-  { "customerId": "bob", "name": "Bob Example", "dateOfBirth": "2001-02-03", "amounts": ["20"] }
-]
-

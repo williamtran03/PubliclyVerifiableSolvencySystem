@@ -4,11 +4,23 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:prover": "node --import tsx --test prover/*.test.ts prover/kzg/*.test.ts prover/merkle-sum/*.test.ts",
-    "merkle": "node --import tsx cli/merkle-sum.ts",
-    "demo:merkle": "node --import tsx script/merkle-sum-demo.ts"
+    "test": "node --import tsx --test shared/*.test.ts scripts/sepolia/*.test.ts arms/*/prover/*.test.ts open-solvency/src/*.test.ts open-solvency/src/solutions/*.test.ts",
+    "test:integration": "node --import tsx --test arms/*/test/*.test.ts",
+    "check": "tsc --noEmit",
+    "web": "vite --config vite.opensolvency.config.ts",
+    "web:build": "vite build --config vite.opensolvency.config.ts",
+    "demo": "node --import tsx scripts/demo/run.ts",
+    "demo:export": "node --import tsx scripts/sepolia/export-example.ts",
+    "sepolia": "node --import tsx scripts/sepolia/run.ts",
+    "test:demo": "node --import tsx --test --test-reporter=spec scripts/demo/*.test.ts",
+    "ledger": "node --import tsx arms/published-ledger/cli/verify.ts",
+    "inclusion": "node --import tsx arms/single-asset/cli/verify-inclusion.ts",
+    "test:pages": "playwright test --config playwright.pages.config.ts",
+    "test:browser": "playwright test",
+    "validate": "npm run check && forge fmt --check && forge test && npm test && npm run web:build && npm run test:demo && npm run test:browser"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^26.4.1",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",

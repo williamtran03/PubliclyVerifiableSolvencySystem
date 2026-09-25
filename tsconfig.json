@@ -3,12 +3,15 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "paths": { "@prover/*": ["./prover/*"] },
+    "paths": {
+      "@shared/*": ["./shared/*"],
+      "@arms/*": ["./arms/*"]
+    },
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "exclude": ["node_modules", "circuit/libs", "circuit/target", "lib", "frontend/dist"]
+  "exclude": ["node_modules", "lib", "out", "arms/*/circuit/target", "arms/*/site/dist", "open-solvency/dist", "arms/zk-circuit/fixtures/generated"]
 }
