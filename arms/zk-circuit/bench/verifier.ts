@@ -2,11 +2,12 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { keccak256, encodePacked, type Hex } from "viem";
 import { mainNr, mainNrFlat, NARGO_TOML, benchHoldings, proverToml, depthOf } from "./generate.ts";
 
-const SEED = keccak256(encodePacked(["string"], ["solvency bench seed"])) as Hex;
-const CONTEXT = 7n;
+export const SEED = keccak256(encodePacked(["string"], ["solvency bench seed"])) as Hex;
+export const CONTEXT = 7n;
 const EIP170 = 24576;
 const RESULTS = "arms/zk-circuit/bench/verifier.json";
 const NUM_ASSETS = 3;
@@ -53,9 +54,10 @@ fs_permissions = [{ access = "read", path = "./" }]
 ignore = ["src/Verifier.sol"]
 `;
 
-type Row = {
+export type VerifierRow = {
   n: number;
   form: "chained" | "flat";
+  assets?: number;
   paddedN?: number;
   logN?: number;
   publicInputSlots?: number;
@@ -68,16 +70,16 @@ type Row = {
   error?: string;
 };
 
-function build(n: number, form: "chained" | "flat", dir: string): Row {
-  const row: Row = { n, form };
+export function build(n: number, form: "chained" | "flat", dir: string, assets: number = NUM_ASSETS): VerifierRow {
+  const row: VerifierRow = assets === NUM_ASSETS ? { n, form } : { n, form, assets };
   const circuit = join(dir, "circuit");
   const project = join(dir, "project");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(join(circuit, "src"), { recursive: true });
   mkdirSync(join(project, "src"), { recursive: true });
   writeFileSync(join(circuit, "Nargo.toml"), NARGO_TOML);
-  writeFileSync(join(circuit, "src", "main.nr"), (form === "flat" ? mainNrFlat : mainNr)(n));
-  writeFileSync(join(circuit, "Prover.toml"), proverToml(benchHoldings(n, SEED), CONTEXT));
+  writeFileSync(join(circuit, "src", "main.nr"), (form === "flat" ? mainNrFlat : mainNr)(n, assets));
+  writeFileSync(join(circuit, "Prover.toml"), proverToml(benchHoldings(n, SEED, assets), CONTEXT, assets));
 
   const bytecode = join(circuit, "target", "circuit_bench.json");
   const steps: [string, string[]][] = [
@@ -102,7 +104,7 @@ function build(n: number, form: "chained" | "flat", dir: string): Row {
   const raw = readFileSync(join(circuit, "target", "proof", "public_inputs"));
   const inputs: string[] = [];
   for (let i = 0; i < raw.length; i += 32) inputs.push(BigInt(`0x${raw.subarray(i, i + 32).toString("hex")}`).toString());
-  if (inputs.length !== NUM_ASSETS + 2) return { ...row, error: `expected ${NUM_ASSETS + 2} public inputs, got ${inputs.length}` };
+  if (inputs.length !== assets + 2) return { ...row, error: `expected ${assets + 2} public inputs, got ${inputs.length}` };
   writeFileSync(join(project, "inputs.json"), JSON.stringify({ inputs }));
 
   mkdirSync(join(project, "lib"), { recursive: true });
@@ -136,24 +138,26 @@ function build(n: number, form: "chained" | "flat", dir: string): Row {
   return row;
 }
 
-const sizes = (process.env.BENCH_N?.split(",").map((s) => Number(s.trim())) ?? [8, 128, 2048]).filter((n) => n > 1);
-const form = (process.env.BENCH_FORM as "chained" | "flat") ?? "chained";
-const dir = join(tmpdir(), "solvency-bench-verifier");
-const rows: Row[] = [];
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const sizes = (process.env.BENCH_N?.split(",").map((s) => Number(s.trim())) ?? [8, 128, 2048]).filter((n) => n > 1);
+  const form = (process.env.BENCH_FORM as "chained" | "flat") ?? "chained";
+  const dir = join(tmpdir(), "solvency-bench-verifier");
+  const rows: VerifierRow[] = [];
 
-console.log(`Generating the Solidity verifier at N = ${sizes.join(", ")} (${form} form)\n`);
-for (const n of sizes) {
-  process.stdout.write(`N = ${String(n).padStart(6)} (depth ${depthOf(n)}) … `);
-  const row = build(n, form, dir);
-  rows.push(row);
-  console.log(
-    row.runtimeBytes === undefined
-      ? `FAILED — ${row.error}`
-      : `2^${row.logN} padded  runtime ${row.runtimeBytes.toLocaleString()} B ` +
-        `(EIP-170 margin ${row.eip170MarginBytes! >= 0 ? "+" : ""}${row.eip170MarginBytes!.toLocaleString()} B` +
-        `${row.deployable ? "" : ", NOT DEPLOYABLE"})  proof ${row.proofBytes} B  ` +
-        (row.verifyGas ? `verify ${row.verifyGas.toLocaleString()} gas` : `verify n/a — ${row.error}`),
-  );
-  writeFileSync(RESULTS, JSON.stringify({ measuredAt: new Date().toISOString(), eip170: EIP170, rows }, null, 2) + "\n");
+  console.log(`Generating the Solidity verifier at N = ${sizes.join(", ")} (${form} form)\n`);
+  for (const n of sizes) {
+    process.stdout.write(`N = ${String(n).padStart(6)} (depth ${depthOf(n)}) … `);
+    const row = build(n, form, dir);
+    rows.push(row);
+    console.log(
+      row.runtimeBytes === undefined
+        ? `FAILED — ${row.error}`
+        : `2^${row.logN} padded  runtime ${row.runtimeBytes.toLocaleString()} B ` +
+          `(EIP-170 margin ${row.eip170MarginBytes! >= 0 ? "+" : ""}${row.eip170MarginBytes!.toLocaleString()} B` +
+          `${row.deployable ? "" : ", NOT DEPLOYABLE"})  proof ${row.proofBytes} B  ` +
+          (row.verifyGas ? `verify ${row.verifyGas.toLocaleString()} gas` : `verify n/a — ${row.error}`),
+    );
+    writeFileSync(RESULTS, JSON.stringify({ measuredAt: new Date().toISOString(), eip170: EIP170, rows }, null, 2) + "\n");
+  }
+  console.log(`\nWrote ${RESULTS}`);
 }
-console.log(`\nWrote ${RESULTS}`);

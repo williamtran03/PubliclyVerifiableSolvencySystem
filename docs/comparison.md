@@ -433,24 +433,55 @@ more cheaply than the SNARK. The circuit buys *private totals* — arm 2 proves
 "liabilities ≤ floor" without publishing liabilities, whereas a KZG grand sum is a
 published opening — and it keeps customer-side verification to a hash path.
 
-**The asymmetry the gas table hides.** Arm 3's 1.56M covers one asset; arm 2's 4.37M
-covers three. The two curves have different shapes, and the shape is structural rather
-than incidental:
+**Cost against asset count, measured.** Arm 3's 1.56M covers one asset and arm 2's
+4.37M covers three, so the two had to be measured across asset counts.
 
-- **The SNARK is flat in asset count, in steps.** Assets are constraints inside the
-  circuit, and verification depends on the circuit's *padded* size, so a marginal asset
-  is free until it pushes past a power of two and then costs one round, ~106,700 gas.
-  Measured at ~106,700 per round over 2^13 … 2^21 (*How it scales*).
-- **The polynomial path is linear in asset count.** Each asset needs its own balance
-  polynomial, its own degree bound, its own opening at 0 and — the dominant term — its
-  own 64-bit range argument. Arm 3's cost is mostly those 64 bit-commitments and the
-  batched opening over them, and none of it is shared between assets.
+*The SNARK verifier* (`arms/zk-circuit/bench/assets.ts`, results in `assets.md`) at
+N = 8, measured with a `gasleft()` probe:
 
-So the marginal asset costs arm 2 nothing at the verifier and costs arm 3 close to a
-full range argument. **The ordering reverses somewhere between two and three assets.**
-We derived this rather than measured it — building a multi-asset arm 3 would confirm a
-fact that follows from what the two constructions are — so it is stated as a structural
-argument a reader can check, not as a number to be taken on trust.
+| Assets | 1 | 2 | 3 | 4 | 8 | 128 | 192 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Gates | 4,638 | 4,774 | 4,795 | 4,813 | 4,890 | 7,210 | 8,448 |
+| `LOG_N` | 13 | 13 | 13 | 13 | 13 | 13 | 14 |
+| Verify gas | 3,915,359 | 3,917,442 | 3,919,521 | 3,921,600 | 3,929,982 | 4,182,296 | 4,423,039 |
+
+Each asset adds about 20 gates and about 2,100 gas, for one more public input. The
+committed circuit has room for about 175 more assets before its padded size doubles and
+costs one round (about 106,000 gas net). At N = 1,024 the picture is the same, with
+about 690 assets of room. The 3-asset figure is the committed verifier's: the probe reads
+3,919,521 where the gas report reads 3,916,301, a difference of call overhead only. The
+registry around the verifier also pays per asset: a price read, a reserve read and two
+stored values, estimated at 85–95k per asset but not measured, because the registry is
+fixed at three assets.
+
+*The KZG path* (`arms/snarkless/test/KzgAssetScaling.t.sol`), with the same proofs as
+`submitEpoch` for each asset:
+
+| Assets | 1 | 2 | 3 | 4 |
+|---|---:|---:|---:|---:|
+| Checks per asset | 1,323,489 | 2,628,946 | 3,944,414 | 5,269,896 |
+| Checks per asset, one batched pairing | 1,170,739 | 2,164,950 | 3,168,999 | 4,182,887 |
+| One registry per asset (separate `submitEpoch` calls) | 1,555,921 | 3,109,342 | 4,662,763 | 6,216,184 |
+
+Each asset adds 1.0–1.3M gas: its own degree bound, opening at 0 and 64-bit range
+argument, with the 64 elliptic-curve multiplications of the range argument alone about
+0.4M, since the EVM has no multi-scalar-multiplication precompile. A multi-asset
+registry pays its bookkeeping (232,432 at one asset) once, so it lies between the first
+and third rows plus that amount.
+
+*Where they cross* (arm 2 at three assets: 4,366,256):
+
+| KZG design | Two assets | Three assets | Four assets | Cheaper than ZK up to |
+|---|---:|---:|---:|---|
+| One registry per asset | 3,109,342 | 4,662,763 | 6,216,184 | 2 assets |
+| One registry, checks per asset (+232,432) | 2,861,378 | 4,176,846 | 5,502,328 | 3 assets |
+| One registry, batched pairing (+232,432) | 2,397,382 | 3,401,431 | 4,415,319 | about 4 assets |
+
+The last two rows are sums of measured probes. Against them, arm 2 at four assets is
+about 4.46M by the per-asset estimate above. **The ordering reverses between two and
+five assets, depending on how the KZG side is engineered;** for every design measured
+here, ZK is cheaper from five assets on. The KZG figures leave out the price feeds arm 2
+reads, so if anything they flatter KZG.
 
 **Why the obvious hybrid does not work cleanly.** Using KZG for inclusion and a
 SNARK to hide the total requires the circuit to prove a statement about an *external*
@@ -475,12 +506,12 @@ three, the answer is not a single ratio but a crossover.
 
 For **one asset**, less ZK is needed than it first appears: a polynomial commitment
 delivers a sound public total, per-customer inclusion and on-chain non-negativity for
-1.56M gas against 4.37M for the SNARK path — cheaper, though by 2.8×, not the 18× we
-first reported. But that comparison is one asset against three. The SNARK's verification
-cost grows only logarithmically in circuit size — ~106,700 gas per doubling, measured —
-while the polynomial path pays a fresh range argument per asset, so **which construction
-is cheaper is a question about the deployment, not about the cryptography** — and past
-two or three assets the circuit wins.
+1.56M gas against 4.02M for a single-asset SNARK on the same customers — 2.6× cheaper,
+not the 18× we first reported. Each further asset costs the SNARK about 2,100 gas at the
+verifier and costs the polynomial path 1.0–1.3M, both measured, so **which construction
+is cheaper is a question about the deployment, not about the cryptography** — and from
+five assets on the circuit wins in every design measured (from three, if each asset gets
+its own registry).
 
 Put the other way: ZK's value here is not that it proves range cheaply, because measured,
 it does not. It is that **verification cost grows only logarithmically in what is proved** —
@@ -520,6 +551,12 @@ customer to tell a solvent exchange from one that had stopped publishing.
   conclusion was rewritten: the previous "1.8x cheaper" headline compared a one-asset
   arm 3 with a three-asset arm 2, and the honest statement is a crossover, derived from
   the flat-versus-linear cost structure and anchored by arm 4 as a control.
+- 2026-09-25: the crossover is measured instead of derived. All three arms run on the same
+  customers at one asset (*Like for like*), KZG verification is measured for one to four
+  assets and the SNARK verifier for 1 to 1,024 assets. The crossover moves from "between
+  two and three assets" to "between two and five, depending on the KZG design". The
+  single-asset verifier figure was the median of a failing call; the successful call
+  costs 3,910,843, so its gap to arm 2 is 5,458 gas.
 - 2026-09-22: gas is measured under the Osaka (Fusaka) rules Ethereum runs today instead
   of `cancun`. Fusaka's MODEXP repricing (EIP-7883) raises the ZK verifier from 2.79M to
   3.92M gas and the per-round cost from 74,327 to 106,715. The runtime bytecode is

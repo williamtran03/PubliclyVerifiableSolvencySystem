@@ -104,6 +104,13 @@ Execution gas under the Osaka rules Ethereum runs today, without the 21,000 base
 and calldata. Real transactions on a Sepolia fork cost 4,536,873 (ZK) and 1,679,265
 (KZG); the comparison explains the difference.
 
+These rows differ in assets and customers. On the same three customers and one asset,
+the ledger costs 304,806, KZG 1,556,777 and a single-asset SNARK 4,023,440. Each extra
+asset costs the SNARK verifier about 2,100 gas and KZG 1.0–1.3M, so ZK becomes the
+cheaper one somewhere between two and five assets, depending on how the KZG side is
+built. Both are measured; see *Like for like* and *Cost against asset count* in the
+comparison.
+
 The ZK circuit as committed compiles up to 8,192 leaves; a flat-array rewrite reaches
 16,384 at 6.5 GiB peak memory and fails inside Barretenberg at 32,768
 ([`arms/zk-circuit/bench/`](arms/zk-circuit/bench/README.md)). A leaf is one
