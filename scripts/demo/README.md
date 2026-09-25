@@ -14,6 +14,10 @@ The website is at http://localhost:5175/. Registry addresses and the private out
 
 Occupied ports cause startup to fail without touching existing processes. To run alongside another demo, use `DEMO_BASE_PORT=9545 DEMO_WEB_PORT=6175 npm run demo`. Ctrl+C terminates only the processes created by the launcher, including during startup. Logs and artifacts remain in the printed temporary directory. `DEMO_OUTPUT` may select a new or empty directory outside the repository; output inside the Vite source tree is refused.
 
+Each method uses its own customer portfolio, as listed in the root README. ZK and
+KZG share customer IDs but not balances or asset definitions. The local demo is
+three independent walkthroughs, not a common-dataset benchmark.
+
 ## Customer checks
 
 Select the arm, load its snapshot, and open the corresponding local file. Amounts below are proof units; the UI also supports token amounts when unit metadata is available.

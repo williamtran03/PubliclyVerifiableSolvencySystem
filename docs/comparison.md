@@ -12,6 +12,12 @@ probes*). They are call-level numbers including dispatch overhead, and N = 8 is 
 toy size — see *Gaps* below. Revised 2026-09-13 after the per-asset redesign and
 the fixes listed at the end; the previous figures are superseded.
 
+The local and public Sepolia demos use different customer portfolios: the published
+ledger uses Alice/Bob with ETH and TEST, ZK uses three IDs with BTC/WETH/USDC, and
+KZG uses those three IDs with different balances in TEST. They share reserve-control
+logic, not one input ledger. Their receipts demonstrate operation and are not a
+like-for-like benchmark over the same customers, balances and assets.
+
 ## The three arms
 
 | Arm | Prover | Contract | Core idea |

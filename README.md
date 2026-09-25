@@ -1,8 +1,9 @@
 # Publicly Verifiable Solvency System
 
 Three working ways for a custodian to prove on-chain that its reserves cover what it
-owes customers, built on one shared reserve registry and one shared customer set so
-that they can be compared against each other. Blockchain Challenge 2026, Case 5.
+owes customers, built on shared reserve-registry contracts. The local and Sepolia
+walkthroughs use method-specific customer fixtures; they demonstrate three approaches,
+not one identical customer portfolio. Blockchain Challenge 2026, Case 5.
 
 Solvency claims today rest on an auditor's word. Here the claim is a transaction: an
 epoch is recorded only if the contract itself has checked that reserves cover
@@ -64,8 +65,17 @@ liabilities:
 - **Exclusivity.** `shared/contracts/ReserveDirectory.sol` is deployed once per chain
   and lets a wallet back one registry at a time.
 
-`shared/merkleSumTree.ts` is the Poseidon2 tree core, and `shared/customers.csv` is the
-input every arm is measured on.
+`shared/merkleSumTree.ts` is the Poseidon2 tree core. The executable demos use:
+
+| Approach | Customer input | Portfolio |
+| --- | --- | --- |
+| Published ledger | `arms/published-ledger/fixtures/customers.example.json` | Alice and Bob; native ETH and TEST |
+| ZK circuit | `arms/zk-circuit/prover/customers.csv` | Three customer IDs; BTC, WETH and USDC |
+| KZG | `shared/customers.csv` | The same three IDs as ZK, but different balances in one TEST asset |
+
+Matching IDs do not make the ZK and KZG portfolios equivalent. Gas measurements
+must retain their fixture, asset-count and capacity qualifications; these demo
+receipts are not a controlled comparison over one common ledger.
 
 ## Results
 
@@ -91,7 +101,7 @@ needs batching or recursion across many proofs.
 ## Layout
 
 - `arms/` — one directory per implementation
-- `shared/` — the reserve registry base, the directory, the tree core, the customer set
+- `shared/` — the reserve registry base, the directory, the tree core, the KZG customer fixture
 - `open-solvency/` — the customer and company website for the three arms (`npm run web`)
 - `scripts/demo/` — the reproducible three-chain demo (`npm run demo`)
 - `scripts/sepolia/` — deploys the three arms to Sepolia and publishes epochs (`npm run sepolia`)
