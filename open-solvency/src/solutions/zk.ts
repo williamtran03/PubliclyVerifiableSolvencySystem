@@ -36,10 +36,10 @@ export const zk: Solution = {
     };
   },
   async verify(_connection, snapshot, file, account, expected, secret) {
-    if (!/^\d+$/.test(secret)) throw new Error("This proof requires your numeric account secret.");
+    if (!/^\d+$/.test(secret)) throw new Error("Enter the customer-chosen numeric secret.");
     const bundle = deserializeBundle(file);
     const data = snapshot.data as { root: bigint; context: bigint };
-    const valid = bundle.username === account && verifyBundle(bundle, { username: account, salt: BigInt(secret), expectedAmounts: expected }, data.root, data.context);
+    const valid = bundle.username === account && verifyBundle(bundle, { username: account, secret: BigInt(secret), expectedAmounts: expected }, data.root, data.context);
     return { valid, message: valid ? "Your entered balances are included in the published commitment." : "The bundle, balances, or secret do not match the current snapshot." };
   },
 };

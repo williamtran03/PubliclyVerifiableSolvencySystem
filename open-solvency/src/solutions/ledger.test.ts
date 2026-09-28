@@ -2,12 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { encodeEventTopics, encodeAbiParameters, encodeFunctionData, encodeFunctionResult, decodeFunctionData, parseAbi, zeroAddress } from "viem";
 import { buildSplitLiabilities } from "../../../arms/published-ledger/prover/splitLiabilities.ts";
+import { customerSecretCommitment } from "../../../shared/merkleSumTree.ts";
 import { ledger, readPublicLedgerArtifact } from "./ledger.ts";
 
 const registry = "0x1111111111111111111111111111111111111111";
 const snapshotId = `0x${"ab".repeat(32)}` as const;
 const transactionHash = `0x${"cd".repeat(32)}`;
-const prepared = buildSplitLiabilities([{ customerId: "alice", name: "Alice", dateOfBirth: "2000-01-01", parts: [{ assetId: 0, amount: 100n }] }], snapshotId, 1);
+const secret = (1n << 200n) + 111n;
+const prepared = buildSplitLiabilities([{ customerId: "alice", name: "Alice", dateOfBirth: "2000-01-01", secretCommitment: customerSecretCommitment(secret), parts: [{ assetId: 0, amount: 100n }] }], snapshotId, 1);
 const roots = prepared.ledger.assets.map(a => a.rootHash);
 const abi = parseAbi([
   "struct Epoch { bytes32 snapshotId; uint256[] rootHashes; uint256[] liabilities; uint256[] reserves; uint64 timestamp; }",
@@ -58,7 +60,7 @@ for (const mode of ["direct", "range-limited", "contract-wallet", "unavailable-h
       assert.equal(snapshot.epoch, 0n);
       assert.equal(Boolean(snapshot.publicLedger), mode === "direct" || mode === "range-limited");
       assert.deepEqual(readPublicLedgerArtifact(snapshot, json(prepared.ledger))[0].entries.map(e => e.amount), [100n]);
-      assert.equal((await ledger.verify(connection, snapshot, json(prepared.bundles[0]), "alice", new Map([[0, 100n]]), "")).valid, true);
+      assert.equal((await ledger.verify(connection, snapshot, json(prepared.bundles[0]), "alice", new Map([[0, 100n]]), secret.toString())).valid, true);
     } finally { globalThis.fetch = original; }
   });
 }

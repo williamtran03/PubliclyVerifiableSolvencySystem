@@ -1,11 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 import { decodeFunctionData, encodeFunctionResult, parseAbi, zeroAddress } from "viem";
 import { buildSplitLiabilities } from "../../arms/published-ledger/prover/splitLiabilities.ts";
+import { customerSecretCommitment } from "../../shared/merkleSumTree.ts";
 
 const registry = "0x1111111111111111111111111111111111111111";
 const rpc = "https://rpc.test/";
 const snapshotId = `0x${"ab".repeat(32)}` as const;
-const prepared = buildSplitLiabilities([{ customerId: "alice", name: "Alice", dateOfBirth: "2000-01-01", parts: [{ assetId: 0, amount: 100n }] }], snapshotId, 1);
+const secret = (1n << 200n) + 111n;
+const prepared = buildSplitLiabilities([{ customerId: "alice", name: "Alice", dateOfBirth: "2000-01-01", secretCommitment: customerSecretCommitment(secret), parts: [{ assetId: 0, amount: 100n }] }], snapshotId, 1);
 const json = (value: unknown) => JSON.stringify(value, (_, v) => typeof v === "bigint" ? v.toString() : v);
 const upload = (value: unknown) => ({ name: "proof.json", mimeType: "application/json", buffer: Buffer.from(json(value)) });
 const abi = parseAbi([
@@ -62,6 +64,7 @@ async function setup(page: Page) {
   await expect(page.locator("#loadStatus")).toHaveText("Snapshot loaded from the registry.");
   await page.locator("#unitMode").selectOption("proof");
   await page.locator("#account").fill("alice");
+  await page.locator("#secret").fill(secret.toString());
   await page.locator(".balance").fill("100");
   await page.locator("#proof").setInputFiles(upload(prepared.bundles[0]));
   return {

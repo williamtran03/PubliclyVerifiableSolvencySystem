@@ -1,5 +1,6 @@
 import { decodeFunctionData, encodeAbiParameters, keccak256, parseAbi, type Hex } from "viem";
 import { buildTree, verifyProof, keccakHash, type MerkleSumProof } from "@arms/published-ledger/prover/tree.ts";
+import { customerSecretCommitment } from "@shared/merkleSumTree.ts";
 import { assertEpoch, client, readFreshness, tokenMetadata } from "./common.ts";
 import type { PublicLedgerAsset, Snapshot, Solution } from "../types.ts";
 
@@ -25,10 +26,12 @@ function parseBundle(text: string): Bundle {
   });
 }
 
-function identity(bundle: Bundle, assetId: number, partIndex: number, salt: Hex): bigint {
+function identity(bundle: Bundle, assetId: number, partIndex: number, salt: Hex, secret: string): bigint {
+  if (!/^\d+$/.test(secret)) throw new Error("Enter your customer-chosen numeric secret.");
+  const commitment = customerSecretCommitment(BigInt(secret));
   return BigInt(keccak256(encodeAbiParameters(
-    [{ type: "string" }, { type: "bytes32" }, { type: "string" }, { type: "string" }, { type: "string" }, { type: "uint256" }, { type: "uint256" }, { type: "bytes32" }],
-    ["solvency.split.v2", bundle.snapshotId, bundle.customerId, bundle.name, bundle.dateOfBirth, BigInt(assetId), BigInt(partIndex), salt],
+    [{ type: "string" }, { type: "bytes32" }, { type: "string" }, { type: "string" }, { type: "string" }, { type: "uint256" }, { type: "uint256" }, { type: "bytes32" }, { type: "uint256" }],
+    ["solvency.split.v3", bundle.snapshotId, bundle.customerId, bundle.name, bundle.dateOfBirth, BigInt(assetId), BigInt(partIndex), salt, commitment],
   )));
 }
 
@@ -125,7 +128,7 @@ export const ledger: Solution = {
       data: { snapshotId: value.snapshotId, roots: value.rootHashes, liabilities: value.liabilities },
     };
   },
-  async verify(_connection, snapshot, file, account, expected) {
+  async verify(_connection, snapshot, file, account, expected, secret) {
     const bundle = parseBundle(file);
     const data = snapshot.data as { snapshotId: Hex; roots: bigint[]; liabilities: bigint[] };
     if (bundle.customerId !== account || bundle.snapshotId.toLowerCase() !== data.snapshotId.toLowerCase() || !Array.isArray(bundle.parts) || bundle.parts.length === 0) return { valid: false, message: "The bundle does not belong to this account or snapshot." };
@@ -135,7 +138,7 @@ export const ledger: Solution = {
       const { assetId, partIndex, proof } = part;
       if (!Number.isSafeInteger(assetId) || !Number.isSafeInteger(partIndex) || partIndex < 0 || seen.has(partIndex) || !data.roots[assetId]) return { valid: false, message: "Invalid or duplicate balance part." };
       seen.add(partIndex);
-      if (proof.entry.identityHash !== identity(bundle, assetId, partIndex, part.salt) || proof.rootHash !== data.roots[assetId] || proof.rootSum !== data.liabilities[assetId] || !verifyProof(proof, keccakHash)) return { valid: false, message: "A balance part does not match the published root." };
+      if (proof.entry.identityHash !== identity(bundle, assetId, partIndex, part.salt, secret) || proof.rootHash !== data.roots[assetId] || proof.rootSum !== data.liabilities[assetId] || !verifyProof(proof, keccakHash)) return { valid: false, message: "A balance part does not match the published root or your secret." };
       totals.set(assetId, (totals.get(assetId) ?? 0n) + proof.entry.balance);
     }
     const valid = [...new Set([...totals.keys(), ...expected.keys()])].every((asset) => (totals.get(asset) ?? 0n) === (expected.get(asset) ?? 0n));

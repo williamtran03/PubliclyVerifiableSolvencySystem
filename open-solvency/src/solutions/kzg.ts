@@ -1,7 +1,8 @@
 import { parseAbi } from "viem";
-import { poseidon2Hash, usernameToBigInt } from "@shared/merkleSumTree.ts";
+import { customerSecretCommitment } from "@shared/merkleSumTree.ts";
 import { assertEpoch, client, readFreshness, tokenMetadata } from "./common.ts";
 import type { Solution } from "../types.ts";
+import { identityOf } from "@arms/snarkless/prover/grandSum.ts";
 
 const abi = parseAbi([
   "struct G1Point { uint256 x; uint256 y; }",
@@ -39,11 +40,11 @@ export const kzg: Solution = {
     };
   },
   async verify(connection, snapshot, file, account, expected, secret) {
-    if (!/^\d+$/.test(secret)) throw new Error("This proof requires your numeric account secret.");
+    if (!/^\d+$/.test(secret)) throw new Error("Enter the customer-chosen numeric secret.");
     if (expected.size !== 1 || !expected.has(0)) throw new Error("KZG requires exactly asset 0.");
     const bundle = JSON.parse(file) as KzgBundle;
     if (bundle.username !== account || !Number.isSafeInteger(bundle.index) || bundle.index < 0 || bundle.index >= 8) return { valid: false, message: "The account or proof index does not match." };
-    const identity = poseidon2Hash([usernameToBigInt(account), BigInt(secret)]);
+    const identity = identityOf(account, customerSecretCommitment(BigInt(secret)));
     const balance = expected.get(0)!;
     if (BigInt(bundle.identity) !== identity || BigInt(bundle.balance) !== balance) return { valid: false, message: "The balance or secret does not match the customer proof." };
     const valid = await client(connection).readContract({
