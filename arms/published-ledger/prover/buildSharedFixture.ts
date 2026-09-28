@@ -8,7 +8,7 @@ import { SAMPLE_CUSTOMER_SECRETS } from "../../../scripts/sepolia/sample.ts";
 const output = process.argv[2] ?? "arms/published-ledger/fixtures/shared-customers.json";
 
 const accounts = readFileSync("shared/customers.csv", "utf8").trim().split("\n").slice(1).map((row) => {
-  const [username, balance, secretCommitment] = row.split(",");
+  const [username, balance, , secretCommitment] = row.split(",");
   return { username: username.trim(), balance: BigInt(balance.trim()), secretCommitment: BigInt(secretCommitment.trim()) };
 });
 

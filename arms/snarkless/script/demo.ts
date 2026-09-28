@@ -24,7 +24,7 @@ export async function runKzgDemo(rpc: string, output: string) {
   await approveReserve(registry, abi, reserve);
   await sampleReserves(registry, abi);
   const accounts: Account[] = readFileSync("shared/customers.csv", "utf8").trim().split("\n").slice(1).map(row => {
-    const [username, balance, secretCommitment] = row.split(",");
+    const [username, balance, , secretCommitment] = row.split(",");
     return { username, balance: BigInt(balance), secretCommitment: BigInt(secretCommitment) };
   });
   const epoch = buildGrandSumEpoch(srs, accounts);

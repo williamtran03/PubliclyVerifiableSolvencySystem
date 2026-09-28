@@ -18,7 +18,7 @@ function parseCustomersCsv(path: string): Account[] {
   const content = readFileSync(path, "utf8").trim();
   const [, ...rows] = content.split("\n");
   return rows.map((row) => {
-    const [username, balance, secretCommitment] = row.split(",");
+    const [username, balance, , secretCommitment] = row.split(",");
     return { username: username.trim(), balance: BigInt(balance.trim()), secretCommitment: BigInt(secretCommitment.trim()) };
   });
 }

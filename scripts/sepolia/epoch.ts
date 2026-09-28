@@ -98,7 +98,7 @@ async function prepareKzg(network: Network, epochId: bigint): Promise<Prepared> 
   const registry = network.registryOf("snarkless");
   const srs = loadSrs("arms/snarkless/fixtures/srs.json");
   const accounts: Account[] = readFileSync("shared/customers.csv", "utf8").trim().split("\n").slice(1).map(row => {
-    const [username, balance, secretCommitment] = row.split(",");
+    const [username, balance, , secretCommitment] = row.split(",");
     return { username, balance: BigInt(balance), secretCommitment: BigInt(secretCommitment) };
   });
   const context = epochContext(network.chainId, registry, epochId);
