@@ -191,9 +191,11 @@ What an observer learns from a series of epochs:
   through its range argument.
 - **Arm 3 is single-asset.** A multi-asset version would need one range argument per
   asset.
-- **Salts are issued by the company** in every arm, so customers do not hold a secret of
-  their own, and nothing enforces one credential per customer (*One credential for two
-  customers*, above; `manipulations.md` §4).
+- **Customer distinction relies on secret handling.** Each arm binds a commitment to a
+  high-entropy secret chosen by the customer, but the system cannot force customers to
+  choose different secrets or keep them private. Reuse or disclosure can let one
+  identical-balance leaf serve two customers (*One credential for two customers*, above;
+  `manipulations.md` §4).
 - **Arm 2's committed demo proof** is bound to one registry address, which only arises on
   a fresh Anvil node where the company deploys at nonce 8.
 - **The single-asset control arm** passes live reserves as a public input, so one wei sent

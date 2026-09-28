@@ -414,14 +414,11 @@ balances, one leaf can still satisfy both. The source implements customer-chosen
 see *One credential for two customers* in `docs/limitations.md`. Existing epochs still
 use the old identity scheme and require republication.
 
-**How bundles reach customers leaks more than any tree does.** `demo-site/` serves
-each customer's inclusion bundle as a static file at `/bundles/<username>.json`.
-The "sign in" only picks which file to fetch, so anyone who guesses an account ID
-gets that customer's holdings and salt. The `minimum` branch closes it with an
-authenticated backend: one bundle per bearer token, no customer ID or file name in
-the request, the private store outside the served tree. We did not port it, because
-the demo site is scheduled to be replaced. A real deployment needs that delivery
-layer regardless of which arm it uses.
+**Bundle delivery remains an operational concern.** The legacy `demo-site/` exposed
+customer bundles at predictable URLs and has been removed. The current `open-solvency/`
+site accepts a private proof file in the customer's browser; it does not host or deliver
+customer bundles. A real deployment still needs a private, authenticated delivery
+channel. The customer's chosen secret must remain separate from the bundle.
 
 ## Known gaps
 
