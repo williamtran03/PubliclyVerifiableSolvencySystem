@@ -13,6 +13,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { auditor } from "./chain.ts";
 import { exerciseOperations } from "../sepolia/exercise.ts";
 import { ARMS, type Network, type Deployment } from "../sepolia/network.ts";
+import { SAMPLE_SECRET } from "../sepolia/sample.ts";
 import type { Abi, Address } from "viem";
 
 test("three demo deployments support the site's verification and publication adapters", { timeout: 180000 }, async () => {
@@ -20,9 +21,9 @@ test("three demo deployments support the site's verification and publication ada
   const file = (name: string) => readFileSync(join(demo.output, name), "utf8");
   try {
     for (const [solution, name, account, expected, secret] of [
-      [ledger, "ledger-alice.json", "alice", new Map([[0, 100000000000000n], [1, 3n]]), ""],
-      [zk, "zk-customer-123.json", "customer-123", new Map([[0, 250000000n]]), "84731920475619283746152039485761029384"],
-      [kzg, "kzg-customer-123.json", "customer-123", new Map([[0, 12550n]]), "84731920475619283746152039485761029384"],
+      [ledger, "ledger-alice.json", "alice", new Map([[0, 100000000000000n], [1, 3n]]), SAMPLE_SECRET],
+      [zk, "zk-customer-123.json", "customer-123", new Map([[0, 250000000n]]), SAMPLE_SECRET],
+      [kzg, "kzg-customer-123.json", "customer-123", new Map([[0, 12550n]]), SAMPLE_SECRET],
     ] as const) {
       const connection = demo.connections[solution.id];
       if (solution === ledger) {

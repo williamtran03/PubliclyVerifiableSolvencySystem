@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import { buildSplitLiabilities } from "../../arms/published-ledger/prover/splitLiabilities.ts";
 import { ledger } from "../../open-solvency/src/solutions/ledger.ts";
 import { publicSampleBundle, samples } from "./sample.ts";
+import { customerSecretCommitment } from "../../shared/merkleSumTree.ts";
 
 test("sample export strips private metadata while preserving a verifiable fictional ledger bundle", async () => {
   const snapshotId = `0x${"ab".repeat(32)}` as const;
   const { bundles, ledger: published } = buildSplitLiabilities([
-    { customerId: "alice", name: "Alice Example", dateOfBirth: "2000-01-01", parts: [{ assetId: 0, amount: 100000000000000n }, { assetId: 1, amount: 3n }] },
-    { customerId: "bob", name: "Bob Example", dateOfBirth: "2001-02-03", parts: [{ assetId: 0, amount: 20000000000000n }] },
+    { customerId: "alice", name: "Alice Example", dateOfBirth: "2000-01-01", secretCommitment: customerSecretCommitment(BigInt(samples["published-ledger"].secret)), parts: [{ assetId: 0, amount: 100000000000000n }, { assetId: 1, amount: 3n }] },
+    { customerId: "bob", name: "Bob Example", dateOfBirth: "2001-02-03", secretCommitment: customerSecretCommitment((1n << 201n) + 222n), parts: [{ assetId: 0, amount: 20000000000000n }] },
   ], snapshotId, 2);
   const raw = JSON.parse(JSON.stringify(bundles[0], (_, v) => typeof v === "bigint" ? v.toString() : v));
   raw.privateNotes = "do not publish";
@@ -22,9 +23,9 @@ test("sample export strips private metadata while preserving a verifiable fictio
   } };
   const connection = { rpc: "https://unused.test", registry: `0x${"11".repeat(20)}` as const };
   const expected = new Map(samples["published-ledger"].balances.map(([i, n]) => [i, BigInt(n)]));
-  assert.equal((await ledger.verify(connection, snapshot, text, "alice", expected, "")).valid, true);
+  assert.equal((await ledger.verify(connection, snapshot, text, "alice", expected, samples["published-ledger"].secret)).valid, true);
   expected.set(0, 100000000000001n);
-  assert.equal((await ledger.verify(connection, snapshot, text, "alice", expected, "")).valid, false);
+  assert.equal((await ledger.verify(connection, snapshot, text, "alice", expected, samples["published-ledger"].secret)).valid, false);
   assert.throws(() => publicSampleBundle("published-ledger", { ...raw, name: "Real customer" }), /fictional/);
 });
 
