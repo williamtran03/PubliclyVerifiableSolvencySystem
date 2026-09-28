@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { encodePacked, keccak256, type Hex } from "viem";
 import { usernameToBigInt, LEAF_CAPACITY } from "../../../shared/merkleSumTree.ts";
+import { outputPath } from "../../../shared/outputPath.ts";
 import {
   bindRoot,
   buildTree,
@@ -95,7 +96,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   mkdirSync(outputDir, { recursive: true, mode: 0o700 });
   for (const username of new Set(holdings.map((h) => h.username))) {
     writeFileSync(
-      `${outputDir}/${username}.json`,
+      outputPath(outputDir, `${username}.json`),
       serializeBundle(createBundle(username, epoch.padded, epoch.levels)),
       { mode: 0o600 },
     );

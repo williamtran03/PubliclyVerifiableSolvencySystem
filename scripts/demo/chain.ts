@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, existsSync, readdirSync } from "node:fs";
+import { outputPath } from "../../shared/outputPath.ts";
 import { tmpdir } from "node:os";
 import { join, resolve, relative, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -21,7 +22,7 @@ export function outputDirectory() {
 }
 export function writeJson(directory: string, name: string, value: unknown) {
   mkdirSync(directory, { recursive: true, mode: 0o700 });
-  writeFileSync(join(directory, name), JSON.stringify(value, (_, v) => typeof v === "bigint" ? v.toString() : v, 2) + "\n", { mode: 0o600 });
+  writeFileSync(outputPath(directory, name), JSON.stringify(value, (_, v) => typeof v === "bigint" ? v.toString() : v, 2) + "\n", { mode: 0o600 });
 }
 export const artifact = (source: string, name: string) => JSON.parse(readFileSync(`out/${source}/${name}.json`, "utf8"));
 export type SubmitTransaction = (account: Account, label: string, request: { to?: Address; data?: Hex; value?: bigint }) => Promise<Hex>;

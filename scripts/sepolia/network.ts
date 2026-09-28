@@ -7,6 +7,7 @@ import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { sepolia } from "viem/chains";
 import { artifact, auditor as anvilAuditor, company as anvilCompany, connect, type SubmitTransaction } from "../demo/chain.ts";
 import { saveRecord } from "./record.ts";
+import { outputPath } from "../../shared/outputPath.ts";
 import { broadcastJournaled, finalizeTransaction, type PendingTransaction } from "./journal.ts";
 
 export const ARMS = {
@@ -62,7 +63,7 @@ export function privateOutput(...parts: string[]) {
 }
 
 export function writePrivate(directory: string, name: string, value: unknown) {
-  writeFileSync(join(directory, name), JSON.stringify(value, (_, v) => typeof v === "bigint" ? v.toString() : v, 2) + "\n", { mode: 0o600, flush: true });
+  writeFileSync(outputPath(directory, name), JSON.stringify(value, (_, v) => typeof v === "bigint" ? v.toString() : v, 2) + "\n", { mode: 0o600, flush: true });
 }
 
 export async function sepoliaNetwork() {
