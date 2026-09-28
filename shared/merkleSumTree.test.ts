@@ -77,3 +77,13 @@ test("usernames that would wrap the field are rejected", () => {
   const long = { ...proof, entry: { ...proof.entry, username: "x".repeat(40) } };
   assert.equal(verifyProof(long, poseidon2Hash), false);
 });
+
+test("username encoding rejects aliases while preserving valid identities and padding", () => {
+  assert.equal(usernameToBigInt(""), 0n);
+  assert.equal(usernameToBigInt("alice"), 0x616c696365n);
+  assert.equal(usernameToBigInt("é"), 0xc3a9n);
+  assert.equal(usernameToBigInt("😀"), 0xf09f9880n);
+  for (const username of ["\0alice", "\0\0alice", "ali\0ce", "alice\n", "\u007f", "\u0085", "\ud800", "\udfff"]) {
+    assert.throws(() => usernameToBigInt(username), /control characters or invalid Unicode/);
+  }
+});

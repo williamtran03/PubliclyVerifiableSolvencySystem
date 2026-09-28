@@ -124,6 +124,16 @@ test("a bundle claiming someone else's leaf is rejected", () => {
   assert.equal(verifyBundle(bundle, customer(holdings[0]), root, CONTEXT), false);
 });
 
+test("a leading NUL cannot relabel a valid customer proof", () => {
+  const { levels, root, holdings: padded } = published();
+  const bundle = createBundle("customer-123", padded, levels);
+  const username = "\0customer-123";
+  bundle.username = username;
+  for (const part of bundle.parts) part.holding = { ...part.holding, username };
+  assert.equal(verifyBundle(bundle, { ...customer(holdings[0]), username }, root, CONTEXT), false);
+  assert.throws(() => parseHoldingsCsv(`username,salt,assetId,amount\n${username},1,0,2`), /control characters/);
+});
+
 test("the holdings CSV rejects untracked assets, long names and a second salt per customer", () => {
   const header = "username,salt,assetId,amount\n";
   assert.throws(() => parseHoldingsCsv(header + "a,1,3,1"), /not tracked/);

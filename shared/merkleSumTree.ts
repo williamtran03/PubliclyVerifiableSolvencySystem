@@ -47,6 +47,11 @@ export function deserializeProof(json: string): MerkleSumProof {
 export const MAX_USERNAME_BYTES = 31;
 
 export function usernameToBigInt(username: string): bigint {
+  // Leading NUL bytes disappear in the integer encoding. Lone surrogates are
+  // replaced by UTF-8 encoding, which would also alias distinct input strings.
+  if (/[\u0000-\u001f\u007f-\u009f\ud800-\udfff]/u.test(username)) {
+    throw new Error("username contains control characters or invalid Unicode");
+  }
   const bytes = new TextEncoder().encode(username);
   if (bytes.length > MAX_USERNAME_BYTES) {
     throw new Error(`username is ${bytes.length} bytes; at most ${MAX_USERNAME_BYTES} fit the field`);
