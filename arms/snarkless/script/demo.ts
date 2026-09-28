@@ -24,8 +24,8 @@ export async function runKzgDemo(rpc: string, output: string) {
   await approveReserve(registry, abi, reserve);
   await sampleReserves(registry, abi);
   const accounts: Account[] = readFileSync("shared/customers.csv", "utf8").trim().split("\n").slice(1).map(row => {
-    const [username, balance, salt] = row.split(",");
-    return { username, balance: BigInt(balance), salt: BigInt(salt) };
+    const [username, balance, secretCommitment] = row.split(",");
+    return { username, balance: BigInt(balance), secretCommitment: BigInt(secretCommitment) };
   });
   const epoch = buildGrandSumEpoch(srs, accounts);
   const sum = { balanceCommitment: point(epoch.balanceCommitment), shiftedCommitment: point(epoch.shiftedCommitment), identityCommitment: point(epoch.identityCommitment), totalLiabilities: epoch.totalLiabilities, sumProof: point(epoch.opening.proof) };
@@ -40,7 +40,7 @@ export async function runKzgDemo(rpc: string, output: string) {
     if (epochId === 0n) { submitted = rangeArtifact; await send(company, registry, abi, "submitEpoch", [sum, rangeArtifact]); }
     for (const [index, account] of accounts.entries()) {
       const proof = point(proveInclusion(srs, epoch, index, context).proof);
-      const identity = identityOf(account.username, account.salt);
+      const identity = identityOf(account.username, account.secretCommitment);
       writeJson(output, `kzg${suffix}-${account.username}.json`, { username: account.username, index, identity, balance: account.balance, proof });
       if (epochId === 0n) {
         assert.equal(await client.readContract({ address: registry, abi, functionName: "verifyInclusion", args: [0n, BigInt(index), identity, account.balance, proof] }), true);

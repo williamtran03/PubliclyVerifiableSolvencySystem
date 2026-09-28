@@ -18,8 +18,8 @@ function parseCustomersCsv(path: string): Account[] {
   const content = readFileSync(path, "utf8").trim();
   const [, ...rows] = content.split("\n");
   return rows.map((row) => {
-    const [username, balance, salt] = row.split(",");
-    return { username: username.trim(), balance: BigInt(balance.trim()), salt: BigInt(salt.trim()) };
+    const [username, balance, secretCommitment] = row.split(",");
+    return { username: username.trim(), balance: BigInt(balance.trim()), secretCommitment: BigInt(secretCommitment.trim()) };
   });
 }
 
@@ -54,13 +54,10 @@ if (!verifyRange(srs, epoch.balanceCommitment, epoch.balances.length, rangeProof
 
 const inclusions = accounts.map((account, index) => {
   const inclusion = proveInclusion(srs, epoch, index, context);
-  if (!verifyInclusion(srs, epoch, account, inclusion, context)) {
-    throw new Error(`${account.username} failed inclusion`);
-  }
   return {
     username: account.username,
     index,
-    identity: identityOf(account.username, account.salt).toString(),
+    identity: identityOf(account.username, account.secretCommitment).toString(),
     balance: account.balance.toString(),
     proof: point(inclusion.proof),
   };

@@ -4,11 +4,11 @@ import { batchOpen, batchVerify, commit, commitShifted, open, verify, verifyDegr
 import type { G1Point, Srs } from "./srs.ts";
 import type { Poly } from "./poly.ts";
 import { Transcript } from "./transcript.ts";
-import { LEAF_CAPACITY, poseidon2Hash, usernameToBigInt } from "../../../shared/merkleSumTree.ts";
+import { customerSecretCommitment, LEAF_CAPACITY, poseidon2Hash, usernameToBigInt } from "../../../shared/merkleSumTree.ts";
 
 const GRAND_SUM_CAPACITY = LEAF_CAPACITY;
 
-export type Account = { username: string; salt: bigint; balance: bigint };
+export type Account = { username: string; secretCommitment: bigint; balance: bigint };
 
 export type GrandSumEpoch = {
   balanceCommitment: G1Point;
@@ -32,8 +32,8 @@ export function epochContext(chainId: bigint, registry: `0x${string}`, epochId: 
   return BigInt(keccak256(encoded)) % Fr.ORDER;
 }
 
-export function identityOf(username: string, salt: bigint): bigint {
-  return poseidon2Hash([usernameToBigInt(username), salt]);
+export function identityOf(username: string, secretCommitment: bigint): bigint {
+  return poseidon2Hash([usernameToBigInt(username), secretCommitment]);
 }
 
 export function buildGrandSumEpoch(srs: Srs, accounts: Account[]): GrandSumEpoch {
@@ -45,7 +45,7 @@ export function buildGrandSumEpoch(srs: Srs, accounts: Account[]): GrandSumEpoch
 
   const balances = [...accounts.map((a) => a.balance), ...new Array(n - accounts.length).fill(0n)];
   const identities = [
-    ...accounts.map((a) => identityOf(a.username, a.salt)),
+    ...accounts.map((a) => identityOf(a.username, a.secretCommitment)),
     ...new Array(n - accounts.length).fill(0n),
   ];
 
@@ -125,7 +125,7 @@ export function proveInclusion(srs: Srs, epoch: GrandSumEpoch, index: number, co
 export function verifyInclusion(
   srs: Srs,
   commitments: { identityCommitment: G1Point; balanceCommitment: G1Point },
-  customer: Account,
+  customer: { username: string; secret: bigint; balance: bigint },
   inclusion: InclusionProof,
   context: bigint,
 ): boolean {
@@ -134,7 +134,7 @@ export function verifyInclusion(
     if (!Number.isInteger(index) || index < 0 || index >= GRAND_SUM_CAPACITY) return false;
     if (customer.balance < 0n || customer.balance >= Fr.ORDER) return false;
     const z = Fr.pow(nthRootOfUnity(GRAND_SUM_CAPACITY), BigInt(index));
-    const identity = identityOf(customer.username, customer.salt);
+    const identity = identityOf(customer.username, customerSecretCommitment(customer.secret));
     const { identityCommitment, balanceCommitment } = commitments;
     const nu = inclusionChallenge(identityCommitment, balanceCommitment, z, identity, customer.balance, context);
     return batchVerify(srs, [identityCommitment, balanceCommitment], [identity, customer.balance], z, nu, inclusion.proof);

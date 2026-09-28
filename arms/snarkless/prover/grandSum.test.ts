@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { generateSrs } from "./srs.ts";
 import { commit, commitShifted, open, verifyDegreeBound } from "./commit.ts";
 import { Fr } from "./field.ts";
+import { customerSecretCommitment } from "../../../shared/merkleSumTree.ts";
 import { add, mul } from "./poly.ts";
 import { proveRange, verifyRange } from "./range.ts";
 import {
@@ -17,10 +18,11 @@ const CTX = 7n;
 
 const srs = generateSrs(32);
 const accounts: Account[] = [
-  { username: "customer-123", salt: 111n, balance: 12550n },
-  { username: "customer-456", salt: 222n, balance: 5000n },
-  { username: "customer-789", salt: 333n, balance: 32000n },
+  { username: "customer-123", secretCommitment: customerSecretCommitment((1n << 200n) + 111n), balance: 12550n },
+  { username: "customer-456", secretCommitment: customerSecretCommitment((1n << 201n) + 222n), balance: 5000n },
+  { username: "customer-789", secretCommitment: customerSecretCommitment((1n << 202n) + 333n), balance: 32000n },
 ];
+const customerAt = (index: number) => ({ username: accounts[index].username, secret: (1n << BigInt(200 + index)) + BigInt((index + 1) * 111), balance: accounts[index].balance });
 const vanishing = [Fr.neg(Fr.ONE), 0n, 0n, 0n, 0n, 0n, 0n, 0n, Fr.ONE];
 
 test("total liabilities matches the plain sum of balances", () => {
@@ -64,37 +66,37 @@ test("fewer real customers than capacity are padded with zero balances", () => {
 });
 
 test("more balances than the fixed capacity is rejected", () => {
-  const many = Array.from({ length: 9 }, (_, i) => ({ username: `c${i}`, salt: 1n, balance: 1n }));
+  const many = Array.from({ length: 9 }, (_, i) => ({ username: `c${i}`, secretCommitment: customerSecretCommitment((1n << 200n) + 1n), balance: 1n }));
   assert.throws(() => buildGrandSumEpoch(srs, many), /too many balances/);
 });
 
 test("every customer verifies their own slot", () => {
   const epoch = buildGrandSumEpoch(srs, accounts);
   accounts.forEach((account, index) => {
-    assert.ok(verifyInclusion(srs, epoch, account, proveInclusion(srs, epoch, index, CTX), CTX), account.username);
+    assert.ok(verifyInclusion(srs, epoch, customerAt(index), proveInclusion(srs, epoch, index, CTX), CTX), account.username);
   });
 });
 
 test("an inclusion proof does not carry to another epoch or deployment", () => {
   const epoch = buildGrandSumEpoch(srs, accounts);
   const proof = proveInclusion(srs, epoch, 0, CTX);
-  assert.ok(verifyInclusion(srs, epoch, accounts[0], proof, CTX));
-  assert.equal(verifyInclusion(srs, epoch, accounts[0], proof, CTX + 1n), false);
+  assert.ok(verifyInclusion(srs, epoch, customerAt(0), proof, CTX));
+  assert.equal(verifyInclusion(srs, epoch, customerAt(0), proof, CTX + 1n), false);
 });
 
-test("a wrong balance, salt or slot fails inclusion", () => {
+test("a wrong balance, secret or slot fails inclusion", () => {
   const epoch = buildGrandSumEpoch(srs, accounts);
   const proof = proveInclusion(srs, epoch, 1, CTX);
-  assert.equal(verifyInclusion(srs, epoch, { ...accounts[1], balance: 5001n }, proof, CTX), false);
-  assert.equal(verifyInclusion(srs, epoch, { ...accounts[1], salt: 999n }, proof, CTX), false);
-  assert.equal(verifyInclusion(srs, epoch, accounts[1], { ...proof, index: 2 }, CTX), false);
-  assert.equal(verifyInclusion(srs, epoch, accounts[0], proof, CTX), false);
+  assert.equal(verifyInclusion(srs, epoch, { ...customerAt(1), balance: 5001n }, proof, CTX), false);
+  assert.equal(verifyInclusion(srs, epoch, { ...customerAt(1), secret: 999n }, proof, CTX), false);
+  assert.equal(verifyInclusion(srs, epoch, customerAt(1), { ...proof, index: 2 }, CTX), false);
+  assert.equal(verifyInclusion(srs, epoch, customerAt(0), proof, CTX), false);
 });
 
 test("two customers cannot be pointed at one slot", () => {
   const epoch = buildGrandSumEpoch(srs, accounts);
   const proof = proveInclusion(srs, epoch, 0, CTX);
-  const second: Account = { username: "customer-123", salt: 444n, balance: 12550n };
+  const second = { username: "customer-123", secret: (1n << 200n) + 444n, balance: 12550n };
   assert.equal(verifyInclusion(srs, epoch, second, proof, CTX), false);
 });
 

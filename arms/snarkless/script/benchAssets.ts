@@ -22,8 +22,8 @@ const customers: Account[] = readFileSync("./shared/customers.csv", "utf8")
   .split("\n")
   .slice(1)
   .map((row) => {
-    const [username, balance, salt] = row.split(",");
-    return { username: username.trim(), balance: BigInt(balance.trim()), salt: BigInt(salt.trim()) };
+    const [username, balance, secretCommitment] = row.split(",");
+    return { username: username.trim(), balance: BigInt(balance.trim()), secretCommitment: BigInt(secretCommitment.trim()) };
   });
 
 const balanceSets: bigint[][] = [
