@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { customerSecretCommitment } from "../../../shared/merkleSumTree.ts";
 import assert from "node:assert/strict";
 import {
   bindRoot,
@@ -18,17 +19,17 @@ import {
 } from "./multiAssetTree.ts";
 
 const holdings: Holding[] = [
-  { username: "customer-123", salt: 84731920475619283746152039485761029384n, assetId: 0, amount: 2n },
-  { username: "customer-456", salt: 19283746501928374650192837465019283746n, assetId: 1, amount: 10n },
-  { username: "customer-789", salt: 55018273645019283746501928374650192837n, assetId: 2, amount: 5000n },
+  { username: "customer-123", secretCommitment: customerSecretCommitment(1606938044258990275541962092341162602522202993782792835313721n), assetId: 0, amount: 2n },
+  { username: "customer-456", secretCommitment: customerSecretCommitment(3213876088517980551083924184682325205044405987565585670603208n), assetId: 1, amount: 10n },
+  { username: "customer-789", secretCommitment: customerSecretCommitment(6427752177035961102167848369364650410088811975131171341206293n), assetId: 2, amount: 5000n },
 ];
 const CONTEXT = 7n;
 
-const CIRCUIT_ROOT = 0x0c083286a0e73970b87241d9e37d86c6178fd3113e1f04045b603702225d3f06n;
+const CIRCUIT_ROOT = 0x0d024d7c98758597fccef289777d33b05ab9231e0d8870b68dbc5182088ed958n;
 
 const customer = (h: Holding, amount = h.amount): Customer => ({
   username: h.username,
-  salt: h.salt,
+  secret: h.username === "customer-123" ? 1606938044258990275541962092341162602522202993782792835313721n : h.username === "customer-456" ? 3213876088517980551083924184682325205044405987565585670603208n : 6427752177035961102167848369364650410088811975131171341206293n,
   expectedAmounts: new Map([[h.assetId, amount]]),
 });
 
@@ -91,12 +92,12 @@ test("a wrong amount, context or root fails", () => {
   assert.equal(verifyBundle(tampered, customer(holdings[0], 3n), root, CONTEXT), false);
 });
 
-test("a customer sharing a username but holding a different salt rejects the leaf", () => {
+test("a customer with the wrong chosen secret rejects the leaf", () => {
   const { levels, root, holdings: padded } = published();
   const shared = createBundle("customer-123", padded, levels);
   const victim: Customer = {
     username: "customer-123",
-    salt: 99n,
+    secret: 99n,
     expectedAmounts: new Map([[0, 2n]]),
   };
   assert.equal(verifyBundle(shared, victim, root, CONTEXT), false);
@@ -131,13 +132,13 @@ test("a leading NUL cannot relabel a valid customer proof", () => {
   bundle.username = username;
   for (const part of bundle.parts) part.holding = { ...part.holding, username };
   assert.equal(verifyBundle(bundle, { ...customer(holdings[0]), username }, root, CONTEXT), false);
-  assert.throws(() => parseHoldingsCsv(`username,salt,assetId,amount\n${username},1,0,2`), /control characters/);
+  assert.throws(() => parseHoldingsCsv(`username,secretCommitment,assetId,amount\n${username},1,0,2`), /control characters/);
 });
 
-test("the holdings CSV rejects untracked assets, long names and a second salt per customer", () => {
-  const header = "username,salt,assetId,amount\n";
+test("the holdings CSV rejects untracked assets, long names and a second commitment per customer", () => {
+  const header = "username,secretCommitment,assetId,amount\n";
   assert.throws(() => parseHoldingsCsv(header + "a,1,3,1"), /not tracked/);
   assert.throws(() => parseHoldingsCsv(header + `${"x".repeat(32)},1,0,1`), /at most 31/);
-  assert.throws(() => parseHoldingsCsv(header + "a,1,0,1\na,2,1,1"), /two salts/);
+  assert.throws(() => parseHoldingsCsv(header + "a,1,0,1\na,2,1,1"), /two secret commitments/);
   assert.equal(parseHoldingsCsv(header + "a,1,0,1\na,1,1,1").length, 2);
 });

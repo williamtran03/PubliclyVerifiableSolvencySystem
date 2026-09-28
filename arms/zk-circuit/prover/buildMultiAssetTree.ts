@@ -30,7 +30,7 @@ export function arrangeLeaves(holdings: Holding[], seed: Hex): Holding[] {
   }
   const leaves = [...holdings];
   for (let i = holdings.length; i < LEAF_CAPACITY; i++) {
-    leaves.push({ username: "", salt: draw(seed, "padding", i) % FIELD_ORDER, assetId: 0, amount: 0n });
+    leaves.push({ username: "", secretCommitment: draw(seed, "padding", i) % FIELD_ORDER, assetId: 0, amount: 0n });
   }
   for (let i = leaves.length - 1; i > 0; i--) {
     const j = Number(draw(seed, "shuffle", i) % BigInt(i + 1));
@@ -55,7 +55,7 @@ export function prepareEpoch(holdings: Holding[], snapshot: Snapshot, seed: Hex)
   const list = (values: (string | number | bigint)[]) => `[${values.map((v) => `"${v}"`).join(", ")}]`;
   const proverToml = [
     `usernames = ${list(padded.map((h) => usernameToBigInt(h.username)))}`,
-    `salts = ${list(padded.map((h) => h.salt))}`,
+    `secret_commitments = ${list(padded.map((h) => h.secretCommitment))}`,
     `asset_ids = ${list(padded.map((h) => h.assetId))}`,
     `amounts = ${list(padded.map((h) => h.amount))}`,
     `reserve_floors = ${list(floors)}`,

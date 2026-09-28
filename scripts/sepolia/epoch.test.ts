@@ -5,17 +5,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { customerBalances, settleStaging } from "./epoch.ts";
 import { bindRoot, buildTree, createBundle, parseHoldingsCsv, verifyBundle } from "../../arms/zk-circuit/prover/multiAssetTree.ts";
+import { customerSecretCommitment } from "../../shared/merkleSumTree.ts";
 
 test("publication checks sum repeated customer holdings in each asset", () => {
-  const holdings = parseHoldingsCsv("username,salt,assetId,amount\nalice,1,0,2\nalice,1,0,3\nalice,1,1,7\nbob,2,0,11");
+  const aliceSecret = (1n << 200n) + 1n;
+  const bobSecret = (1n << 201n) + 2n;
+  const aliceCommitment = customerSecretCommitment(aliceSecret);
+  const holdings = parseHoldingsCsv(`username,secretCommitment,assetId,amount\nalice,${aliceCommitment},0,2\nalice,${aliceCommitment},0,3\nalice,${aliceCommitment},1,7\nbob,${customerSecretCommitment(bobSecret)},0,11`);
   const tree = buildTree(holdings);
   const root = bindRoot(tree.treeRoot, 7n);
   const bundle = createBundle("alice", tree.holdings, tree.levels);
   const expectedAmounts = customerBalances(holdings.filter(h => h.username === "alice"));
   assert.deepEqual([...expectedAmounts], [[0, 5n], [1, 7n]]);
-  assert.ok(verifyBundle(bundle, { username: "alice", salt: 1n, expectedAmounts }, root, 7n));
+  assert.ok(verifyBundle(bundle, { username: "alice", secret: aliceSecret, expectedAmounts }, root, 7n));
   expectedAmounts.set(0, 3n);
-  assert.equal(verifyBundle(bundle, { username: "alice", salt: 1n, expectedAmounts }, root, 7n), false);
+  assert.equal(verifyBundle(bundle, { username: "alice", secret: aliceSecret, expectedAmounts }, root, 7n), false);
 });
 
 test("keeps staged bundles of published epochs and drops those of unpublished ones", () => {

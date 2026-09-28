@@ -23,6 +23,7 @@ import { foundry } from "viem/chains";
 import { fetchSnapshot, type Snapshot } from "../prover/fetchSnapshot.ts";
 import { prepareEpoch } from "../prover/buildMultiAssetTree.ts";
 import { createBundle, epochContext, parseHoldingsCsv, verifyBundle, type Customer } from "../prover/multiAssetTree.ts";
+import { SAMPLE_CUSTOMER_SECRETS } from "../../../scripts/sepolia/sample.ts";
 import { prove } from "../prover/prove.ts";
 
 const MAX_EPOCH_AGE = 86_400n;
@@ -221,7 +222,7 @@ test("Anvil: signed reserve, auditor approval, real proof per epoch, customer ve
       const own = holdings.filter((h) => h.username === username);
       const customer: Customer = {
         username,
-        salt: own[0].salt,
+        secret: BigInt(SAMPLE_CUSTOMER_SECRETS[username as keyof typeof SAMPLE_CUSTOMER_SECRETS]),
         expectedAmounts: new Map(own.map((h) => [h.assetId, h.amount])),
       };
       const bundle = createBundle(username, epoch0.padded, epoch0.levels);
@@ -231,9 +232,9 @@ test("Anvil: signed reserve, auditor approval, real proof per epoch, customer ve
       tampered.parts[0].holding.amount += 1n;
       assert.equal(verifyBundle(tampered, customer, onChain.rootHash, onChain.context), false, `${username} tampered`);
       assert.equal(
-        verifyBundle(bundle, { ...customer, salt: customer.salt + 1n }, onChain.rootHash, onChain.context),
+        verifyBundle(bundle, { ...customer, secret: customer.secret + 1n }, onChain.rootHash, onChain.context),
         false,
-        `${username} with someone else's salt`,
+        `${username} with someone else's secret`,
       );
     }
 

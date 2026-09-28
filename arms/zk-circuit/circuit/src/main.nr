@@ -12,7 +12,7 @@ fn combine_level<let M: u32>(hashes: [Field; M]) -> [Field; M / 2] {
 
 fn main(
     usernames: [Field; 8],
-    salts: [Field; 8],
+    secret_commitments: [Field; 8],
     asset_ids: [u32; 8],
     amounts: [u64; 8],
     reserve_floors: pub [u64; NUM_ASSETS],
@@ -24,7 +24,7 @@ fn main(
     for i in 0..8 {
         assert(asset_ids[i] < NUM_ASSETS);
         leaves[i] =
-            Poseidon2::hash([usernames[i], salts[i], asset_ids[i] as Field, amounts[i] as Field], 4);
+            Poseidon2::hash([usernames[i], secret_commitments[i], asset_ids[i] as Field, amounts[i] as Field], 4);
         liabilities[asset_ids[i]] += amounts[i];
     }
 
@@ -45,10 +45,10 @@ global TEST_USERNAMES: [Field; 8] = [
     30781005513205101228432242745,
     0, 0, 0, 0, 0,
 ];
-global TEST_SALTS: [Field; 8] = [
-    84731920475619283746152039485761029384,
-    19283746501928374650192837465019283746,
-    55018273645019283746501928374650192837,
+global TEST_SECRET_COMMITMENTS: [Field; 8] = [
+    18198450858877723268609176186279719619286837271163992418725572013085434099811,
+    15538706731926285138652645125218544586809713046741471878533635155079540598168,
+    1497114457566288952199061030677540039510522944566514262273883042879988048342,
     0, 0, 0, 0, 0,
 ];
 global FLOORS: [u64; NUM_ASSETS] = [300_000_000, 1_200_000_000, 600_000_000_000];
@@ -59,7 +59,7 @@ global TEST_AMOUNTS: [u64; 8] = [250_000_000, 1_025_000_000, 500_075_000_000, 0,
 fn test_accepts_floors_that_cover_every_asset() {
     let _ = main(
         TEST_USERNAMES,
-        TEST_SALTS,
+        TEST_SECRET_COMMITMENTS,
         TEST_ASSETS,
         TEST_AMOUNTS,
         [300_000_000, 1_200_000_000, 600_000_000_000],
@@ -71,7 +71,7 @@ fn test_accepts_floors_that_cover_every_asset() {
 fn test_rejects_a_shortfall_in_one_asset_hidden_by_a_surplus_in_another() {
     let _ = main(
         TEST_USERNAMES,
-        TEST_SALTS,
+        TEST_SECRET_COMMITMENTS,
         TEST_ASSETS,
         TEST_AMOUNTS,
         [300_000_000, 200_000_000, 100_000_000_000],
@@ -88,14 +88,14 @@ fn test_rejects_an_asset_outside_the_registry() {
 
 #[test]
 fn test_root_is_bound_to_the_context() {
-    let root_a = main(TEST_USERNAMES, TEST_SALTS, TEST_ASSETS, TEST_AMOUNTS, FLOORS, 7);
-    let root_b = main(TEST_USERNAMES, TEST_SALTS, TEST_ASSETS, TEST_AMOUNTS, FLOORS, 8);
+    let root_a = main(TEST_USERNAMES, TEST_SECRET_COMMITMENTS, TEST_ASSETS, TEST_AMOUNTS, FLOORS, 7);
+    let root_b = main(TEST_USERNAMES, TEST_SECRET_COMMITMENTS, TEST_ASSETS, TEST_AMOUNTS, FLOORS, 8);
     assert(root_a != root_b);
 }
 
 #[test]
 fn test_root_does_not_depend_on_the_floors() {
-    let root_a = main(TEST_USERNAMES, TEST_SALTS, TEST_ASSETS, TEST_AMOUNTS, FLOORS, 7);
-    let root_b = main(TEST_USERNAMES, TEST_SALTS, TEST_ASSETS, TEST_AMOUNTS, [900_000_000, 9_900_000_000, 999_900_000_000], 7);
+    let root_a = main(TEST_USERNAMES, TEST_SECRET_COMMITMENTS, TEST_ASSETS, TEST_AMOUNTS, FLOORS, 7);
+    let root_b = main(TEST_USERNAMES, TEST_SECRET_COMMITMENTS, TEST_ASSETS, TEST_AMOUNTS, [900_000_000, 9_900_000_000, 999_900_000_000], 7);
     assert(root_a == root_b);
 }

@@ -16,6 +16,7 @@ import { zk } from "../../open-solvency/src/solutions/zk.ts";
 import { kzg } from "../../open-solvency/src/solutions/kzg.ts";
 import type { Solution } from "../../open-solvency/src/types.ts";
 import { proveReserve } from "./deploy.ts";
+import { SAMPLE_CUSTOMER_SECRETS, SAMPLE_LEDGER_SECRETS } from "./sample.ts";
 import { privateOutput, writePrivate, type Arm, type Network } from "./network.ts";
 
 type Check = { file: string; account: string; expected: Map<number, bigint>; secret: string };
@@ -47,7 +48,7 @@ async function prepareReserves(network: Network, arm: Arm) {
 
 async function prepareLedger(): Promise<Prepared> {
   const customers: LedgerCustomer[] = JSON.parse(readFileSync("arms/published-ledger/fixtures/customers.example.json", "utf8")).map((c: any) => ({
-    ...c, parts: c.parts.map((p: any) => ({ assetId: p.assetId, amount: BigInt(p.amount) })),
+    ...c, secretCommitment: BigInt(c.secretCommitment), parts: c.parts.map((p: any) => ({ assetId: p.assetId, amount: BigInt(p.amount) })),
   }));
   const built = buildSplitLiabilities(customers, toHex(randomBytes(32)), 2);
   const args = [built.ledger.snapshotId, built.ledger.assets.map(a => a.entries.map(e => e.identityHash)), built.ledger.assets.map(a => a.entries.map(e => e.balance))];
@@ -56,7 +57,8 @@ async function prepareLedger(): Promise<Prepared> {
     files.push([`${customer.customerId}.json`, built.bundles[i]]);
     const expected = new Map<number, bigint>();
     for (const part of customer.parts) expected.set(part.assetId, (expected.get(part.assetId) ?? 0n) + part.amount);
-    return { file: `${customer.customerId}.json`, account: customer.customerId, expected, secret: "" };
+    const secret = SAMPLE_LEDGER_SECRETS[customer.customerId as keyof typeof SAMPLE_LEDGER_SECRETS];
+    return { file: `${customer.customerId}.json`, account: customer.customerId, expected, secret };
   });
   return { functionName: "submitLedger", args, files, checks };
 }
@@ -87,7 +89,7 @@ async function prepareZk(network: Network, epochId: bigint): Promise<Prepared> {
   for (const username of new Set(holdings.map(h => h.username))) {
     files.push([`${username}.json`, createBundle(username, prepared.padded, prepared.levels)]);
     const own = holdings.filter(h => h.username === username);
-    checks.push({ file: `${username}.json`, account: username, expected: customerBalances(own), secret: own[0].salt.toString() });
+    checks.push({ file: `${username}.json`, account: username, expected: customerBalances(own), secret: SAMPLE_CUSTOMER_SECRETS[username as keyof typeof SAMPLE_CUSTOMER_SECRETS] });
   }
   return { functionName: "submitEpoch", args: [proof, prepared.rootHash, prepared.floors, roundIds], files, checks };
 }
@@ -96,8 +98,8 @@ async function prepareKzg(network: Network, epochId: bigint): Promise<Prepared> 
   const registry = network.registryOf("snarkless");
   const srs = loadSrs("arms/snarkless/fixtures/srs.json");
   const accounts: Account[] = readFileSync("shared/customers.csv", "utf8").trim().split("\n").slice(1).map(row => {
-    const [username, balance, salt] = row.split(",");
-    return { username, balance: BigInt(balance), salt: BigInt(salt) };
+    const [username, balance, secretCommitment] = row.split(",");
+    return { username, balance: BigInt(balance), secretCommitment: BigInt(secretCommitment) };
   });
   const context = epochContext(network.chainId, registry, epochId);
   const epoch = buildGrandSumEpoch(srs, accounts);
@@ -109,8 +111,8 @@ async function prepareKzg(network: Network, epochId: bigint): Promise<Prepared> 
     ["range-proof.json", rangeArtifact],
   ];
   const checks = accounts.map((account, index) => {
-    files.push([`${account.username}.json`, { username: account.username, index, identity: identityOf(account.username, account.salt), balance: account.balance, proof: point(proveInclusion(srs, epoch, index, context).proof) }]);
-    return { file: `${account.username}.json`, account: account.username, expected: new Map([[0, account.balance]]), secret: account.salt.toString() };
+    files.push([`${account.username}.json`, { username: account.username, index, identity: identityOf(account.username, account.secretCommitment), balance: account.balance, proof: point(proveInclusion(srs, epoch, index, context).proof) }]);
+    return { file: `${account.username}.json`, account: account.username, expected: new Map([[0, account.balance]]), secret: SAMPLE_CUSTOMER_SECRETS[account.username as keyof typeof SAMPLE_CUSTOMER_SECRETS] };
   });
   return { functionName: "submitEpoch", args: [sum, rangeArtifact], files, checks };
 }

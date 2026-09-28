@@ -24,14 +24,15 @@ Roles, reserve control, sampling and the publication window come from
 
 ## Encoding
 
-    leaf    = Poseidon2(username, salt, assetId, amount)
+    leaf    = Poseidon2(username, Poseidon2(customerSecret), assetId, amount)
     parent  = Poseidon2(left, right)
     root    = Poseidon2(treeRoot, context)
     context = keccak256(abi.encode(chainId, registry, epochId)) mod p
 
     publicInputs = [floor0, floor1, floor2, context, rootHash]
 
-The context binds a proof to one registry, one chain and one epoch id, so a proof
+The company receives only the commitment to a customer-chosen high-entropy secret;
+the customer keeps the secret and enters it during local verification. The context binds a proof to one registry, one chain and one epoch id, so a proof
 cannot be replayed into the next epoch or onto another deployment. Amounts are `u64`
 in the asset's base units; Noir rejects an overflowing per-asset sum, so a wrapped
 total cannot satisfy the circuit.
@@ -67,8 +68,8 @@ proof, and shows the same proof being refused in the next epoch.
 
 ## Customer check
 
-`verifyBundle` takes the customer's own username, salt and expected amounts, and the
-root read from the chain. A part whose username or salt is not the customer's own is
+`verifyBundle` takes the customer's own username, chosen secret and expected amounts, and the
+root read from the chain. A part whose username or secret commitment is not the customer's own is
 rejected, so a leaf built for one customer cannot be served to another; path encodings
 must have the circuit's depth, so a leaf cannot be counted twice.
 

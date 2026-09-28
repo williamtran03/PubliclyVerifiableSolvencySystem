@@ -1,5 +1,5 @@
 import { encodeAbiParameters, keccak256 } from "viem";
-import { poseidon2Hash, usernameToBigInt, LEAF_CAPACITY } from "../../../shared/merkleSumTree.ts";
+import { customerSecretCommitment, poseidon2Hash, usernameToBigInt, LEAF_CAPACITY } from "../../../shared/merkleSumTree.ts";
 
 export const NUM_ASSETS = 3;
 export const MAX_U64 = (1n << 64n) - 1n;
@@ -8,7 +8,7 @@ const DEPTH = Math.log2(LEAF_CAPACITY);
 
 export type Holding = {
   username: string;
-  salt: bigint;
+  secretCommitment: bigint;
   assetId: number;
   amount: bigint;
 };
@@ -24,7 +24,7 @@ export type CustomerBundle = {
   parts: InclusionProof[];
 };
 
-export const PADDING: Holding = { username: "", salt: 0n, assetId: 0, amount: 0n };
+export const PADDING: Holding = { username: "", secretCommitment: 0n, assetId: 0, amount: 0n };
 
 export function epochContext(chainId: bigint, registry: `0x${string}`, epochId: bigint): bigint {
   const encoded = encodeAbiParameters(
@@ -36,15 +36,16 @@ export function epochContext(chainId: bigint, registry: `0x${string}`, epochId: 
 
 export function parseHoldingsCsv(csv: string): Holding[] {
   const [, ...rows] = csv.trim().split("\n");
-  const salts = new Map<string, bigint>();
+  const commitments = new Map<string, bigint>();
   return rows.map((row) => {
-    const [username, salt, assetId, amount] = row.split(",");
+    const [username, secretCommitment, assetId, amount] = row.split(",");
     const holding = {
       username: username.trim(),
-      salt: BigInt(salt.trim()),
+      secretCommitment: BigInt(secretCommitment.trim()),
       assetId: Number(assetId.trim()),
       amount: BigInt(amount.trim()),
     };
+    if (holding.secretCommitment < 0n || holding.secretCommitment >= FIELD_ORDER) throw new Error("secret commitment is outside the proof field");
     usernameToBigInt(holding.username);
     if (!Number.isInteger(holding.assetId) || holding.assetId < 0 || holding.assetId >= NUM_ASSETS) {
       throw new Error(`assetId ${holding.assetId} is not tracked by the registry`);
@@ -52,10 +53,10 @@ export function parseHoldingsCsv(csv: string): Holding[] {
     if (holding.amount < 0n || holding.amount > MAX_U64) {
       throw new Error(`amount ${holding.amount} does not fit in u64`);
     }
-    if (salts.has(holding.username) && salts.get(holding.username) !== holding.salt) {
-      throw new Error(`${holding.username} has two salts; a customer keeps one`);
+    if (commitments.has(holding.username) && commitments.get(holding.username) !== holding.secretCommitment) {
+      throw new Error(`${holding.username} has two secret commitments; a customer keeps one`);
     }
-    salts.set(holding.username, holding.salt);
+    commitments.set(holding.username, holding.secretCommitment);
     return holding;
   });
 }
@@ -67,7 +68,7 @@ export function computeLeaf(holding: Holding): bigint {
   if (holding.amount < 0n || holding.amount > MAX_U64) {
     throw new Error(`amount ${holding.amount} does not fit in u64`);
   }
-  return poseidon2Hash([usernameToBigInt(holding.username), holding.salt, BigInt(holding.assetId), holding.amount]);
+  return poseidon2Hash([usernameToBigInt(holding.username), holding.secretCommitment, BigInt(holding.assetId), holding.amount]);
 }
 
 const combine = (left: bigint, right: bigint) => poseidon2Hash([left, right]);
@@ -150,7 +151,7 @@ export function deserializeBundle(json: string): CustomerBundle {
     parts: parsed.parts.map((part: any) => ({
       holding: {
         username: part.holding.username,
-        salt: BigInt(part.holding.salt),
+        secretCommitment: BigInt(part.holding.secretCommitment),
         assetId: Number(part.holding.assetId),
         amount: BigInt(part.holding.amount),
       },
@@ -162,17 +163,19 @@ export function deserializeBundle(json: string): CustomerBundle {
 
 export type Customer = {
   username: string;
-  salt: bigint;
+  secret: bigint;
   expectedAmounts: Map<number, bigint>;
 };
 
 export function verifyBundle(bundle: CustomerBundle, customer: Customer, publishedRoot: bigint, context: bigint): boolean {
   if (bundle.parts.length === 0) return false;
+  let commitment: bigint;
+  try { commitment = customerSecretCommitment(customer.secret); } catch { return false; }
 
   const positions = new Set<string>();
   const totals = new Map<number, bigint>();
   for (const part of bundle.parts) {
-    if (part.holding.username !== customer.username || part.holding.salt !== customer.salt) return false;
+    if (part.holding.username !== customer.username || part.holding.secretCommitment !== commitment) return false;
 
     const treeRoot = rootOf(part);
     if (treeRoot === null || bindRoot(treeRoot, context) !== publishedRoot) return false;
