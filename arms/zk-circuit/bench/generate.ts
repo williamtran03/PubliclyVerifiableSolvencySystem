@@ -1,5 +1,5 @@
 import { keccak256, encodePacked, type Hex } from "viem";
-import { usernameToBigInt } from "../../../shared/merkleSumTree.ts";
+import { customerSecretCommitment, usernameToBigInt } from "../../../shared/merkleSumTree.ts";
 import { FIELD_ORDER, NUM_ASSETS, type Holding } from "../prover/multiAssetTree.ts";
 
 export const NARGO_TOML = `[package]
@@ -44,7 +44,7 @@ fn combine_level<let M: u32>(hashes: [Field; M]) -> [Field; M / 2] {
 
 fn main(
     usernames: [Field; CAPACITY],
-    salts: [Field; CAPACITY],
+    secret_commitments: [Field; CAPACITY],
     asset_ids: [u32; CAPACITY],
     amounts: [u64; CAPACITY],
     reserve_floors: pub [u64; NUM_ASSETS],
@@ -56,7 +56,7 @@ fn main(
     for i in 0..CAPACITY {
         assert(asset_ids[i] < NUM_ASSETS);
         leaves[i] =
-            Poseidon2::hash([usernames[i], salts[i], asset_ids[i] as Field, amounts[i] as Field], 4);
+            Poseidon2::hash([usernames[i], secret_commitments[i], asset_ids[i] as Field, amounts[i] as Field], 4);
         liabilities[asset_ids[i]] += amounts[i];
     }
 
@@ -95,7 +95,7 @@ global NODES: u32 = ${2 * capacity - 1};
 
 fn main(
     usernames: [Field; CAPACITY],
-    salts: [Field; CAPACITY],
+    secret_commitments: [Field; CAPACITY],
     asset_ids: [u32; CAPACITY],
     amounts: [u64; CAPACITY],
     reserve_floors: pub [u64; NUM_ASSETS],
@@ -107,7 +107,7 @@ fn main(
     for i in 0..CAPACITY {
         assert(asset_ids[i] < NUM_ASSETS);
         nodes[i] =
-            Poseidon2::hash([usernames[i], salts[i], asset_ids[i] as Field, amounts[i] as Field], 4);
+            Poseidon2::hash([usernames[i], secret_commitments[i], asset_ids[i] as Field, amounts[i] as Field], 4);
         liabilities[asset_ids[i]] += amounts[i];
     }
 
@@ -128,7 +128,7 @@ const draw = (seed: Hex, label: string, i: number): bigint =>
 export function benchHoldings(capacity: number, seed: Hex, assets: number = NUM_ASSETS): Holding[] {
   return Array.from({ length: capacity }, (_, i) => ({
     username: `bench-${i}`,
-    salt: draw(seed, "salt", i) % FIELD_ORDER,
+    secretCommitment: customerSecretCommitment(draw(seed, "secret", i) % FIELD_ORDER),
     assetId: i % assetCount(assets),
     amount: (draw(seed, "amount", i) % 1_000_000_000n) + 1n,
   }));
@@ -140,7 +140,7 @@ export function proverToml(holdings: Holding[], context: bigint, assets: number 
   const list = (values: (string | number | bigint)[]) => `[${values.map((v) => `"${v}"`).join(", ")}]`;
   return [
     `usernames = ${list(holdings.map((h) => usernameToBigInt(h.username)))}`,
-    `salts = ${list(holdings.map((h) => h.salt))}`,
+    `secret_commitments = ${list(holdings.map((h) => h.secretCommitment))}`,
     `asset_ids = ${list(holdings.map((h) => h.assetId))}`,
     `amounts = ${list(holdings.map((h) => h.amount))}`,
     `reserve_floors = ${list(floors)}`,
