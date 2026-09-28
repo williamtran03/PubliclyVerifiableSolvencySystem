@@ -18,6 +18,7 @@ test("each asset gets its own tree and total; customers verify per asset", () =>
   assert.equal(ledger.assets[2].rootHash, 0n, "an asset nobody holds has an empty ledger");
   assert.ok(verifyPublicLedger(ledger));
   assert.ok(verifyCustomer(bundles[0], alice, ledger, aliceSecret));
+  assert.equal(verifyCustomer(bundles[0], alice, ledger, bobSecret), false, "one customer's bundle does not verify under another customer's secret");
   assert.ok(verifyCustomer(bundles[1], new Map([[0, 20n]]), ledger, bobSecret));
   assert.ok(verifyCustomer(bundles[1], new Map([[0, 20n], [1, 0n]]), ledger, bobSecret), "an entered zero matches an asset the customer does not hold");
   assert.equal(verifyCustomer(bundles[1], new Map([[0, 20n], [1, 1n]]), ledger, bobSecret), false);
