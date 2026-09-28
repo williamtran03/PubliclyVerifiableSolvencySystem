@@ -39,7 +39,7 @@ secrets are used only during customer verification.
 
     npm run ledger -- build arms/published-ledger/fixtures/customers.example.json <new dir> 2
     npm run ledger -- audit <dir>/ledger.json
-    npm run ledger -- verify <registry> <rpc url> <dir>/private/customer-0.json alice 0:100 1:3
+    npm run ledger -- verify <registry> <rpc url> <dir>/private/customer-0.json alice <customer-secret> 0:100 1:3
 
 `build` writes the public `ledger.json` and one private bundle per customer; publish
 only the former. `verify` takes the customer ID, the customer's chosen secret, and one `assetId:amount` per asset from
