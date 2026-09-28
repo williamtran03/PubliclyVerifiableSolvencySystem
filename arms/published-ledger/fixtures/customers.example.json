@@ -3,6 +3,7 @@
     "customerId": "alice",
     "name": "Alice Example",
     "dateOfBirth": "2000-01-01",
+    "secretCommitment": "18198450858877723268609176186279719619286837271163992418725572013085434099811",
     "parts": [
       { "assetId": 0, "amount": "40000000000000" },
       { "assetId": 0, "amount": "60000000000000" },
@@ -13,6 +14,7 @@
     "customerId": "bob",
     "name": "Bob Example",
     "dateOfBirth": "2001-02-03",
+    "secretCommitment": "15538706731926285138652645125218544586809713046741471878533635155079540598168",
     "parts": [{ "assetId": 0, "amount": "20000000000000" }]
   }
 ]

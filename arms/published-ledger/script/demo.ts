@@ -5,6 +5,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { parseEther, type Abi, type Hex } from "viem";
 import { buildSplitLiabilities, verifyCustomer, type Customer } from "../prover/splitLiabilities.ts";
 import { auditor, company, demoChain, isMain, maxEpochAge, minEpochInterval, outputDirectory, writeJson } from "../../../scripts/demo/chain.ts";
+import { SAMPLE_LEDGER_SECRETS } from "../../../scripts/sepolia/sample.ts";
 
 export async function runLedgerDemo(rpc: string, output: string) {
   const { client, wallet, artifact, deploy, deployDirectory, send, proveReserve, approveReserve, sampleReserves, chain } = await demoChain(rpc);
@@ -22,7 +23,7 @@ export async function runLedgerDemo(rpc: string, output: string) {
   await approveReserve(registry, abi, reserve);
   await sampleReserves(registry, abi);
   const customers: Customer[] = JSON.parse(readFileSync("arms/published-ledger/fixtures/customers.example.json", "utf8")).map((c: any) => ({
-    ...c, parts: c.parts.map((p: any) => ({ assetId: p.assetId, amount: BigInt(p.amount) })),
+    ...c, secretCommitment: BigInt(c.secretCommitment), parts: c.parts.map((p: any) => ({ assetId: p.assetId, amount: BigInt(p.amount) })),
   }));
   const snapshot = () => `0x${randomBytes(32).toString("hex")}` as Hex;
   const { ledger, bundles } = buildSplitLiabilities(customers, snapshot(), 2);
@@ -36,7 +37,7 @@ export async function runLedgerDemo(rpc: string, output: string) {
   for (const [i, customer] of customers.entries()) {
     const expected = new Map<number, bigint>();
     for (const part of customer.parts) expected.set(part.assetId, (expected.get(part.assetId) ?? 0n) + part.amount);
-    assert.ok(verifyCustomer(bundles[i], expected, published));
+    assert.ok(verifyCustomer(bundles[i], expected, published, BigInt(SAMPLE_LEDGER_SECRETS[customer.customerId as keyof typeof SAMPLE_LEDGER_SECRETS])));
     writeJson(output, `ledger-${customer.customerId}.json`, bundles[i]);
   }
   await proveReserve(registry, abi, reserve);
