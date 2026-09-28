@@ -7,7 +7,7 @@ import { buildSplitLiabilities, verifyCustomer, verifyPublicLedger, type Custome
 const USAGE = `Commands:
   build <customers.json> <new output directory> <asset count>
   audit <ledger.json>
-  verify <registry> <RPC URL> <private bundle.json> <customer ID> <assetId:amount>...`;
+  verify <registry> <RPC URL> <private bundle.json> <customer ID> <secret> <assetId:amount>...`;
 
 const bigintKeys = new Set(["amount", "balance", "identityHash", "rootHash", "rootSum", "totalLiabilities"]);
 export function parseArtifact(text: string): any {
@@ -31,10 +31,11 @@ async function main() {
     const raw = JSON.parse(readFileSync(input, "utf8"));
     const customers: Customer[] = raw.map((c: any) => {
       if (![c.customerId, c.name, c.dateOfBirth].every(v => typeof v === "string")) throw new Error("identity fields must be strings");
+      if (typeof c.secretCommitment !== "string" || !/^(0|[1-9][0-9]*)$/.test(c.secretCommitment)) throw new Error("customers must provide a decimal secretCommitment, not their secret");
       return { ...c, parts: c.parts.map((p: any) => {
         if (typeof p.amount !== "string" || !/^(0|[1-9][0-9]*)$/.test(p.amount)) throw new Error("amounts must be decimal strings in base units");
         return { assetId: Number(p.assetId), amount: BigInt(p.amount) };
-      }) };
+      }), secretCommitment: BigInt(c.secretCommitment) };
     });
     const snapshotId = `0x${randomBytes(32).toString("hex")}` as Hex;
     const { ledger, bundles } = buildSplitLiabilities(customers, snapshotId, Number(assetCount));
@@ -51,8 +52,8 @@ async function main() {
     if (!verifyPublicLedger(ledger)) throw new Error("invalid public ledger");
     console.log("VALID: published entries produce the claimed roots and totals. Completeness and assets are separate checks.");
   } else if (command === "verify") {
-    const [address, rpc, path, expectedCustomerId, ...expectations] = args;
-    if (!isAddress(address ?? "") || !rpc || !path || !expectedCustomerId || expectations.length === 0) throw new Error(USAGE);
+    const [address, rpc, path, expectedCustomerId, secret, ...expectations] = args;
+    if (!isAddress(address ?? "") || !rpc || !path || !expectedCustomerId || !secret || expectations.length === 0) throw new Error(USAGE);
     const expected = new Map(expectations.map((pair) => {
       const [assetId, amount] = pair.split(":");
       if (!/^\d+$/.test(assetId ?? "") || !/^\d+$/.test(amount ?? "")) throw new Error(`expected assetId:amount, got ${pair}`);
@@ -65,7 +66,7 @@ async function main() {
       assets: epoch.rootHashes.map((rootHash, i) => ({ rootHash, totalLiabilities: epoch.liabilities[i] })),
     };
     const bundle: CustomerBundle = parseArtifact(readFileSync(path, "utf8"));
-    if (bundle.customerId !== expectedCustomerId || !verifyCustomer(bundle, expected, published)) throw new Error("customer verification failed");
+    if (bundle.customerId !== expectedCustomerId || !verifyCustomer(bundle, expected, published, BigInt(secret))) throw new Error("customer verification failed");
     console.log("VALID: every asset balance you expected is included in the latest on-chain snapshot. This says nothing about undisclosed debts or later reserves.");
   } else throw new Error(USAGE);
 }

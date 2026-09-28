@@ -3,16 +3,17 @@ import { randomBytes, randomInt } from "node:crypto";
 import assert from "node:assert/strict";
 import { toHex } from "viem";
 import { buildSplitLiabilities, verifyCustomer, verifyPublicLedger, type Customer } from "./splitLiabilities.ts";
+import { SAMPLE_CUSTOMER_SECRETS } from "../../../scripts/sepolia/sample.ts";
 
 const output = process.argv[2] ?? "arms/published-ledger/fixtures/shared-customers.json";
 
 const accounts = readFileSync("shared/customers.csv", "utf8").trim().split("\n").slice(1).map((row) => {
-  const [username, balance] = row.split(",");
-  return { username: username.trim(), balance: BigInt(balance.trim()) };
+  const [username, balance, secretCommitment] = row.split(",");
+  return { username: username.trim(), balance: BigInt(balance.trim()), secretCommitment: BigInt(secretCommitment.trim()) };
 });
 
 function customers(partsPerCustomer: number): Customer[] {
-  return accounts.map(({ username, balance }) => {
+  return accounts.map(({ username, balance, secretCommitment }) => {
     assert.ok(balance >= BigInt(partsPerCustomer), `${username} cannot be split into ${partsPerCustomer} non-zero parts`);
     const amounts: bigint[] = [];
     let left = balance;
@@ -22,7 +23,7 @@ function customers(partsPerCustomer: number): Customer[] {
       left -= amount;
     }
     amounts.push(left);
-    return { customerId: username, name: username, dateOfBirth: "", parts: amounts.map((amount) => ({ assetId: 0, amount })) };
+    return { customerId: username, name: username, dateOfBirth: "", secretCommitment, parts: amounts.map((amount) => ({ assetId: 0, amount })) };
   });
 }
 
@@ -33,7 +34,7 @@ function build(partsPerCustomer: number) {
   list.forEach((customer, i) => {
     const owed = new Map([[0, customer.parts.reduce((total, part) => total + part.amount, 0n)]]);
     const published = { snapshotId: ledger.snapshotId, assets: ledger.assets.map(({ rootHash, totalLiabilities }) => ({ rootHash, totalLiabilities })) };
-    assert.ok(verifyCustomer(bundles[i], owed, published), `${customer.customerId} must verify against the root`);
+    assert.ok(verifyCustomer(bundles[i], owed, published, BigInt(SAMPLE_CUSTOMER_SECRETS[customer.customerId as keyof typeof SAMPLE_CUSTOMER_SECRETS])), `${customer.customerId} must verify against the root`);
   });
   const [asset] = ledger.assets;
   return {
