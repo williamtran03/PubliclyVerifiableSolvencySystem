@@ -25,7 +25,7 @@ const holdings: Holding[] = [
 ];
 const CONTEXT = 7n;
 
-const CIRCUIT_ROOT = 0x0d024d7c98758597fccef289777d33b05ab9231e0d8870b68dbc5182088ed958n;
+const CIRCUIT_ROOT = 6743815625960191343857673803940122189574537923630049190308189140536420546382n;
 
 const customer = (h: Holding, amount = h.amount): Customer => ({
   username: h.username,
