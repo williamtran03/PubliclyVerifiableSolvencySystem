@@ -25,13 +25,14 @@ Roles, reserve control, sampling and the publication window come from
 
 ## The scheme
 
-    identity = Poseidon2(username, salt)
+    identity = Poseidon2(username, Poseidon2(customerSecret))
     balances interpolated over the 8th roots of unity as p(X)
     total    = N * p(0), opened at 0 with one pairing
     range    = 64 bit commitments plus a quotient, batched into one opening
     context  = keccak256(abi.encode(chainId, registry, epochId)) mod r
 
-Both Fiat-Shamir transcripts absorb the context, so a proof is bound to one registry,
+The company receives only the commitment to a customer-chosen high-entropy secret; the
+customer keeps the secret and supplies it during local verification. Both Fiat-Shamir transcripts absorb the context, so a proof is bound to one registry,
 chain and epoch id.
 
 **The degree bound is what makes the total honest.** Committing to `p(X) + c·Z_H(X)`

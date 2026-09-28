@@ -68,20 +68,18 @@ and the prover rejects negative input (`splitLiabilities.test.ts`).
 **Attack.** Give two customers with the same balance the same leaf, so one liability
 covers both; or show a customer one leaf twice under two different paths.
 
-**Stopped by.** In arms 2 and 3 the leaf commits to the username and salt the customer
-enters at verification, so a leaf built for one customer fails for another (`two customers
-cannot be served one leaf` in `multiAssetTree.test.ts`). Paths must have the circuit's
-depth and use only 0/1 directions, so a leaf cannot be counted twice (`one leaf cannot be
-counted twice by giving it a second path encoding`).
+**Stopped by.** All three arms bind the customer's chosen secret commitment into the
+identity, so a bundle built for one customer fails for another with a distinct secret
+(`a customer with the wrong chosen secret rejects the leaf` in
+`multiAssetTree.test.ts`). In arms 2 and 3, paths must have the circuit's depth and use
+only 0/1 directions, so a leaf cannot be counted twice (`one leaf cannot be counted
+twice by giving it a second path encoding`).
 
-**Remains.** The company issues both the username and the salt, in every arm
-(`shared/customers.csv`). Nothing stops it handing one credential to two customers who
-are owed the same amount: both check against one leaf and pass, and that liability is
-counted once. No circuit constraint helps, because the attack uses a single leaf. Letting
-the customer choose the secret at signup would close it; publishing the leaf count so an
-auditor can compare it with an attested customer count would at least expose it. Neither
-is built. Arm 1 additionally relies on the identity commitment (name, date of birth, salt)
-rather than a secret the customer holds.
+**Remains.** Customers must choose distinct high-entropy secrets independently and keep
+them private. If two customers reuse or disclose the same secret and have identical
+balances, one leaf can still satisfy both. The commitment also does not prove that every
+customer received a distinct credential or that every liability was included; customers
+must retain an auditable signup receipt and check their own inclusion.
 
 ## 5. Understating the KZG total
 

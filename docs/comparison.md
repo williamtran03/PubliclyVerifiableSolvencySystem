@@ -406,14 +406,13 @@ linear combination of all balances. Blinding that away is not a small change —
 blinding adds a multiple of `Z_H`, which shifts `p(0)` and so collides with the degree bound
 the total depends on — so it stays a stated limitation rather than a fix.
 
-**Two customers can still be shown one leaf or slot.** In arms 2 and 3 the leaf
-identity is `H(username, salt)`, and the verifier takes both from the customer, never
-from the bundle, so a bundle built for another credential fails. But the company issues
-the username and the salt, so it can give the same credential to two customers who are
-owed the same amounts, and both verify the one leaf. An in-circuit distinct-ID
-constraint does not prevent this either: distinctness only compares different leaves.
-Customer-chosen secrets would close it; see *One credential for two customers* in
-`docs/limitations.md`. Not built.
+**One leaf can still serve customers who reuse a secret.** In arms 2 and 3 the leaf
+identity includes a commitment to a high-entropy secret chosen by the customer; the
+verifier recomputes the commitment from the secret the customer enters. A bundle for a
+different secret fails. If customers reuse or disclose a secret and have identical
+balances, one leaf can still satisfy both. The source implements customer-chosen secrets;
+see *One credential for two customers* in `docs/limitations.md`. Existing epochs still
+use the old identity scheme and require republication.
 
 **How bundles reach customers leaks more than any tree does.** `demo-site/` serves
 each customer's inclusion bundle as a static file at `/bundles/<username>.json`.
