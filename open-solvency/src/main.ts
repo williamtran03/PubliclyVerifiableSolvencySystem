@@ -355,10 +355,10 @@ document.querySelectorAll<HTMLButtonElement>(".network").forEach(button => butto
   restoreConnection(); invalidate(); save();
   el<HTMLButtonElement>("load").click();
 }));
-if (import.meta.env.DEV) void fetch("demo-config.json").then(async response => {
+if (import.meta.env.DEV && ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)) void fetch("demo-config.json").then(async response => {
   if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) return;
   const config = await response.json();
   if (config.version !== 1 || !solutions.every(s => /^https?:\/\//.test(config.solutions?.[s.id]?.rpc ?? "") && isAddress(config.solutions?.[s.id]?.registry ?? ""))) return;
   demoConnections = config.solutions;
   el<HTMLElement>("demo").hidden = false;
-}).catch(() => { /* A standalone website has no local demo configuration. */ });
+}).catch(() => undefined);

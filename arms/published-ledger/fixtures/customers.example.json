@@ -4,8 +4,8 @@
     "name": "Alice Example",
     "dateOfBirth": "2000-01-01",
     "parts": [
-      { "assetId": 0, "amount": "40" },
-      { "assetId": 0, "amount": "60" },
+      { "assetId": 0, "amount": "40000000000000" },
+      { "assetId": 0, "amount": "60000000000000" },
       { "assetId": 1, "amount": "3" }
     ]
   },
@@ -13,6 +13,6 @@
     "customerId": "bob",
     "name": "Bob Example",
     "dateOfBirth": "2001-02-03",
-    "parts": [{ "assetId": 0, "amount": "20" }]
+    "parts": [{ "assetId": 0, "amount": "20000000000000" }]
   }
 ]

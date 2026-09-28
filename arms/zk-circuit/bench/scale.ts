@@ -2,8 +2,10 @@ import { spawn } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync, statSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { keccak256, encodePacked, type Hex } from "viem";
 import { mainNr, mainNrFlat, NARGO_TOML, benchHoldings, proverToml, depthOf } from "./generate.ts";
+import { NUM_ASSETS } from "../prover/multiAssetTree.ts";
 
 const SEED = keccak256(encodePacked(["string"], ["solvency bench seed"])) as Hex;
 const CONTEXT = 7n;
@@ -11,12 +13,13 @@ const RESULTS = "arms/zk-circuit/bench/results.json";
 const TABLE = "arms/zk-circuit/bench/results.md";
 const DEFAULT_N = [8, 32, 128, 512, 2048, 8192, 32768];
 
-type Form = "chained" | "flat";
-type Stage = { seconds: number; peakRssBytes: number | null };
-type Row = {
+export type Form = "chained" | "flat";
+export type Stage = { seconds: number; peakRssBytes: number | null };
+export type ScaleRow = {
   n: number;
   depth: number;
   form: Form;
+  assets?: number;
   status: "ok" | "failed";
   acirOpcodes?: number;
   gates?: number;
@@ -62,12 +65,12 @@ function run(
   });
 }
 
-function writeProject(dir: string, n: number, form: Form): void {
+function writeProject(dir: string, n: number, form: Form, assets: number): void {
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(join(dir, "src"), { recursive: true });
   writeFileSync(join(dir, "Nargo.toml"), NARGO_TOML);
-  writeFileSync(join(dir, "src", "main.nr"), (form === "flat" ? mainNrFlat : mainNr)(n));
-  writeFileSync(join(dir, "Prover.toml"), proverToml(benchHoldings(n, SEED), CONTEXT));
+  writeFileSync(join(dir, "src", "main.nr"), (form === "flat" ? mainNrFlat : mainNr)(n, assets));
+  writeFileSync(join(dir, "Prover.toml"), proverToml(benchHoldings(n, SEED, assets), CONTEXT, assets));
 }
 
 const diagnostic = (output: string) =>
@@ -81,7 +84,7 @@ const stage = (r: { seconds: number; peakRssBytes: number | null }): Stage => ({
 const gib = (bytes: number | null) => (bytes === null ? "n/a" : `${(bytes / 2 ** 30).toFixed(2)} GiB`);
 const secs = (s: Stage | undefined) => (s ? `${s.seconds.toFixed(2)} s` : "—");
 
-function markdown(rows: Row[]): string {
+function markdown(rows: ScaleRow[]): string {
   const body = rows.map((r) =>
     r.status === "ok"
       ? `| ${r.form} | ${r.n.toLocaleString()} | ${r.depth} | ${r.gates?.toLocaleString() ?? "?"} | ` +
@@ -97,10 +100,16 @@ function markdown(rows: Row[]): string {
   ].join("\n");
 }
 
-async function measure(n: number, form: Form, dir: string, timeout: number): Promise<Row> {
+export async function measure(
+  n: number,
+  form: Form,
+  dir: string,
+  timeout: number,
+  assets: number = NUM_ASSETS,
+): Promise<ScaleRow> {
   const depth = depthOf(n);
-  const row: Row = { n, depth, form, status: "failed" };
-  writeProject(dir, n, form);
+  const row: ScaleRow = assets === NUM_ASSETS ? { n, depth, form, status: "failed" } : { n, depth, form, assets, status: "failed" };
+  writeProject(dir, n, form, assets);
 
   const info = await run("nargo", ["info"], dir, timeout);
   row.acirOpcodes = Number(info.output.match(/\|\s*main\s*\|\s*(\d+)\s*\|/)?.[1] ?? NaN) || undefined;
@@ -149,56 +158,58 @@ async function measure(n: number, form: Form, dir: string, timeout: number): Pro
   };
 }
 
-const sizes = (process.env.BENCH_N?.split(",").map((s) => Number(s.trim())) ?? DEFAULT_N).filter((n) => n > 1);
-const forms = (process.env.BENCH_FORM?.split(",") ?? ["chained", "flat"]) as Form[];
-const timeout = Number(process.env.BENCH_TIMEOUT ?? 3600);
-const dir = join(tmpdir(), "solvency-bench");
-const rows: Row[] = [];
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const sizes = (process.env.BENCH_N?.split(",").map((s) => Number(s.trim())) ?? DEFAULT_N).filter((n) => n > 1);
+  const forms = (process.env.BENCH_FORM?.split(",") ?? ["chained", "flat"]) as Form[];
+  const timeout = Number(process.env.BENCH_TIMEOUT ?? 3600);
+  const dir = join(tmpdir(), "solvency-bench");
+  const rows: ScaleRow[] = [];
 
-const save = () => {
-  writeFileSync(
-    RESULTS,
-    JSON.stringify(
-      {
-        measuredAt: new Date().toISOString(),
-        platform: `${process.platform} ${process.arch}`,
-        note: "One leaf per (customer, asset) holding; every slot filled.",
-        rows,
-      },
-      null,
-      2,
-    ) + "\n",
-  );
-  writeFileSync(TABLE, markdown(rows));
-};
+  const save = () => {
+    writeFileSync(
+      RESULTS,
+      JSON.stringify(
+        {
+          measuredAt: new Date().toISOString(),
+          platform: `${process.platform} ${process.arch}`,
+          note: "One leaf per (customer, asset) holding; every slot filled.",
+          rows,
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+    writeFileSync(TABLE, markdown(rows));
+  };
 
-console.log(`Sweeping N = ${sizes.join(", ")} in ${forms.join(" and ")} form (per-stage timeout ${timeout}s)\n`);
+  console.log(`Sweeping N = ${sizes.join(", ")} in ${forms.join(" and ")} form (per-stage timeout ${timeout}s)\n`);
 
-for (const form of forms) {
-  console.log(`--- ${form} ---`);
-  for (const n of sizes) {
-    process.stdout.write(`N = ${String(n).padStart(6)} (depth ${depthOf(n)}) … `);
-    const row = await measure(n, form, dir, timeout);
-    rows.push(row);
+  for (const form of forms) {
+    console.log(`--- ${form} ---`);
+    for (const n of sizes) {
+      process.stdout.write(`N = ${String(n).padStart(6)} (depth ${depthOf(n)}) … `);
+      const row = await measure(n, form, dir, timeout);
+      rows.push(row);
 
-    if (row.status === "ok") {
-      console.log(
-        `gates ${row.gates?.toLocaleString() ?? "?"}  ` +
-          `execute ${row.execute!.seconds}s  vk ${row.writeVk!.seconds}s  ` +
-          `prove ${row.prove!.seconds}s  peak ${gib(row.prove!.peakRssBytes)}  ` +
-          `proof ${row.proofBytes}B${row.verified ? "" : "  PROOF DID NOT VERIFY"}`,
-      );
-    } else {
-      console.log(`FAILED at ${row.failedStage}`);
-      console.log(row.error?.split("\n").slice(0, 6).map((l) => `    ${l}`).join("\n"));
-    }
+      if (row.status === "ok") {
+        console.log(
+          `gates ${row.gates?.toLocaleString() ?? "?"}  ` +
+            `execute ${row.execute!.seconds}s  vk ${row.writeVk!.seconds}s  ` +
+            `prove ${row.prove!.seconds}s  peak ${gib(row.prove!.peakRssBytes)}  ` +
+            `proof ${row.proofBytes}B${row.verified ? "" : "  PROOF DID NOT VERIFY"}`,
+        );
+      } else {
+        console.log(`FAILED at ${row.failedStage}`);
+        console.log(row.error?.split("\n").slice(0, 6).map((l) => `    ${l}`).join("\n"));
+      }
 
-    save();
-    if (row.status === "failed") {
-      console.log(`  ↳ stopping the ${form} sweep: larger N cannot succeed where ${n} did not.\n`);
-      break;
+      save();
+      if (row.status === "failed") {
+        console.log(`  ↳ stopping the ${form} sweep: larger N cannot succeed where ${n} did not.\n`);
+        break;
+      }
     }
   }
-}
 
-console.log(`\nWrote ${RESULTS} and ${TABLE}`);
+  console.log(`\nWrote ${RESULTS} and ${TABLE}`);
+}

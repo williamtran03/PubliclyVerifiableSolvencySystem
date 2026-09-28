@@ -1,7 +1,7 @@
 # Four arms live under arms/. Each is self-contained: contracts/, prover/,
 # test/, script/, fixtures/. Shared code is shared/contracts/ReserveRegistry.sol
 # (roles, signed reserves, epoch freshness), shared/merkleSumTree.ts and
-# shared/customers.csv, the common input every arm is measured on.
+# shared/customers.csv, the KZG arm's customer input.
 #
 #   arms/published-ledger  publish the whole ledger, contract recomputes the root
 #   arms/zk-circuit        Noir/UltraHonk proof, per-asset solvency against public reserve floors

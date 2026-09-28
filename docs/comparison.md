@@ -9,7 +9,8 @@ default), under the Osaka (Fusaka) gas rules that Ethereum has run since Decembe
 (`evm_version = "osaka"`). Until 2026-09-22 they were measured under `cancun`; the
 switch changed only the ZK verifier's figures (see *Sepolia rehearsal versus fixture
 probes*). They are call-level numbers including dispatch overhead, and N = 8 is a
-toy size — see *Gaps* below. Revised 2026-09-13 after the per-asset redesign and
+toy size — see *Gaps* below. The only on-chain receipts are in *Public Sepolia
+receipts*. Revised 2026-09-13 after the per-asset redesign and
 the fixes listed at the end; the previous figures are superseded.
 
 The local and public Sepolia demos use different customer portfolios: the published
@@ -47,15 +48,15 @@ walks through what each of these stops.
 `arms/single-asset/` is superseded by arm 2, but it is not dead weight: it is the
 measurement that separates the two constructions. Its circuit proves a materially
 simpler statement — one asset, a merkle-sum tree, no context binding — and its
-verifier costs **3,910,447** gas against arm 2's **3,916,301**. A 0.15% difference,
-5,854 gas, for a much harder statement.
+verifier costs **3,910,843** gas against arm 2's **3,916,301**. A 0.14% difference,
+5,458 gas, for a much harder statement.
 
 That reads as the empirical form of "a SNARK's verification cost is set by the proof
 system, not by what is being proved" — but the scaling sweep (*How it scales*, below)
 shows the control is weaker than that. Both generated verifiers carry `N = 8192,
 LOG_N = 13`: the two circuits pad to the **same** power of two, and UltraHonk's cost is
 set by that padded size. So arm 4 measures that two circuits of equal padded size cost
-equally, which is true but close to tautological; the 5,854 gas between them is three
+equally, which is true but close to tautological; the 5,458 gas between them is three
 extra public inputs, not the harder statement.
 
 The claim that survives measurement, and which covers both arm 4 and the sweep, is
@@ -73,7 +74,7 @@ figures do not move when the shared base changes and the comparison stays like-f
 | `KzgSolvencyRegistry.verifyInclusion` | 150,233 ‡ | a view: free through `eth_call` |
 | `MultiAssetHonkVerifier.verify` | 3,916,301 | |
 | `MultiAssetSolvencyRegistry.submitEpoch` | 4,366,256 | verification + per-asset reserve check + oracle valuation + epoch record |
-| `HonkVerifier.verify` (single-asset) | 3,910,447 | |
+| `HonkVerifier.verify` (single-asset) | 3,910,843 | |
 | `readPrices` (3 Chainlink-style feeds) | 73,221 | |
 | `proposeReserve` / `proveReserve` / `reviewReserve` | 47,916 / 119,154 / 76,065 | `proveReserve` again once per window; same in every arm |
 | `sampleReserves` | 100,268 / 132,818 | once or more per window, by the auditor; 2 assets (arm 1) / 3 assets (arm 2), one wallet |
@@ -136,7 +137,34 @@ while leaving the range check off-chain. With the degree bound and the range
 argument verified on-chain — both needed for the total to mean anything — the
 snarkless registry costs **1.56M against 4.37M, about 2.8× cheaper** (2.7× in Sepolia-fork
 receipts; 1.8× under the pre-Fusaka rules and the older probe) — on one asset
-against three, which is the comparison *What the measurements say about the choice* revisits.
+against three, which *Like for like* below corrects.
+
+## Like for like: one asset, the same customers
+
+The table above compares arms with different assets and different customers. This one
+runs all three on `shared/customers.csv` (three customers, 49,550 units, one asset,
+50,000 reserve units), each through its own prover. Probes: `MerkleSumRegistrySharedCustomersTest`,
+the single-asset `test_GasForPrepared*` and `test_GasForTheSameSubmissionWithoutKzgVerification`.
+
+| Arm | Checking the liabilities | Full submission | Calldata | Public |
+|---|---:|---:|---:|---|
+| Published ledger, 1 part per customer | 15,420 | 304,806 | 484 B | every amount |
+| Published ledger, 2 parts per customer | 25,637 | 317,526 | 676 B | every part |
+| Snarkless (KZG) | ≈1,343,234 | 1,556,777 | 6,788 B | the total |
+| ZK, single-asset control | 3,915,741 | 4,023,440 | 7,716 B | nothing but the root |
+
+- **The ledger check** is `computeRoot` called on its own, a keccak merkle-sum tree.
+  It grows with the number of parts, up to 256 per asset.
+- **The KZG check** is 1,556,777 minus 213,543, the same `submitEpoch` with every KZG
+  check removed (`KzgBookkeepingOnly`). It is a difference of two probes, not one probe.
+- **The ZK row is not on the shared registry.** The control arm has no sampling, windows
+  or context binding, so its bookkeeping (about 108k) is lighter. On the shared registry
+  it would cost roughly 3.92M plus KZG's 214k, about 4.13M. That is an estimate.
+
+On one asset and the same data, KZG costs 2.6× less than ZK, and publishing the ledger
+costs another 5× less than KZG. Each step up buys privacy: the ledger hides only who
+owns which part, KZG hides every balance but publishes the total, and ZK hides the
+total too.
 
 ## Sepolia rehearsal versus fixture probes
 
@@ -189,9 +217,63 @@ precompile repricing moved the ratio by half, without any change to the contract
 The rehearsal as a whole used 28.4M gas to deploy and 6.93M for the first three-arm
 epoch round (one sample and one submission per arm). At 1 gwei that is 0.0284 ETH
 and 0.0069 ETH. These figures are for budgeting and do not quote a current gas price.
-For the public run, cite the receipt `gasUsed`, hash and block from
-`deployments/sepolia.json`, and keep deployment, reserve maintenance and submission
-costs separate.
+
+### Public Sepolia receipts
+
+The public deployment ran on Sepolia itself on 2026-09-25 (blocks 11,779,141 to
+11,779,264). The table lists the receipt `gasUsed` from `deployments/sepolia.json`; all
+twelve were re-read from the chain with `cast receipt` and match, all with status 1.
+These are the only receipt figures in this document. Every other figure is a Foundry
+measurement.
+
+| Arm | Epoch | `sampleReserves` | Submission | Submission tx | Fork rehearsal | Difference |
+|---|---:|---:|---:|---|---:|---:|
+| Published ledger | 0 | 100,291 | 410,209 | [`0x67c3…b00`](https://sepolia.etherscan.io/tx/0x67c38743f53afa7a2d5a1300de7e8601e5e9413e1921beda3a1d314427b5ab00), block 11,779,180 | — | — |
+| Published ledger | 1 | 63,291 | 376,485 | [`0x8bac…eb`](https://sepolia.etherscan.io/tx/0x8bac951d59681ce2b5464b1d30bb0fd4007610758700332839236f61d09e86eb), block 11,779,257 | — | — |
+| ZK circuit | 0 | 136,279 | 4,536,813 | [`0xdaff…7da`](https://sepolia.etherscan.io/tx/0xdaffc5b5b40dff9c825a6622fc115c42080d9a757b89cfb6b5cf67ff326637da), block 11,779,183 | 4,536,873 | −60 |
+| ZK circuit | 1 | 76,579 | 4,503,029 | [`0x5efd…2aa`](https://sepolia.etherscan.io/tx/0x5efd64a1c1213eefe6f1e12dd501770e96d9cf691f599034d22477d7ef0302aa), block 11,779,260 | 4,502,957 | +72 |
+| Snarkless (KZG) | 0 | 67,387 | 1,679,265 | [`0x9869…8f0`](https://sepolia.etherscan.io/tx/0x9869f95b4617debd1124dbdc545722f6f3a31716ccfafb5dd6ddc4ce1a7bd8f0), block 11,779,186 | 1,679,265 | 0 |
+| Snarkless (KZG) | 1 | 47,487 | 1,645,541 | [`0x1a4f…fa09`](https://sepolia.etherscan.io/tx/0x1a4fdb9cc08b8961c1b1cd60686c938d921a70ec36c50f4f5fe7057c3df9fa09), block 11,779,264 | 1,645,577 | −36 |
+
+- **The public run reproduces the fork rehearsal** to within 72 gas per submission.
+  The four-step reconciliation above therefore also holds for the public receipts, and
+  the ZK-to-KZG ratio stays at **2.7**. The residual differences of tens of gas are left
+  unattributed. Each epoch carries a fresh proof and fresh storage, so some variation is
+  expected.
+- **The second epoch is cheaper by almost the same amount in every arm**: 33,724 gas for
+  the ledger, 33,784 for ZK and 33,724 for KZG. This fits the shared epoch record
+  overwriting non-zero slots, as explained above, because all three arms inherit that
+  bookkeeping from `ReserveRegistry`.
+- **The ledger receipt is not the ledger figure in *Measured cost*.** On Sepolia the
+  ledger arm submits `arms/published-ledger/fixtures/customers.example.json`, split into
+  two parts per customer, over ETH and `TEST`. That is a different input from the
+  fixture behind the 408,350 in *Measured cost* (four parts, two assets) and from the
+  shared customers in *Like for like*. The 410,209 receipt is 1,859 gas above the gas
+  report's maximum. That difference is not broken down: the inputs differ, and the
+  ledger cost grows with the number of parts. The ledger arm was not part of the fork
+  rehearsal, so it has no rehearsal column.
+- **Sampling also costs less in epoch 1**: 37,000 gas less for the ledger, 59,700 for ZK
+  and 19,900 for KZG. The epoch-0 ledger sample (100,291) is 23 gas above the gas
+  report's 100,268. The ZK sample (136,279) is 3,461 gas above the 132,818. Neither
+  difference is broken down.
+
+The whole public run is 79 transactions and 43,780,186 gas, split into four groups:
+
+| Group | Transactions | Gas |
+|---|---:|---:|
+| Deployment (directory, four demo tokens, two Honk libraries, verifier, three registries) | 11 | 27,411,705 |
+| Reserve setup before epoch 0 (funding, minting, `proposeReserve` / `proveReserve` / `reviewReserve` per arm) | 15 | 973,595 |
+| Operations drill (two-step rotation of both roles and back, reserve removal and re-approval, five 21,000-gas funding transfers) | 41 | 1,752,230 |
+| Epochs 0 and 1 (one sample and one submission per arm, per epoch) | 12 | 13,642,656 |
+
+The first epoch round cost 6,930,244 gas and the second 6,712,412. Deployment plus
+reserve setup comes to 28,385,300 gas, consistent with the rehearsal's 28.4M. The
+deployment gas of `ReserveDirectory` (973,326) and `HonkVerifier` (5,279,139) equals the
+gas report. The registries do not match it exactly. `MerkleSumRegistry` used 4,131,957
+on Sepolia, 24 gas below the gas report, and `MultiAssetSolvencyRegistry` used
+5,196,817, 20,116 above it. `KzgSolvencyRegistry` used 5,274,655, 77,700 below the
+isolated probe's 5,352,355. The constructor arguments differ from the tests', and the
+differences are not broken down further.
 
 ## How it scales
 
@@ -324,12 +406,14 @@ linear combination of all balances. Blinding that away is not a small change —
 blinding adds a multiple of `Z_H`, which shifts `p(0)` and so collides with the degree bound
 the total depends on — so it stays a stated limitation rather than a fix.
 
-**Two customers cannot be shown one leaf or slot.** In arms 2 and 3 the leaf identity
-is `H(username, salt)` with the salt kept by the customer since signup, and the
-verifier takes it from the customer, never from the bundle. An in-circuit
-distinct-ID constraint, which we had listed as the fix, does not prevent this: one
-leaf can serve two customers the exchange gave the same ID, and distinctness only
-compares different leaves.
+**Two customers can still be shown one leaf or slot.** In arms 2 and 3 the leaf
+identity is `H(username, salt)`, and the verifier takes both from the customer, never
+from the bundle, so a bundle built for another credential fails. But the company issues
+the username and the salt, so it can give the same credential to two customers who are
+owed the same amounts, and both verify the one leaf. An in-circuit distinct-ID
+constraint does not prevent this either: distinctness only compares different leaves.
+Customer-chosen secrets would close it; see *One credential for two customers* in
+`docs/limitations.md`. Not built.
 
 **How bundles reach customers leaks more than any tree does.** `demo-site/` serves
 each customer's inclusion bundle as a static file at `/bundles/<username>.json`.
@@ -412,24 +496,55 @@ more cheaply than the SNARK. The circuit buys *private totals* — arm 2 proves
 "liabilities ≤ floor" without publishing liabilities, whereas a KZG grand sum is a
 published opening — and it keeps customer-side verification to a hash path.
 
-**The asymmetry the gas table hides.** Arm 3's 1.56M covers one asset; arm 2's 4.37M
-covers three. The two curves have different shapes, and the shape is structural rather
-than incidental:
+**Cost against asset count, measured.** Arm 3's 1.56M covers one asset and arm 2's
+4.37M covers three, so the two had to be measured across asset counts.
 
-- **The SNARK is flat in asset count, in steps.** Assets are constraints inside the
-  circuit, and verification depends on the circuit's *padded* size, so a marginal asset
-  is free until it pushes past a power of two and then costs one round, ~106,700 gas.
-  Measured at ~106,700 per round over 2^13 … 2^21 (*How it scales*).
-- **The polynomial path is linear in asset count.** Each asset needs its own balance
-  polynomial, its own degree bound, its own opening at 0 and — the dominant term — its
-  own 64-bit range argument. Arm 3's cost is mostly those 64 bit-commitments and the
-  batched opening over them, and none of it is shared between assets.
+*The SNARK verifier* (`arms/zk-circuit/bench/assets.ts`, results in `assets.md`) at
+N = 8, measured with a `gasleft()` probe:
 
-So the marginal asset costs arm 2 nothing at the verifier and costs arm 3 close to a
-full range argument. **The ordering reverses somewhere between two and three assets.**
-We derived this rather than measured it — building a multi-asset arm 3 would confirm a
-fact that follows from what the two constructions are — so it is stated as a structural
-argument a reader can check, not as a number to be taken on trust.
+| Assets | 1 | 2 | 3 | 4 | 8 | 128 | 192 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Gates | 4,638 | 4,774 | 4,795 | 4,813 | 4,890 | 7,210 | 8,448 |
+| `LOG_N` | 13 | 13 | 13 | 13 | 13 | 13 | 14 |
+| Verify gas | 3,915,359 | 3,917,442 | 3,919,521 | 3,921,600 | 3,929,982 | 4,182,296 | 4,423,039 |
+
+Each asset adds about 20 gates and about 2,100 gas, for one more public input. The
+committed circuit has room for about 175 more assets before its padded size doubles and
+costs one round (about 106,000 gas net). At N = 1,024 the picture is the same, with
+about 690 assets of room. The 3-asset figure is the committed verifier's: the probe reads
+3,919,521 where the gas report reads 3,916,301, a difference of call overhead only. The
+registry around the verifier also pays per asset: a price read, a reserve read and two
+stored values, estimated at 85–95k per asset but not measured, because the registry is
+fixed at three assets.
+
+*The KZG path* (`arms/snarkless/test/KzgAssetScaling.t.sol`), with the same proofs as
+`submitEpoch` for each asset:
+
+| Assets | 1 | 2 | 3 | 4 |
+|---|---:|---:|---:|---:|
+| Checks per asset | 1,323,489 | 2,628,946 | 3,944,414 | 5,269,896 |
+| Checks per asset, one batched pairing | 1,170,739 | 2,164,950 | 3,168,999 | 4,182,887 |
+| One registry per asset (separate `submitEpoch` calls) | 1,555,921 | 3,109,342 | 4,662,763 | 6,216,184 |
+
+Each asset adds 1.0–1.3M gas: its own degree bound, opening at 0 and 64-bit range
+argument, with the 64 elliptic-curve multiplications of the range argument alone about
+0.4M, since the EVM has no multi-scalar-multiplication precompile. A multi-asset
+registry pays its bookkeeping (232,432 at one asset) once, so it lies between the first
+and third rows plus that amount.
+
+*Where they cross* (arm 2 at three assets: 4,366,256):
+
+| KZG design | Two assets | Three assets | Four assets | Cheaper than ZK up to |
+|---|---:|---:|---:|---|
+| One registry per asset | 3,109,342 | 4,662,763 | 6,216,184 | 2 assets |
+| One registry, checks per asset (+232,432) | 2,861,378 | 4,176,846 | 5,502,328 | 3 assets |
+| One registry, batched pairing (+232,432) | 2,397,382 | 3,401,431 | 4,415,319 | about 4 assets |
+
+The last two rows are sums of measured probes. Against them, arm 2 at four assets is
+about 4.46M by the per-asset estimate above. **The ordering reverses between two and
+five assets, depending on how the KZG side is engineered;** for every design measured
+here, ZK is cheaper from five assets on. The KZG figures leave out the price feeds arm 2
+reads, so if anything they flatter KZG.
 
 **Why the obvious hybrid does not work cleanly.** Using KZG for inclusion and a
 SNARK to hide the total requires the circuit to prove a statement about an *external*
@@ -454,12 +569,12 @@ three, the answer is not a single ratio but a crossover.
 
 For **one asset**, less ZK is needed than it first appears: a polynomial commitment
 delivers a sound public total, per-customer inclusion and on-chain non-negativity for
-1.56M gas against 4.37M for the SNARK path — cheaper, though by 2.8×, not the 18× we
-first reported. But that comparison is one asset against three. The SNARK's verification
-cost grows only logarithmically in circuit size — ~106,700 gas per doubling, measured —
-while the polynomial path pays a fresh range argument per asset, so **which construction
-is cheaper is a question about the deployment, not about the cryptography** — and past
-two or three assets the circuit wins.
+1.56M gas against 4.02M for a single-asset SNARK on the same customers — 2.6× cheaper,
+not the 18× we first reported. Each further asset costs the SNARK about 2,100 gas at the
+verifier and costs the polynomial path 1.0–1.3M, both measured, so **which construction
+is cheaper is a question about the deployment, not about the cryptography** — and from
+five assets on the circuit wins in every design measured (from three, if each asset gets
+its own registry).
 
 Put the other way: ZK's value here is not that it proves range cheaply, because measured,
 it does not. It is that **verification cost grows only logarithmically in what is proved** —
@@ -499,6 +614,16 @@ customer to tell a solvent exchange from one that had stopped publishing.
   conclusion was rewritten: the previous "1.8x cheaper" headline compared a one-asset
   arm 3 with a three-asset arm 2, and the honest statement is a crossover, derived from
   the flat-versus-linear cost structure and anchored by arm 4 as a control.
+- 2026-09-25: the crossover is measured instead of derived. All three arms run on the same
+  customers at one asset (*Like for like*), KZG verification is measured for one to four
+  assets and the SNARK verifier for 1 to 1,024 assets. The crossover moves from "between
+  two and three assets" to "between two and five, depending on the KZG design". The
+  single-asset verifier figure was the median of a failing call; the successful call
+  costs 3,910,843, so its gap to arm 2 is 5,458 gas.
+- 2026-09-25 (later): *Public Sepolia receipts* adds the gas of the public run's twelve
+  epoch transactions, checked against the chain, and the run's total by group. The
+  public ZK and KZG submissions are within 72 gas of the fork rehearsal. No Foundry
+  figure changed.
 - 2026-09-22: gas is measured under the Osaka (Fusaka) rules Ethereum runs today instead
   of `cancun`. Fusaka's MODEXP repricing (EIP-7883) raises the ZK verifier from 2.79M to
   3.92M gas and the per-round cost from 74,327 to 106,715. The runtime bytecode is

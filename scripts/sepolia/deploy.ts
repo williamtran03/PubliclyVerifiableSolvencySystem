@@ -10,7 +10,7 @@ export const TOKENS = { BTC: 8, WETH: 18, USDC: 6, TEST: 0 } as const;
 
 export function holdings(tokens: Record<keyof typeof TOKENS, Address>): Record<Arm, [Address, bigint][]> {
   return {
-    "published-ledger": [[zeroAddress, 120n], [tokens.TEST, 3n]],
+    "published-ledger": [[zeroAddress, parseEther("0.00012")], [tokens.TEST, 3n]],
     "zk-circuit": [[tokens.BTC, 3n * 10n ** 8n], [tokens.WETH, parseEther("12")], [tokens.USDC, 6000n * 10n ** 6n]],
     snarkless: [[tokens.TEST, 50000n]],
   };

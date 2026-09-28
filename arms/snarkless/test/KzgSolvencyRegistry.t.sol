@@ -15,6 +15,40 @@ contract UnitToken {
     }
 }
 
+contract KzgBookkeepingOnly is ReserveRegistry {
+    address public immutable token;
+    mapping(uint256 => KzgSolvencyRegistry.Epoch) private epochs;
+    uint256 public epochCount;
+
+    event EpochSubmitted(uint256 indexed epochId, uint256 totalLiabilities, uint256 reserveUnits);
+
+    constructor(address _company, address _auditor, address _token, ReserveDirectory _directory)
+        ReserveRegistry(_company, _auditor, 1 days, 1 hours, _directory)
+    {
+        token = _token;
+    }
+
+    function _reserveTokens() internal view override returns (address[] memory tokens) {
+        tokens = new address[](1);
+        tokens[0] = token;
+    }
+
+    function submitEpoch(KzgSolvencyRegistry.GrandSum calldata sum, KzgSolvencyRegistry.RangeProof calldata)
+        external
+        onlyCompany
+    {
+        _requireSample();
+        uint256 units = attestedBalance(token) / (10 ** 0);
+        require(units >= sum.totalLiabilities, "insolvent");
+        _recordEpoch();
+        epochs[epochCount] = KzgSolvencyRegistry.Epoch(
+            sum.balanceCommitment, sum.identityCommitment, sum.totalLiabilities, units, uint64(block.timestamp)
+        );
+        emit EpochSubmitted(epochCount, sum.totalLiabilities, units);
+        epochCount++;
+    }
+}
+
 contract KzgSolvencyRegistryTest is Test {
     address constant FIXTURE_REGISTRY = 0x34A1D3fff3958843C43aD80F30b94c510645C316;
 
@@ -155,6 +189,31 @@ contract KzgSolvencyRegistryTest is Test {
         uint256 used = before - gasleft();
         assertTrue(ok);
         emit log_named_uint("kzg prepared submitEpoch gas", used);
+    }
+
+    function test_GasForTheSameSubmissionWithoutKzgVerification() public {
+        ReserveDirectory otherDirectory = new ReserveDirectory();
+        KzgBookkeepingOnly bookkeeping = new KzgBookkeepingOnly(company, auditor, address(token), otherDirectory);
+        vm.prank(company);
+        bookkeeping.proposeReserve(reserve);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(reserveKey, bookkeeping.reserveDigest(reserve));
+        bookkeeping.proveReserve(reserve, abi.encodePacked(r, s, v));
+        vm.prank(auditor);
+        bookkeeping.reviewReserve(reserve, true);
+        vm.prank(auditor);
+        bookkeeping.sampleReserves();
+        vm.roll(block.number + 1);
+
+        bytes memory payload = abi.encodeCall(bookkeeping.submitEpoch, (sum, range));
+        address target = address(bookkeeping);
+        vm.prank(company);
+        uint256 before = gasleft();
+        (bool ok,) = target.call(payload);
+        uint256 used = before - gasleft();
+        assertTrue(ok, "the bookkeeping-only copy must accept the same calldata");
+        assertEq(bookkeeping.epochCount(), 1);
+        emit log_named_uint("kzg prepared submitEpoch bookkeeping-only gas, no KZG checks", used);
+        emit log_named_uint("kzg submitEpoch calldata bytes", payload.length);
     }
 
     function test_GasForDeployment() public {

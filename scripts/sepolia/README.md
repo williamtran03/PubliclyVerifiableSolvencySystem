@@ -1,7 +1,7 @@
 # Sepolia deployment
 
 `npm run sepolia` deploys the three arms to Sepolia and publishes their epochs. It uses the
-same contracts, customer set and provers as the local demo, with real keys, the live
+same contracts, per-arm customer fixtures and provers as the local demo, with real keys, the live
 Chainlink feeds and the ceremony SRS. Deployment reads the recorded addresses and
 on-chain reserve state to skip completed steps. The operations drill saves resumable
 checkpoints. Epoch publication creates the next epoch on each successful invocation,
@@ -16,7 +16,7 @@ below).
 | `ReserveDirectory` | One for the chain. It gives each reserve wallet to one registry at a time, so each arm has its own reserve key. |
 | `BTC`, `WETH`, `USDC`, `TEST` | `DemoAsset` test tokens (8, 18, 6 and 0 decimals). Minting is unrestricted, so these reserves show the mechanism, not real backing. |
 | `RelationsLib`, `ZKTranscriptLib`, `HonkVerifier` | The generated UltraHonk verifier for the committed circuit. |
-| `MerkleSumRegistry` | Arm 1. Assets are native ETH and `TEST`, with the ledger fixture's customers (120 wei and 3 TEST). |
+| `MerkleSumRegistry` | Arm 1. Assets are native ETH and `TEST`, with the ledger fixture's customers (0.00012 ETH and 3 TEST). |
 | `MultiAssetSolvencyRegistry` | Arm 2. BTC, WETH and USDC, priced by the Chainlink BTC/USD, ETH/USD and USDC/USD feeds. |
 | `KzgSolvencyRegistry` | Arm 3. `TEST` with 0 decimals, the shared `customers.csv`. |
 
@@ -143,9 +143,8 @@ same as in the local demo (`scripts/demo/README.md`).
 
 ## Before the first real run
 
-Historical preparation checklist (2026-09-22). Public deployment, two epoch rounds,
-and the operations drill completed on 25 September 2026; see
-[release evidence](../../docs/sepolia-release-2026-09-25.md). The original checklist was:
+Done on 25 September 2026; see
+[release evidence](../../docs/sepolia-release-2026-09-25.md). For a new deployment:
 
 - Fund the company and auditor, check RPC access, and install the pinned proving tools
   on the machine that runs `epoch`. The version check does not install them.
@@ -208,6 +207,3 @@ command at a time.
   to the ZK verifier. Public Sepolia measurements must cite the recorded transaction
   hashes.
 
-## Decisions before publication
-
-The team discussion checklist is in [open-decisions.md](../../docs/open-decisions.md).

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import assert from "node:assert/strict";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { type Abi, type Hex } from "viem";
+import { parseEther, type Abi, type Hex } from "viem";
 import { buildSplitLiabilities, verifyCustomer, type Customer } from "../prover/splitLiabilities.ts";
 import { auditor, company, demoChain, isMain, maxEpochAge, minEpochInterval, outputDirectory, writeJson } from "../../../scripts/demo/chain.ts";
 
@@ -17,7 +17,7 @@ export async function runLedgerDemo(rpc: string, output: string) {
     ["0x0000000000000000000000000000000000000000", token], maxEpochAge, minEpochInterval, await deployDirectory(),
   ]);
   await send(company, token, tokenAbi, "mint", [reserve.address, 3n]);
-  const funding = await client.waitForTransactionReceipt({ hash: await wallet(company).sendTransaction({ to: reserve.address, value: 120n }) });
+  const funding = await client.waitForTransactionReceipt({ hash: await wallet(company).sendTransaction({ to: reserve.address, value: parseEther("0.00012") }) });
   assert.equal(funding.status, "success");
   await approveReserve(registry, abi, reserve);
   await sampleReserves(registry, abi);
@@ -31,7 +31,7 @@ export async function runLedgerDemo(rpc: string, output: string) {
   const epoch = await client.readContract({ address: registry, abi, functionName: "latestEpoch" }) as any;
   assert.deepEqual(epoch.rootHashes, ledger.assets.map(a => a.rootHash));
   assert.deepEqual(epoch.liabilities, ledger.assets.map(a => a.totalLiabilities));
-  assert.deepEqual(epoch.liabilities, [120n, 3n], "the funded reserves exactly cover the fixture's liabilities");
+  assert.deepEqual(epoch.liabilities, [parseEther("0.00012"), 3n], "the funded reserves exactly cover the fixture's liabilities");
   const published = { snapshotId: epoch.snapshotId, assets: epoch.rootHashes.map((rootHash: bigint, i: number) => ({ rootHash, totalLiabilities: epoch.liabilities[i] })) };
   for (const [i, customer] of customers.entries()) {
     const expected = new Map<number, bigint>();

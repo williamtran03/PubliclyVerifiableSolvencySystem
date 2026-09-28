@@ -91,11 +91,11 @@ test("a wrong amount, context or root fails", () => {
   assert.equal(verifyBundle(tampered, customer(holdings[0], 3n), root, CONTEXT), false);
 });
 
-test("two customers cannot be served one leaf: the salt comes from the customer", () => {
+test("a customer sharing a username but holding a different salt rejects the leaf", () => {
   const { levels, root, holdings: padded } = published();
   const shared = createBundle("customer-123", padded, levels);
   const victim: Customer = {
-    username: "customer-123", // the exchange told both customers this ID
+    username: "customer-123",
     salt: 99n,
     expectedAmounts: new Map([[0, 2n]]),
   };

@@ -40,6 +40,7 @@ BENCH_FORM=flat make zk-bench         # one form
 BENCH_TIMEOUT=600 make zk-bench       # seconds per stage before a run is abandoned
 
 BENCH_N=8,128,2048 npx tsx arms/zk-circuit/bench/verifier.ts
+BENCH_N=8,1024 BENCH_ASSETS=1,2,3,4,6,8 npx tsx arms/zk-circuit/bench/assets.ts
 ```
 
 Results are rewritten after every N, so a sweep that dies at the largest size keeps the

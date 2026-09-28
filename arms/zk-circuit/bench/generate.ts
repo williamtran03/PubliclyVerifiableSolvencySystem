@@ -17,7 +17,12 @@ export function depthOf(capacity: number): number {
   return depth;
 }
 
-export function mainNr(capacity: number): string {
+export function assetCount(assets: number): number {
+  if (!Number.isInteger(assets) || assets < 1) throw new Error(`asset count ${assets} is not a positive integer`);
+  return assets;
+}
+
+export function mainNr(capacity: number, assets: number = NUM_ASSETS): string {
   const depth = depthOf(capacity);
   const levels = Array.from(
     { length: depth },
@@ -26,7 +31,7 @@ export function mainNr(capacity: number): string {
 
   return `use poseidon::poseidon2::Poseidon2;
 
-global NUM_ASSETS: u32 = ${NUM_ASSETS};
+global NUM_ASSETS: u32 = ${assetCount(assets)};
 global CAPACITY: u32 = ${capacity};
 
 fn combine_level<let M: u32>(hashes: [Field; M]) -> [Field; M / 2] {
@@ -66,7 +71,7 @@ ${levels}
 `;
 }
 
-export function mainNrFlat(capacity: number): string {
+export function mainNrFlat(capacity: number, assets: number = NUM_ASSETS): string {
   const depth = depthOf(capacity);
   const levels: string[] = [];
   let offset = 0;
@@ -84,7 +89,7 @@ export function mainNrFlat(capacity: number): string {
 
   return `use poseidon::poseidon2::Poseidon2;
 
-global NUM_ASSETS: u32 = ${NUM_ASSETS};
+global NUM_ASSETS: u32 = ${assetCount(assets)};
 global CAPACITY: u32 = ${capacity};
 global NODES: u32 = ${2 * capacity - 1};
 
@@ -120,17 +125,17 @@ ${levels.join("\n")}
 const draw = (seed: Hex, label: string, i: number): bigint =>
   BigInt(keccak256(encodePacked(["bytes32", "string", "uint256"], [seed, label, BigInt(i)])));
 
-export function benchHoldings(capacity: number, seed: Hex): Holding[] {
+export function benchHoldings(capacity: number, seed: Hex, assets: number = NUM_ASSETS): Holding[] {
   return Array.from({ length: capacity }, (_, i) => ({
     username: `bench-${i}`,
     salt: draw(seed, "salt", i) % FIELD_ORDER,
-    assetId: i % NUM_ASSETS,
+    assetId: i % assetCount(assets),
     amount: (draw(seed, "amount", i) % 1_000_000_000n) + 1n,
   }));
 }
 
-export function proverToml(holdings: Holding[], context: bigint): string {
-  const floors = new Array<bigint>(NUM_ASSETS).fill(0n);
+export function proverToml(holdings: Holding[], context: bigint, assets: number = NUM_ASSETS): string {
+  const floors = new Array<bigint>(assetCount(assets)).fill(0n);
   for (const h of holdings) floors[h.assetId] += h.amount;
   const list = (values: (string | number | bigint)[]) => `[${values.map((v) => `"${v}"`).join(", ")}]`;
   return [

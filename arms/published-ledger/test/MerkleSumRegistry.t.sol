@@ -221,3 +221,100 @@ contract MerkleSumRegistryTest is Test {
         registry.submitLedger(bytes32(uint256(1)), ids, amounts);
     }
 }
+
+contract MerkleSumRegistrySharedCustomersTest is Test {
+    MerkleSumRegistry registry;
+    ReserveDirectory directory;
+    MockToken token;
+    address company = makeAddr("company");
+    address auditor = makeAddr("auditor");
+    address reserve;
+    uint256 reserveKey;
+    string fixture;
+
+    uint256 constant RESERVE_UNITS = 50_000;
+    uint256 constant SHARED_LIABILITIES = 49_550;
+
+    function setUp() public {
+        vm.warp(1_700_000_000);
+        vm.roll(1_000);
+        (reserve, reserveKey) = makeAddrAndKey("reserve");
+        token = new MockToken();
+        directory = new ReserveDirectory();
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(token);
+        registry = new MerkleSumRegistry(company, auditor, tokens, 1 days, 1 hours, directory);
+
+        token.mint(reserve, RESERVE_UNITS);
+        vm.prank(company);
+        registry.proposeReserve(reserve);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(reserveKey, registry.reserveDigest(reserve));
+        registry.proveReserve(reserve, abi.encodePacked(r, s, v));
+        vm.prank(auditor);
+        registry.reviewReserve(reserve, true);
+        vm.prank(auditor);
+        registry.sampleReserves();
+        vm.roll(block.number + 1);
+
+        fixture = vm.readFile("arms/published-ledger/fixtures/shared-customers.json");
+    }
+
+    function ledger(string memory variant)
+        internal
+        view
+        returns (bytes32 snapshotId, uint256[][] memory ids, uint256[][] memory amounts, uint256 root)
+    {
+        snapshotId = vm.parseJsonBytes32(fixture, string.concat(".", variant, ".snapshotId"));
+        ids = new uint256[][](1);
+        amounts = new uint256[][](1);
+        ids[0] = vm.parseJsonUintArray(fixture, string.concat(".", variant, ".identities"));
+        amounts[0] = vm.parseJsonUintArray(fixture, string.concat(".", variant, ".amounts"));
+        root = vm.parseJsonUint(fixture, string.concat(".", variant, ".rootHash"));
+    }
+
+    function probeSubmission(string memory variant) internal returns (uint256 used, uint256 calldataBytes) {
+        (bytes32 snapshotId, uint256[][] memory ids, uint256[][] memory amounts, uint256 root) = ledger(variant);
+        bytes memory payload = abi.encodeCall(registry.submitLedger, (snapshotId, ids, amounts));
+        address target = address(registry);
+        vm.prank(company);
+        uint256 before = gasleft();
+        (bool ok,) = target.call(payload);
+        used = before - gasleft();
+        assertTrue(ok, "the shared-customer ledger must be accepted against 50,000 reserve units");
+        calldataBytes = payload.length;
+        MerkleSumRegistry.Epoch memory epoch = registry.latestEpoch();
+        assertEq(epoch.rootHashes[0], root, "the contract must rebuild the root the TypeScript prover published");
+        assertEq(epoch.liabilities[0], SHARED_LIABILITIES, "shared/customers.csv owes 49,550 units");
+        assertEq(epoch.reserves[0], RESERVE_UNITS);
+    }
+
+    function probeComputeRoot(string memory variant) internal view returns (uint256 used) {
+        (, uint256[][] memory ids, uint256[][] memory amounts, uint256 root) = ledger(variant);
+        bytes memory payload = abi.encodeCall(registry.computeRoot, (ids[0], amounts[0]));
+        address target = address(registry);
+        uint256 before = gasleft();
+        (bool ok, bytes memory result) = target.staticcall(payload);
+        used = before - gasleft();
+        assertTrue(ok);
+        (uint256 computed, uint256 sum) = abi.decode(result, (uint256, uint256));
+        assertEq(computed, root, "the contract must rebuild the root the TypeScript prover published");
+        assertEq(sum, SHARED_LIABILITIES, "shared/customers.csv owes 49,550 units");
+    }
+
+    function test_GasForSharedCustomersOnePartEach() public {
+        (uint256 used, uint256 calldataBytes) = probeSubmission("whole");
+        emit log_named_uint("ledger shared-customers submitLedger gas, 3 parts 1 asset", used);
+        emit log_named_uint("ledger shared-customers submitLedger calldata bytes, 3 parts", calldataBytes);
+    }
+
+    function test_GasForSharedCustomersTwoPartsEach() public {
+        (uint256 used, uint256 calldataBytes) = probeSubmission("split");
+        emit log_named_uint("ledger shared-customers submitLedger gas, 6 parts 1 asset", used);
+        emit log_named_uint("ledger shared-customers submitLedger calldata bytes, 6 parts", calldataBytes);
+    }
+
+    function test_GasForSharedCustomersRootOnly() public {
+        emit log_named_uint("ledger shared-customers computeRoot gas, 3 parts", probeComputeRoot("whole"));
+        emit log_named_uint("ledger shared-customers computeRoot gas, 6 parts", probeComputeRoot("split"));
+    }
+}

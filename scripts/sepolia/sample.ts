@@ -2,7 +2,7 @@ import type { SolutionId } from "../../open-solvency/src/types.ts";
 
 export const SAMPLE_SECRET = "84731920475619283746152039485761029384";
 export const samples: Record<SolutionId, { account: string; balances: [number, string][]; secret: string }> = {
-  "published-ledger": { account: "alice", balances: [[0, "100"], [1, "3"]], secret: "" },
+  "published-ledger": { account: "alice", balances: [[0, "100000000000000"], [1, "3"]], secret: "" },
   "zk-circuit": { account: "customer-123", balances: [[0, "250000000"]], secret: SAMPLE_SECRET },
   snarkless: { account: "customer-123", balances: [[0, "12550"]], secret: SAMPLE_SECRET },
 };
