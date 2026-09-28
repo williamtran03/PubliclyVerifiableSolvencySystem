@@ -6,7 +6,7 @@ import { toHex, type Address, type Hex } from "viem";
 import { buildSplitLiabilities, type Customer as LedgerCustomer } from "../../arms/published-ledger/prover/splitLiabilities.ts";
 import { fetchSnapshot } from "../../arms/zk-circuit/prover/fetchSnapshot.ts";
 import { prepareEpoch } from "../../arms/zk-circuit/prover/buildMultiAssetTree.ts";
-import { createBundle, parseHoldingsCsv } from "../../arms/zk-circuit/prover/multiAssetTree.ts";
+import { createBundle, parseHoldingsCsv, type Holding } from "../../arms/zk-circuit/prover/multiAssetTree.ts";
 import { prove } from "../../arms/zk-circuit/prover/prove.ts";
 import { loadSrs, type G1Point } from "../../arms/snarkless/prover/srs.ts";
 import { buildGrandSumEpoch, epochContext, identityOf, proveInclusion, type Account } from "../../arms/snarkless/prover/grandSum.ts";
@@ -61,6 +61,14 @@ async function prepareLedger(): Promise<Prepared> {
   return { functionName: "submitLedger", args, files, checks };
 }
 
+export function customerBalances(holdings: Holding[]): Map<number, bigint> {
+  const totals = new Map<number, bigint>();
+  for (const holding of holdings) {
+    totals.set(holding.assetId, (totals.get(holding.assetId) ?? 0n) + holding.amount);
+  }
+  return totals;
+}
+
 async function prepareZk(network: Network, epochId: bigint): Promise<Prepared> {
   const registry = network.registryOf("zk-circuit");
   const snapshot = await fetchSnapshot(network.rpc, registry);
@@ -79,7 +87,7 @@ async function prepareZk(network: Network, epochId: bigint): Promise<Prepared> {
   for (const username of new Set(holdings.map(h => h.username))) {
     files.push([`${username}.json`, createBundle(username, prepared.padded, prepared.levels)]);
     const own = holdings.filter(h => h.username === username);
-    checks.push({ file: `${username}.json`, account: username, expected: new Map(own.map(h => [h.assetId, h.amount])), secret: own[0].salt.toString() });
+    checks.push({ file: `${username}.json`, account: username, expected: customerBalances(own), secret: own[0].salt.toString() });
   }
   return { functionName: "submitEpoch", args: [proof, prepared.rootHash, prepared.floors, roundIds], files, checks };
 }
