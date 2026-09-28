@@ -24,7 +24,7 @@ Select the arm, load its snapshot, and open the corresponding local file. Amount
 
 | File | Account | Proof units | Customer-chosen secret |
 | --- | --- | --- | --- |
-| `ledger-alice.json` | `alice` | asset 0: 100000000000000 (0.0001 ETH); asset 1: 3 | `1606938044258990275541962092341162602522202993782792835313721` |
+| `ledger-alice.json` | `alice` | asset 0: 100000000000000000 (0.1 ETH); asset 1: 3 | `1606938044258990275541962092341162602522202993782792835313721` |
 | `zk-customer-123.json` | `customer-123` | asset 0: 250000000 (2.5 BTC) | `1606938044258990275541962092341162602522202993782792835313721` |
 | `kzg-customer-123.json` | `customer-123` | asset 0: 12550 | `1606938044258990275541962092341162602522202993782792835313721` |
 

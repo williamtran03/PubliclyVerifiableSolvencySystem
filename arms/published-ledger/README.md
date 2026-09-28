@@ -31,15 +31,15 @@ for multisigs), the auditor approves it. Only approved wallets count.
 Each asset has its own tree, padded with zero leaves to a power of two; an asset
 nobody holds has an empty ledger with root and total 0. Amounts are in the asset's
 base units (wei for ETH), so reserves and liabilities compare exactly, with no price
-and no rounding.
-Each customer supplies a Poseidon2 commitment to a high-entropy secret they chose; raw
-secrets are used only during customer verification.
+and no rounding. Each customer supplies a Poseidon2 commitment to a high-entropy secret
+they chose; raw secrets are used only during customer verification. The demo fixture gives Alice 0.1 ETH (split into 0.04 and
+0.06 ETH) plus 3 TEST, and Bob 0.02 ETH: total liabilities are 0.12 ETH and 3 TEST.
 
 ## Build, audit, verify
 
     npm run ledger -- build arms/published-ledger/fixtures/customers.example.json <new dir> 2
     npm run ledger -- audit <dir>/ledger.json
-    npm run ledger -- verify <registry> <rpc url> <dir>/private/customer-0.json alice <customer-secret> 0:100 1:3
+    npm run ledger -- verify <registry> <rpc url> <dir>/private/customer-0.json alice <customer-secret> 0:100000000000000000 1:3
 
 `build` writes the public `ledger.json` and one private bundle per customer; publish
 only the former. `verify` takes the customer ID, the customer's chosen secret, and one `assetId:amount` per asset from

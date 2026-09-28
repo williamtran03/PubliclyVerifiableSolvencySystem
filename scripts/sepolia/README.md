@@ -16,7 +16,7 @@ below).
 | `ReserveDirectory` | One for the chain. It gives each reserve wallet to one registry at a time, so each arm has its own reserve key. |
 | `BTC`, `WETH`, `USDC`, `TEST` | `DemoAsset` test tokens (8, 18, 6 and 0 decimals). Minting is unrestricted, so these reserves show the mechanism, not real backing. |
 | `RelationsLib`, `ZKTranscriptLib`, `HonkVerifier` | The generated UltraHonk verifier for the committed circuit. |
-| `MerkleSumRegistry` | Arm 1. Assets are native ETH and `TEST`, with the ledger fixture's customers (0.00012 ETH and 3 TEST). |
+| `MerkleSumRegistry` | Arm 1. Assets are native ETH and `TEST`, with the ledger fixture's customers (0.12 ETH and 3 TEST). |
 | `MultiAssetSolvencyRegistry` | Arm 2. BTC, WETH and USDC, priced by the Chainlink BTC/USD, ETH/USD and USDC/USD feeds. |
 | `KzgSolvencyRegistry` | Arm 3. `TEST` with 0 decimals, the shared `customers.csv`. |
 
@@ -45,6 +45,10 @@ Optional settings: `MAX_EPOCH_AGE` (default 2592000 s, 30 days, after which the 
 the snapshot as expired), `MIN_EPOCH_INTERVAL` (default 60 s), `PRIVATE_OUTPUT`
 (default `~/opensolvency-sepolia`, must be outside the repository) and `DEPLOYMENT_FILE`
 (default `deployments/sepolia.json`). The two schedule values are fixed at deployment.
+
+The ledger reserve requires 0.12 Sepolia ETH in addition to transaction fees.
+For a new deployment, budget at least 0.25 Sepolia ETH for Company at the quoted
+1 gwei fee example; recheck current fees and leave a margin.
 
 Request faucet ETH early, because faucets are rate-limited. A dress rehearsal on an Anvil
 fork of Sepolia used 28.4M gas for the deployment and 6.9M gas for each epoch across all
