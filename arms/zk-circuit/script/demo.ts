@@ -40,7 +40,9 @@ export async function runZkDemo(rpc: string, output: string) {
   const proof = toHex(readFileSync("arms/zk-circuit/fixtures/proof.bin"));
   const holdings = parseHoldingsCsv(readFileSync("arms/zk-circuit/prover/customers.csv", "utf8"));
   const prepared = prepareEpoch(holdings, snapshot, keccak256(encodePacked(["string"], ["northwind demo tree seed"])));
-  assert.equal(prepared.rootHash, BigInt(epoch.rootHash), "Committed proof and customer data do not match");
+  if (prepared.rootHash !== BigInt(epoch.rootHash)) {
+    throw new Error("The committed ZK proof predates customer-chosen secret commitments. Regenerate Prover.toml and the proof with make zk-fixtures and make zk-prove before running the demo.");
+  }
   await send(company, registry, abi, "submitEpoch", [proof, BigInt(epoch.rootHash), epoch.floors.map(BigInt), snapshot.roundIds]);
   await proveReserve(registry, abi, reserve);
   await sampleReserves(registry, abi);
