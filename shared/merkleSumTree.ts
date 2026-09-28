@@ -171,3 +171,12 @@ export function verifyProof(proof: MerkleSumProof, hash: HashFn): boolean {
 import { poseidon2Hash as poseidon2 } from "@zkpassport/poseidon2";
 
 export const poseidon2Hash: HashFn = (values) => poseidon2(values);
+
+export const POSEIDON_FIELD_ORDER =
+  21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+
+/** Commit to a customer-held scalar before it is included in liability data. */
+export function customerSecretCommitment(secret: bigint): bigint {
+  if (secret <= 0n || secret >= POSEIDON_FIELD_ORDER) throw new Error("customer secret must be a nonzero field element");
+  return poseidon2Hash([secret]);
+}
