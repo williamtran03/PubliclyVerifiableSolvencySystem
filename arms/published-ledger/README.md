@@ -32,6 +32,8 @@ Each asset has its own tree, padded with zero leaves to a power of two; an asset
 nobody holds has an empty ledger with root and total 0. Amounts are in the asset's
 base units (wei for ETH), so reserves and liabilities compare exactly, with no price
 and no rounding.
+Each customer supplies a Poseidon2 commitment to a high-entropy secret they chose; raw
+secrets are used only during customer verification.
 
 ## Build, audit, verify
 

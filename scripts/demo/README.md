@@ -22,11 +22,11 @@ three independent walkthroughs, not a common-dataset benchmark.
 
 Select the arm, load its snapshot, and open the corresponding local file. Amounts below are proof units; the UI also supports token amounts when unit metadata is available.
 
-| File | Account | Proof units | Secret |
+| File | Account | Proof units | Customer-chosen secret |
 | --- | --- | --- | --- |
-| `ledger-alice.json` | `alice` | asset 0: 100000000000000 (0.0001 ETH); asset 1: 3 | none |
-| `zk-customer-123.json` | `customer-123` | asset 0: 250000000 (2.5 BTC) | 84731920475619283746152039485761029384 |
-| `kzg-customer-123.json` | `customer-123` | asset 0: 12550 | 84731920475619283746152039485761029384 |
+| `ledger-alice.json` | `alice` | asset 0: 100000000000000 (0.0001 ETH); asset 1: 3 | `1606938044258990275541962092341162602522202993782792835313721` |
+| `zk-customer-123.json` | `customer-123` | asset 0: 250000000 (2.5 BTC) | `1606938044258990275541962092341162602522202993782792835313721` |
+| `kzg-customer-123.json` | `customer-123` | asset 0: 12550 | `1606938044258990275541962092341162602522202993782792835313721` |
 
 Changing a balance by one proof unit must fail. A valid inclusion proof still verifies mathematically after the epoch expires, but the UI must label it expired.
 
