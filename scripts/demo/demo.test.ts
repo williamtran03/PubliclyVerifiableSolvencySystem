@@ -1,5 +1,5 @@
 import test from "node:test";
-import { createTestClient, http } from "viem";
+import { createTestClient, http, parseEther } from "viem";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -21,7 +21,7 @@ test("three demo deployments support the site's verification and publication ada
   const file = (name: string) => readFileSync(join(demo.output, name), "utf8");
   try {
     for (const [solution, name, account, expected, secret] of [
-      [ledger, "ledger-alice.json", "alice", new Map([[0, 100000000000000n], [1, 3n]]), SAMPLE_SECRET],
+      [ledger, "ledger-alice.json", "alice", new Map([[0, parseEther("0.1")], [1, 3n]]), SAMPLE_SECRET],
       [zk, "zk-customer-123.json", "customer-123", new Map([[0, 250000000n]]), SAMPLE_SECRET],
       [kzg, "kzg-customer-123.json", "customer-123", new Map([[0, 12550n]]), SAMPLE_SECRET],
     ] as const) {

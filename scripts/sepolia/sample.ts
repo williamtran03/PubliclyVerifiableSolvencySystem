@@ -10,7 +10,7 @@ export const SAMPLE_CUSTOMER_SECRETS = {
 } as const;
 export const SAMPLE_ZK_SECRET_COMMITMENT = "18198450858877723268609176186279719619286837271163992418725572013085434099811";
 export const samples: Record<SolutionId, { account: string; balances: [number, string][]; secret: string }> = {
-  "published-ledger": { account: "alice", balances: [[0, "100000000000000"], [1, "3"]], secret: SAMPLE_LEDGER_SECRETS.alice },
+  "published-ledger": { account: "alice", balances: [[0, "100000000000000000"], [1, "3"]], secret: SAMPLE_LEDGER_SECRETS.alice },
   "zk-circuit": { account: "customer-123", balances: [[0, "250000000"]], secret: SAMPLE_SECRET },
   snarkless: { account: "customer-123", balances: [[0, "12550"]], secret: SAMPLE_SECRET },
 };
