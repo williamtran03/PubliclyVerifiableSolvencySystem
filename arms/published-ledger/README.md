@@ -25,8 +25,8 @@ for multisigs), the auditor approves it. Only approved wallets count.
 
     leaf     = keccak256(abi.encode(identity, amount))
     parent   = keccak256(abi.encode(left.hash, left.sum, right.hash, right.sum))
-    identity = keccak256(abi.encode("solvency.split.v2", snapshotId, customerId, name,
-                                    dateOfBirth, assetId, partIndex, salt))
+    identity = keccak256(abi.encode("solvency.split.v3", snapshotId, customerId, name,
+                                    dateOfBirth, assetId, partIndex, salt, Poseidon2(secret)))
 
 Each asset has its own tree, padded with zero leaves to a power of two; an asset
 nobody holds has an empty ledger with root and total 0. Amounts are in the asset's
@@ -40,7 +40,7 @@ and no rounding.
     npm run ledger -- verify <registry> <rpc url> <dir>/private/customer-0.json alice 0:100 1:3
 
 `build` writes the public `ledger.json` and one private bundle per customer; publish
-only the former. `verify` takes the customer ID and one `assetId:amount` per asset from
+only the former. `verify` takes the customer ID, the customer's chosen secret, and one `assetId:amount` per asset from
 the customer's own records, reads the latest epoch from the registry, and checks every
 part's identity opening and path, rejecting duplicate parts, parts moved to another
 asset's tree and omitted parts or assets.

@@ -177,6 +177,6 @@ export const POSEIDON_FIELD_ORDER =
 
 /** Commit to a customer-held scalar before it is included in liability data. */
 export function customerSecretCommitment(secret: bigint): bigint {
-  if (secret <= 0n || secret >= POSEIDON_FIELD_ORDER) throw new Error("customer secret must be a nonzero field element");
+  if (secret < (1n << 128n) || secret >= POSEIDON_FIELD_ORDER) throw new Error("customer secret must be a field element with at least 128 bits");
   return poseidon2Hash([secret]);
 }
