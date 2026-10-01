@@ -45,7 +45,8 @@ export const kzg: Solution = {
     if (bundle.username !== account || !Number.isSafeInteger(bundle.index) || bundle.index < 0 || bundle.index >= 8) return { valid: false, message: "The account or proof index does not match." };
     const identity = poseidon2Hash([usernameToBigInt(account), customerSecretCommitment(BigInt(secret))]);
     const balance = expected.get(0)!;
-    if (BigInt(bundle.identity) !== identity || BigInt(bundle.balance) !== balance) return { valid: false, message: "The balance or secret does not match the customer proof." };
+    if (BigInt(bundle.identity) !== identity) return { valid: false, message: "The secret does not match the customer proof." };
+    if (BigInt(bundle.balance) !== balance) return { valid: false, message: "The balance does not match the customer proof." };
     const valid = await client(connection).readContract({
       address: connection.registry, abi, functionName: "verifyInclusion",
       args: [snapshot.epoch, BigInt(bundle.index), identity, balance, { x: BigInt(bundle.proof.x), y: BigInt(bundle.proof.y) }],
