@@ -56,13 +56,27 @@ export function renderPublicLedger(target: HTMLElement, assets: PublicLedgerAsse
     const tree = buildTree(entries, keccakHash);
     const section = document.createElement("article");
     section.className = "public-ledger-asset";
-    section.innerHTML = `<h3>${labels[assetId] ?? `Asset ${assetId}`}</h3><p class="hint">${asset.entries.length} public parts · total ${format(asset.total, assetId)} · root <code>${short(asset.rootHash)}</code></p>`;
+    const title = document.createElement("h3");
+    title.textContent = labels[assetId] ?? `Asset ${assetId}`;
+    const summary = document.createElement("p");
+    summary.className = "hint";
+    const root = document.createElement("code");
+    root.textContent = short(asset.rootHash);
+    summary.append(`${asset.entries.length} public parts · total ${format(asset.total, assetId)} · root `, root);
+    section.append(title, summary);
     const table = document.createElement("table");
     table.innerHTML = "<thead><tr><th>Part</th><th>Public identity commitment</th><th>Liability</th></tr></thead>";
     const body = document.createElement("tbody");
     asset.entries.forEach((entry, index) => {
       const row = document.createElement("tr");
-      row.innerHTML = `<td>${index + 1}</td><td><code>${short(entry.identity)}</code></td><td>${format(entry.amount, assetId)}</td>`;
+      const identity = document.createElement("code");
+      identity.textContent = short(entry.identity);
+      const cells = [String(index + 1), identity, format(entry.amount, assetId)].map(content => {
+        const cell = document.createElement("td");
+        cell.append(content);
+        return cell;
+      });
+      row.append(...cells);
       body.append(row);
     });
     table.append(body);
