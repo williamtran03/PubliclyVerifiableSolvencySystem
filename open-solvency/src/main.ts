@@ -262,7 +262,7 @@ el<HTMLButtonElement>("verify").addEventListener("click", async () => {
     if (!current()) return;
     showFreshness(latest);
     const published = new Date(Number(latest.timestamp) * 1000).toLocaleString("en-GB");
-    setStatus("verifyStatus", result.valid ? `${result.message} Epoch ${latest.epoch} was published ${published}. If you requested this proof file after that time, the snapshot could not have been adjusted to your request.` : result.message, result.valid);
+    setStatus("verifyStatus", result.valid ? `${result.message} Epoch ${latest.epoch} was published ${published}. If you requested your proof file after that time, the snapshot could not have been tailored to your request.` : result.message, result.valid);
     if (result.valid && !latest.freshness?.current) {
       setStatus("verifyStatus", `${result.message} This snapshot has expired or its freshness is unavailable. Ask the company for a newer snapshot.`);
       el<HTMLElement>("verifyStatus").className = "warning";
