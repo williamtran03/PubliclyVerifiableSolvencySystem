@@ -24,6 +24,7 @@ let publicationVersion = 0;
 const connections: Record<string, { rpc: string; registry: string }> = stored.connections ?? {};
 if (stored.rpc && stored.registry && !connections[selected.id]) connections[selected.id] = { rpc: stored.rpc, registry: stored.registry };
 let demoConnections: Record<string, { rpc: string; registry: string }> | undefined;
+const local = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
 const networks = deployedNetworks(Object.values(import.meta.glob("../../deployments/*.json", { eager: true, import: "default" })));
 
 const publicExamples = Object.values(import.meta.glob("../public-examples/*.json", { eager: true, import: "default" })) as PublicExamples[];
@@ -93,7 +94,7 @@ function save() {
   try { localStorage.setItem("opensolvency.settings", JSON.stringify({ solution: selected.id, connections })); } catch { /* storage optional */ }
 }
 function restoreConnection() {
-  const value = connections[selected.id] ?? { rpc: `http://127.0.0.1:${{ "published-ledger": 8545, "zk-circuit": 8546, snarkless: 8547 }[selected.id]}`, registry: "" };
+  const value = connections[selected.id] ?? (local ? undefined : networks[0]?.connections[selected.id]) ?? { rpc: `http://127.0.0.1:${{ "published-ledger": 8545, "zk-circuit": 8546, snarkless: 8547 }[selected.id]}`, registry: "" };
   el<HTMLInputElement>("rpc").value = value.rpc;
   el<HTMLInputElement>("registry").value = value.registry;
 }
@@ -355,7 +356,7 @@ document.querySelectorAll<HTMLButtonElement>(".network").forEach(button => butto
   restoreConnection(); invalidate(); save();
   el<HTMLButtonElement>("load").click();
 }));
-if (import.meta.env.DEV && ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)) void fetch("demo-config.json").then(async response => {
+if (import.meta.env.DEV && local) void fetch("demo-config.json").then(async response => {
   if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) return;
   const config = await response.json();
   if (config.version !== 1 || !solutions.every(s => /^https?:\/\//.test(config.solutions?.[s.id]?.rpc ?? "") && isAddress(config.solutions?.[s.id]?.registry ?? ""))) return;
