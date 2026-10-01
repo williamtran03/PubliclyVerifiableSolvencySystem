@@ -6,10 +6,10 @@ const short = (value: bigint) => {
   return `0x${text.slice(0, 10)}…${text.slice(-8)}`;
 };
 
-function treeSvg(levels: Node[][], assetLabel: string): SVGSVGElement {
+function treeSvg(levels: Node[][], assetLabel: string, format: (value: bigint) => string): SVGSVGElement {
   const width = 900;
   const rowHeight = 44;
-  const height = levels.length * rowHeight + 36;
+  const height = levels.length * rowHeight + 48;
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   svg.setAttribute("class", "public-tree");
@@ -21,7 +21,7 @@ function treeSvg(levels: Node[][], assetLabel: string): SVGSVGElement {
     return node;
   };
   const x = (level: number, index: number) => ((index + 0.5) * width) / levels[level].length;
-  const y = (level: number) => height - 20 - level * rowHeight;
+  const y = (level: number) => height - 32 - level * rowHeight;
   for (let level = 0; level < levels.length - 1; level++) {
     for (let index = 0; index < levels[level].length; index++) {
       svg.append(element("line", { x1: x(level, index), y1: y(level), x2: x(level + 1, Math.floor(index / 2)), y2: y(level + 1), class: "public-tree-edge" }));
@@ -35,6 +35,11 @@ function treeSvg(levels: Node[][], assetLabel: string): SVGSVGElement {
         const label = element("text", { x: x(level, index), y: y(level) - 9, class: "public-tree-label", "text-anchor": "middle" });
         label.textContent = level === levels.length - 1 ? "root" : short(node.hash);
         svg.append(label);
+      }
+      if (levels[level].length <= 8) {
+        const sum = element("text", { x: x(level, index), y: y(level) + 16, class: "public-tree-label", "text-anchor": "middle" });
+        sum.textContent = format(node.sum);
+        svg.append(sum);
       }
     }
   }
@@ -80,7 +85,7 @@ export function renderPublicLedger(target: HTMLElement, assets: PublicLedgerAsse
       body.append(row);
     });
     table.append(body);
-    section.append(table, treeSvg(tree.levels, labels[assetId] ?? `Asset ${assetId}`));
+    section.append(table, treeSvg(tree.levels, labels[assetId] ?? `Asset ${assetId}`, value => format(value, assetId)));
     target.append(section);
   });
 }
