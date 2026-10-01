@@ -8,8 +8,12 @@ export function parseBalance(value: string, decimals = 0): bigint {
   return BigInt(whole) * 10n ** BigInt(decimals) + BigInt(fraction.padEnd(decimals, "0") || "0");
 }
 
+export function proofUnits(value: bigint): string {
+  return `${value} proof unit${value === 1n ? "" : "s"}`;
+}
+
 export function displayAmount(value: bigint, asset: Asset): string {
-  return asset.unitDecimals === undefined ? `${value} proof units` : `${formatUnits(value, asset.unitDecimals)} ${asset.label}`;
+  return asset.unitDecimals === undefined ? proofUnits(value) : `${formatUnits(value, asset.unitDecimals)} ${asset.label}`;
 }
 
 export function freshnessText(freshness: Freshness | undefined): string {

@@ -1,5 +1,5 @@
 import { isAddress } from "viem";
-import { displayAmount, freshnessText, parseBalance } from "./amounts.ts";
+import { displayAmount, freshnessText, parseBalance, proofUnits } from "./amounts.ts";
 import { renderPublicLedger } from "./merkleView.ts";
 import { zk } from "./solutions/zk.ts";
 import { ledger, readPublicLedgerArtifact } from "./solutions/ledger.ts";
@@ -78,14 +78,14 @@ function renderBalances() {
     const asset = snapshot?.assets[i];
     const known = asset?.unitDecimals !== undefined;
     const human = el<HTMLSelectElement>("unitMode").value === "human" && known;
-    const hint = known ? `1 ${asset!.label} = ${10n ** BigInt(asset!.unitDecimals!)} proof units` : `${asset?.unitDescription ?? "Token metadata unavailable"}. Enter integer proof units.`;
+    const hint = known ? `1 ${asset!.label} = ${proofUnits(10n ** BigInt(asset!.unitDecimals!))}` : `${asset?.unitDescription ?? "Token metadata unavailable"}. Enter integer proof units.`;
     return `<label>${escapeHtml(asset?.label ?? `Asset ${i}`)} · ${human ? "Token amount" : "Proof units"}<input class="balance" data-asset="${i}" inputmode="decimal" placeholder="${human && asset!.unitDecimals! > 0 ? "e.g. 2.5" : "0"}" /><small>${escapeHtml(hint)}</small><small id="amount-${i}" role="status"></small></label>`;
   }).join("");
   document.querySelectorAll<HTMLInputElement>(".balance").forEach(input => input.addEventListener("input", () => {
     const asset = snapshot?.assets[Number(input.dataset.asset)];
     try {
       const amount = input.value ? parseBalance(input.value.trim(), el<HTMLSelectElement>("unitMode").value === "human" ? asset?.unitDecimals ?? 0 : 0) : undefined;
-      el<HTMLElement>(`amount-${input.dataset.asset}`).textContent = amount !== undefined && asset ? `${amount} proof units = ${displayAmount(amount, asset)}` : "";
+      el<HTMLElement>(`amount-${input.dataset.asset}`).textContent = amount !== undefined && asset ? `${proofUnits(amount)} = ${displayAmount(amount, asset)}` : "";
     } catch (error) { el<HTMLElement>(`amount-${input.dataset.asset}`).textContent = error instanceof Error ? error.message : String(error); }
   }));
 }
@@ -136,7 +136,7 @@ function renderExample(value: Snapshot, registry: string) {
 }
 function renderSnapshot(value: Snapshot, registry: string, rebuildInputs = true, rebuildLedger = true) {
   const explorer = explorerLink(networks, selected.id, registry);
-  const amount = (raw: bigint | undefined, asset: Snapshot["assets"][number]) => raw === undefined ? "private" : `${escapeHtml(displayAmount(raw, asset))}<small>${raw} proof units</small>`;
+  const amount = (raw: bigint | undefined, asset: Snapshot["assets"][number]) => raw === undefined ? "private" : `${escapeHtml(displayAmount(raw, asset))}<small>${proofUnits(raw)}</small>`;
   const rows = value.assets.map((asset, i) => `<tr><td>${escapeHtml(asset.label)}<small>Asset ${i}</small><small class="token-address">${escapeHtml(asset.token ?? "")}</small></td><td>${amount(asset.reserves, asset)}</td><td>${amount(asset.liabilities, asset)}</td><td>${asset.floor === undefined ? "—" : amount(asset.floor, asset)}</td></tr>`).join("");
   const panel = el<HTMLElement>("snapshot");
   panel.innerHTML = `<p id="freshness" role="status"></p><div class="snapshot-meta"><div><span>Epoch</span><strong>${value.epoch}</strong></div><div><span>Published</span><strong>${new Date(Number(value.timestamp) * 1000).toLocaleString("en-GB")}</strong></div></div><div class="commitment"><span>Commitment / snapshot ID</span><code>${escapeHtml(value.commitment)}</code></div>${explorer ? `<p class="hint"><a href="${escapeHtml(explorer.url)}" target="_blank" rel="noopener">View the registry on ${escapeHtml(explorer.name)} Etherscan</a></p>` : ""}<div class="table-wrap"><table><thead><tr><th>Asset</th><th>Reserves</th><th>Liabilities</th><th>Reserve floor</th></tr></thead><tbody>${rows}</tbody></table></div>`;
