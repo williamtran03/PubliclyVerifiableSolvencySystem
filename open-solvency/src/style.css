@@ -74,6 +74,7 @@ th { color: var(--muted); font-weight: 600; background: #eeefeb; }
 .steps li::marker { color: var(--muted); font-variant-numeric: tabular-nums; }
 .company-callout { border-left: 2px solid #8a9e93; padding: 2px 0 2px 18px; margin-top: 22px; font-size: 14px; }
 .company-callout p { color: var(--muted); margin: 6px 0; }
+.company-callout code { overflow-wrap: anywhere; }
 .artifact { display: flex; gap: 14px; align-items: end; flex-wrap: wrap; }
 .artifact label { flex: 1; min-width: min(220px, 100%); }
 .artifact p { width: 100%; margin: 0; }
