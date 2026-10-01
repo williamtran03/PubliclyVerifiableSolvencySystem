@@ -127,7 +127,7 @@ function renderExample(value: Snapshot, registry: string) {
   panel.replaceChildren();
   panel.hidden = !example;
   if (!example) return;
-  panel.innerHTML = `<strong>Public fictional customer · epoch ${escapeHtml(example.epoch)}</strong><p>This example deliberately publishes its proof and account details. Select Proof units (integers), enter the values below, download the file and select it as your customer proof.</p><p>Customer ID: <code>${escapeHtml(example.account)}</code><br>${example.balances.map(([asset, amount]) => `Asset ${asset}: <code>${escapeHtml(amount)}</code> proof units`).join("<br>")}${example.secret ? `<br>Account secret: <code>${escapeHtml(example.secret)}</code>` : ""}</p>`;
+  panel.innerHTML = `<strong>Public fictional customer · epoch ${escapeHtml(example.epoch)}</strong><p>This example deliberately publishes its proof and account details. Select Proof units (integers), enter the values below, download the file and select it as your customer proof.</p><p>Customer ID: <code>${escapeHtml(example.account)}</code><br>${example.balances.map(([asset, amount]) => { const known = value.assets[asset]; return `Asset ${asset}: <code>${escapeHtml(amount)}</code> proof unit${amount === "1" ? "" : "s"}${known?.unitDecimals === undefined ? "" : ` (${escapeHtml(displayAmount(BigInt(amount), known))})`}`; }).join("<br>")}${example.secret ? `<br>Account secret: <code>${escapeHtml(example.secret)}</code>` : ""}</p>`;
   const download = document.createElement("a");
   download.textContent = "Download fictional customer proof";
   download.download = `${example.method}-epoch-${example.epoch}-example.json`;
