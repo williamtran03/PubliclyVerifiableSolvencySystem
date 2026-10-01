@@ -1,5 +1,6 @@
 import { parseAbi } from "viem";
 import { deserializeBundle, verifyBundle } from "@arms/zk-circuit/prover/multiAssetTree.ts";
+import { customerSecretCommitment } from "@shared/merkleSumTree.ts";
 import { assertEpoch, client, readFreshness, tokenMetadata } from "./common.ts";
 import type { Solution } from "../types.ts";
 
@@ -39,7 +40,10 @@ export const zk: Solution = {
     if (!/^\d+$/.test(secret)) throw new Error("Enter the customer-chosen numeric secret.");
     const bundle = deserializeBundle(file);
     const data = snapshot.data as { root: bigint; context: bigint };
-    const valid = bundle.username === account && verifyBundle(bundle, { username: account, secret: BigInt(secret), expectedAmounts: expected }, data.root, data.context);
-    return { valid, message: valid ? "Your entered balances are included in the published commitment." : "The bundle, balances, or secret do not match the current snapshot." };
+    if (bundle.username !== account) return { valid: false, message: "The bundle does not belong to this account." };
+    const commitment = customerSecretCommitment(BigInt(secret));
+    if (bundle.parts.some((part) => part.holding.secretCommitment !== commitment)) return { valid: false, message: "The secret does not match the customer proof." };
+    const valid = verifyBundle(bundle, { username: account, secret: BigInt(secret), expectedAmounts: expected }, data.root, data.context);
+    return { valid, message: valid ? "Your entered balances are included in the published commitment." : "The bundle or balances do not match the current snapshot." };
   },
 };
