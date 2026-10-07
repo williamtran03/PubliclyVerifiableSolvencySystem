@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Watch the OpenSolvency walkthrough and learn how to load a snapshot and verify your balances." />
+  <title>OpenSolvency · Help</title>
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <header class="topbar"><div class="shell topbar-inner"><a class="wordmark" href="./">Open<span>Solvency</span></a><nav class="topbar-nav" aria-label="Main navigation"><a class="help-link" href="./">Application</a><a class="help-link" href="./help.html" aria-current="page">Help</a></nav></div></header>
+  <main class="shell help-page">
+    <div class="hero"><h1>Help</h1><p>Watch the walkthrough or follow the steps below to check your first solvency snapshot.</p></div>
+    <section class="panel" aria-labelledby="video-heading">
+      <div class="section-heading"><div><span class="eyebrow">Video walkthrough</span><h2 id="video-heading">See OpenSolvency in action</h2></div><span class="section-note">6 minutes · 12 MB</span></div>
+      <video class="help-video" controls playsinline preload="none" poster="./media/opensolvency-walkthrough.jpg" aria-label="OpenSolvency video walkthrough" aria-describedby="video-description">
+        <source src="./media/opensolvency-walkthrough.mp4" type="video/mp4" />
+        Your browser does not support embedded video. Use the download link below.
+      </video>
+      <p id="video-description" class="hint">Press play to load the video. You can also <a href="./media/opensolvency-walkthrough.mp4" download>download the MP4</a> or use the written guide below.</p>
+    </section>
+    <section class="panel" aria-labelledby="customer-heading">
+      <div class="section-heading"><div><span class="eyebrow">For customers · No wallet needed</span><h2 id="customer-heading">Verify your balances</h2></div></div>
+      <ol class="steps help-steps">
+        <li><strong>Choose a proof method.</strong> Open the application, keep <b>For customers</b> selected and choose <b>Zero-Knowledge Circuit</b>, <b>Merkle-Sum Tree</b> or <b>KZG without a Circuit</b>. Your customer proof must belong to that method.</li>
+        <li><strong>Load the demo snapshot.</strong> Click <b>Use Sepolia deployment</b>. This fills in the connection and loads the latest snapshot. For another registry, enter its <b>RPC endpoint</b> and <b>Registry address</b>, then click <b>Load latest snapshot</b>.</li>
+        <li><strong>Review the snapshot.</strong> Check the epoch, publication time and freshness message, then review the reserves and liabilities shown for each asset. Some methods keep liabilities private. The Etherscan link opens the registry on the block explorer.</li>
+        <li><strong>Prepare your customer proof.</strong> For the demo, use the <b>Public fictional customer</b> details and click <b>Download fictional customer proof</b>. In <b>Verify my balances</b>, enter the displayed customer ID, select that JSON file and enter the displayed account secret. If no matching example is available, use a proof for the loaded epoch.</li>
+        <li><strong>Enter the balances.</strong> For the fictional example, choose <b>Proof units (integers)</b> under <b>Amount units</b> and copy each displayed asset amount exactly. For your own proof, use your own records and your customer-chosen secret. <b>Token amounts</b> accepts normal token amounts where the asset metadata is available.</li>
+        <li><strong>Run the check.</strong> Click <b>Verify proof</b> and read the result. Try changing a balance to see the check fail. After changing the method or registry, load its snapshot and select a matching proof again.</li>
+      </ol>
+      <p class="hint">A successful check confirms inclusion in the selected snapshot. This coursework demo uses fictional tokens and customers; it does not establish real financial backing or detect omitted liabilities.</p>
+    </section>
+    <section class="panel" aria-labelledby="company-heading">
+      <div class="section-heading"><div><span class="eyebrow">For companies</span><h2 id="company-heading">Review and publish a snapshot</h2></div></div>
+      <p>Switch to <b>For companies</b>, choose the method and load your registry. Follow the method-specific preparation steps shown in the application.</p>
+      <ol class="steps help-steps">
+        <li>To check an existing publication, select its artifact under <b>Compare an already published artifact</b> and click <b>Compare with registry</b>.</li>
+        <li>To publish, generate the next epoch's artifacts with the project tools. Under <b>Submit the next epoch</b>, select the files requested for your method and enter oracle round IDs if shown.</li>
+        <li>Review the files and registry, then click <b>Publish with company wallet</b>. Use the authorized company wallet on the correct network and review the wallet transaction before confirming. Deliver customer proof bundles privately.</li>
+      </ol>
+    </section>
+    <section class="panel" aria-labelledby="trouble-heading">
+      <div class="section-heading"><div><span class="eyebrow">Troubleshooting</span><h2 id="trouble-heading">If a check does not work</h2></div></div>
+      <dl class="help-faq">
+        <dt>The snapshot will not load.</dt><dd>Check your internet connection, RPC endpoint and registry address. For the demo, try <b>Use Sepolia deployment</b> again.</dd>
+        <dt>The proof is rejected.</dt><dd>Check the method, epoch, customer ID, secret and each balance, including the selected amount units. Use the original JSON proof file for that snapshot.</dd>
+        <dt>The snapshot is expired or has changed.</dt><dd>Load the latest snapshot and obtain a matching customer proof. The application checks for updates every 30 seconds while visible; an old verification result may need to be run again.</dd>
+      </dl>
+    </section>
+    <div class="actions help-return"><a class="primary" href="./">Back to application</a></div>
+  </main>
+</body>
+</html>

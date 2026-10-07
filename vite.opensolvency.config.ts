@@ -5,6 +5,14 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 export default defineConfig({
   root: "open-solvency",
   base: "./",
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(import.meta.dirname, "open-solvency/index.html"),
+        help: resolve(import.meta.dirname, "open-solvency/help.html"),
+      },
+    },
+  },
   plugins: [{
     name: "completed-deployments-only",
     buildStart() {
