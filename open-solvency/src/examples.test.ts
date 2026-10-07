@@ -1,6 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { matchingExample, type PublicExamples } from "./examples.ts";
+
+test("downloadable proofs match the published examples for all three methods", () => {
+  const record: PublicExamples = JSON.parse(readFileSync(new URL("../public-examples/sepolia.json", import.meta.url), "utf8"));
+  assert.deepEqual(record.examples.map(example => example.method).sort(), ["published-ledger", "snarkless", "zk-circuit"]);
+  for (const example of record.examples) {
+    const download = JSON.parse(readFileSync(new URL(`../public/proofs/${example.method}-example.json`, import.meta.url), "utf8"));
+    assert.deepEqual(download, example.bundle, `${example.method}: regenerate the downloadable proof with the example export`);
+  }
+});
 
 test("public examples only match the selected registry, method, epoch and commitment", () => {
   const registry = `0x${"ab".repeat(20)}`;

@@ -41,4 +41,7 @@ for (const solution of [ledger, zk, kzg]) {
 }
 const output: PublicExamples = { version: 1, chainId: 11155111, examples };
 saveRecord("open-solvency/public-examples/sepolia.json", output);
-console.log("Exported three verified fictional examples. Review the file, commit it, and rebuild the website. No RPC credentials or other customer bundles were copied.");
+for (const example of examples) {
+  saveRecord(`open-solvency/public/proofs/${example.method}-example.json`, example.bundle);
+}
+console.log("Exported three verified fictional examples and ready-to-upload proofs. Review and commit open-solvency/public-examples/sepolia.json and open-solvency/public/proofs/, then rebuild the website. No RPC credentials or other customer bundles were copied.");
