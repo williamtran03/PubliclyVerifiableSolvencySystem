@@ -29,7 +29,6 @@
         <li><strong>Enter the balances.</strong> For the fictional example, choose <b>Proof units (integers)</b> under <b>Amount units</b> and copy each displayed asset amount exactly. For your own proof, use your own records and your customer-chosen secret. <b>Token amounts</b> accepts normal token amounts where the asset metadata is available.</li>
         <li><strong>Run the check.</strong> Click <b>Verify proof</b> and read the result. Try changing a balance to see the check fail. After changing the method or registry, load its snapshot and select a matching proof again.</li>
       </ol>
-      <p class="hint">A successful check confirms inclusion in the selected snapshot. This coursework demo uses fictional tokens and customers; it does not establish real financial backing or detect omitted liabilities.</p>
     </section>
     <section class="panel" aria-labelledby="company-heading">
       <div class="section-heading"><div><span class="eyebrow">For companies</span><h2 id="company-heading">Review and publish a snapshot</h2></div></div>
@@ -39,14 +38,6 @@
         <li>To publish, generate the next epoch's artifacts with the project tools. Under <b>Submit the next epoch</b>, select the files requested for your method and enter oracle round IDs if shown.</li>
         <li>Review the files and registry, then click <b>Publish with company wallet</b>. Use the authorized company wallet on the correct network and review the wallet transaction before confirming. Deliver customer proof bundles privately.</li>
       </ol>
-    </section>
-    <section class="panel" aria-labelledby="trouble-heading">
-      <div class="section-heading"><div><span class="eyebrow">Troubleshooting</span><h2 id="trouble-heading">If a check does not work</h2></div></div>
-      <dl class="help-faq">
-        <dt>The snapshot will not load.</dt><dd>Check your internet connection, RPC endpoint and registry address. For the demo, try <b>Use Sepolia deployment</b> again.</dd>
-        <dt>The proof is rejected.</dt><dd>Check the method, epoch, customer ID, secret and each balance, including the selected amount units. Use the original JSON proof file for that snapshot.</dd>
-        <dt>The snapshot is expired or has changed.</dt><dd>Load the latest snapshot and obtain a matching customer proof. The application checks for updates every 30 seconds while visible; an old verification result may need to be run again.</dd>
-      </dl>
     </section>
     <div class="actions help-return"><a class="primary" href="./">Back to application</a></div>
   </main>

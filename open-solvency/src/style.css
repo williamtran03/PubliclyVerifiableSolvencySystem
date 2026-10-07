@@ -30,9 +30,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .help-steps { max-width: 820px; }
 .help-steps li { padding-bottom: 14px; }
 .help-steps strong { display: block; margin-bottom: 3px; }
-.help-faq { max-width: 820px; font-size: 14px; }
-.help-faq dt { font-weight: 600; margin-top: 20px; }
-.help-faq dd { color: var(--muted); margin: 6px 0 0; }
 .help-return { margin-bottom: 40px; }
 .help-return a { text-decoration: none; }
 .top-note, .section-note { color: var(--muted); font-size: 12px; }
