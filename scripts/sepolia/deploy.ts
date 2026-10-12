@@ -1,5 +1,4 @@
 import { getAddress, parseAbi, parseEther, zeroAddress, type Abi, type Address, type Hex } from "viem";
-import { loadSrs, g2ForPrecompile } from "../../arms/snarkless/prover/srs.ts";
 import { artifact } from "../demo/chain.ts";
 import { ARMS, FEEDS, armNames, type Arm, type Network } from "./network.ts";
 
@@ -52,11 +51,6 @@ export async function deploy(network: Network) {
   const transcript = await ensure("ZKTranscriptLib", () => network.deploy("MultiAssetHonkVerifier.sol", "ZKTranscriptLib"));
   const verifier = await ensure("HonkVerifier", () => network.deploy("MultiAssetHonkVerifier.sol", "HonkVerifier", [], { RelationsLib: relations, ZKTranscriptLib: transcript }));
 
-  const srs = loadSrs("arms/snarkless/fixtures/srs.json");
-  const g2 = (p: typeof srs.g2) => {
-    const [xImag, xReal, yImag, yReal] = g2ForPrecompile(p);
-    return { xImag, xReal, yImag, yReal };
-  };
   const constructorArgs: Record<Arm, unknown[]> = {
     "published-ledger": [company.address, auditor.address, [zeroAddress, tokens.TEST], maxEpochAge, minEpochInterval, directory],
     "zk-circuit": [company.address, auditor.address, [
@@ -64,7 +58,7 @@ export async function deploy(network: Network) {
       { token: tokens.WETH, feed: FEEDS.ETH.feed, decimals: TOKENS.WETH, maxPriceAge: FEEDS.ETH.maxPriceAge },
       { token: tokens.USDC, feed: FEEDS.USDC.feed, decimals: TOKENS.USDC, maxPriceAge: FEEDS.USDC.maxPriceAge },
     ], verifier, maxEpochAge, minEpochInterval, directory],
-    snarkless: [company.address, auditor.address, tokens.TEST, TOKENS.TEST, { g2: g2(srs.g2), tauG2: g2(srs.tauG2), boundG2: g2(srs.boundG2) }, maxEpochAge, minEpochInterval, directory],
+    snarkless: [company.address, auditor.address, tokens.TEST, TOKENS.TEST, maxEpochAge, minEpochInterval, directory],
   };
   const wanted = holdings(tokens);
   const tokenAbi = artifact("DemoAsset.sol", "DemoAsset").abi as Abi;

@@ -39,17 +39,6 @@ library KzgVerifier {
         return pairingProductIsOne(lhs, g2, negate(proof), tauG2);
     }
 
-    function verifyDegreeBound(
-        G1Point memory commitment,
-        G1Point memory shifted,
-        G2Point memory g2,
-        G2Point memory boundG2
-    ) internal view returns (bool) {
-        requireOnCurve(commitment);
-        requireOnCurve(shifted);
-        return pairingProductIsOne(shifted, g2, negate(commitment), boundG2);
-    }
-
     function generator() internal pure returns (G1Point memory) {
         return G1Point(1, 2);
     }

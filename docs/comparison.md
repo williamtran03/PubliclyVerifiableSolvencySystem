@@ -25,7 +25,7 @@ like-for-like benchmark over the same customers, balances and assets.
 |---|---|---|---|
 | 1. Published ledger | `arms/published-ledger/` | `MerkleSumRegistry.sol` | Publish every anonymised part on-chain, one merkle-sum tree per asset; the contract recomputes every total |
 | 2. ZK circuit | `arms/zk-circuit/` | `MultiAssetSolvencyRegistry.sol` | A Noir/UltraHonk proof that each asset's liabilities are under a public reserve floor; liabilities stay private |
-| 3. Snarkless | `arms/snarkless/` | `KzgSolvencyRegistry.sol` | KZG polynomial commitments: the total is an opening at 0, non-negativity a range argument, both verified on-chain, no circuit |
+| 3. Snarkless | `arms/snarkless/` | `KzgSolvencyRegistry.sol` | KZG polynomial commitments: the total is a running sum over the committed balances, non-negativity a range argument, both verified on-chain, no circuit |
 
 All three registries share `shared/contracts/ReserveRegistry.sol`: a company that
 proposes reserve wallets and submits epochs, wallets that prove control with an
@@ -70,8 +70,8 @@ figures do not move when the shared base changes and the comparison stays like-f
 | Operation | Gas | Notes |
 |---|---:|---|
 | `MerkleSumRegistry.submitLedger` | 408,350 | max observed (4 parts, 2 assets); grows with parts |
-| `KzgSolvencyRegistry.submitEpoch` | 1,556,777 | degree bound + opening at 0 + 64-bit range argument; constant in N |
-| `KzgSolvencyRegistry.verifyInclusion` | 150,233 ‡ | a view: free through `eth_call` |
+| `KzgSolvencyRegistry.submitEpoch` | 1,320,838 | running-sum total + 64-bit range argument, one batched pairing; constant in N |
+| `KzgSolvencyRegistry.verifyInclusion` | 149,658 ‡ | a view: free through `eth_call` |
 | `MultiAssetHonkVerifier.verify` | 3,916,301 | |
 | `MultiAssetSolvencyRegistry.submitEpoch` | 4,366,256 | verification + per-asset reserve check + oracle valuation + epoch record |
 | `HonkVerifier.verify` (single-asset) | 3,910,843 | |
@@ -87,7 +87,7 @@ counted;
 `test_GasForDeployment` and `test_GasForVerifyInclusion` in arm 3); `make compare` prints
 them after the gas report. They exist because the gas report cannot supply them: its max column includes the reverting calls, and the zk registry is
 placed at a fixed address the report does not track. Calldata cost comes on top: about
-7.6 KB of proof for arm 2, about 6.4 KB of commitments and values for arm 3.
+7.6 KB of proof for arm 2, about 6.7 KB of commitments and values for arm 3.
 
 **Role-gated calls cost about 2,200 gas more than they did**, because `company` and
 `auditor` moved from `immutable` to storage when they became rotatable. That is the
@@ -100,7 +100,7 @@ Deployment:
 | `MultiAssetHonkVerifier` | 5,279,139 | **24,200 bytes** | 24,614 bytes |
 | `HonkVerifier` (single-asset) | 5,251,615 | 24,074 bytes | 24,488 bytes |
 | `MultiAssetSolvencyRegistry` | 5,176,701 | 22,451 bytes | 25,426 bytes |
-| `KzgSolvencyRegistry` | 4,917,705 ‡ | 22,360 bytes | 24,804 bytes |
+| `KzgSolvencyRegistry` | 5,003,920 ‡ | 24,273 bytes | 26,135 bytes |
 | `MerkleSumRegistry` | 4,131,981 | 18,102 bytes | 20,604 bytes |
 | `ReserveDirectory` (once per chain, shared) | 973,326 | 4,266 bytes | 4,294 bytes |
 | `SolvencyRegistry` (single-asset) | 798,600 | 2,973 bytes | 3,893 bytes |
@@ -108,8 +108,8 @@ Deployment:
 ‡ Execution gas from a `gasleft()` probe, without the 21,000 intrinsic cost and the
 calldata or init-code charge that the gas report's figures include. The like-for-like
 figures, from the same probes under Foundry's isolation mode
-(`forge test --match-test '^test_Gas' --isolate -vv`), are 5,352,355 for the deployment and
-176,233 for `verifyInclusion`. The earlier 4,530,110 and ~173,459 could not be reproduced
+(`forge test --match-test '^test_Gas' --isolate -vv`), are 5,454,416 for the deployment and
+159,658 for `verifyInclusion`. The earlier 4,530,110 and ~173,459 could not be reproduced
 after the registry moved to `deployCodeTo`; the probes replace them. Bytecode sizes come
 from `forge build --sizes`.
 
@@ -117,8 +117,11 @@ Each registry grew by almost exactly 3,005 bytes — the shared base gaining rot
 roles, the epoch-freshness view and the reserve cap — then by another 1,650–1,790
 bytes for the publication window, the auditor's sampling and the directory calls, and
 by 236 more for the per-window control challenge (505 on top of that in arm 3, for the
-public `getSrs()` that lets anyone check the deployed setup against the ceremony), and by 396 more for
-`discardSample()`, which lets the auditor retract a sample taken too early. The two verifiers and the
+public `getSrs()` that lets anyone check the setup against the ceremony), and by 396 more for
+`discardSample()`, which lets the auditor retract a sample taken too early. On 2026-10-11 the KZG registry
+grew by a further 1,913 bytes, to 24,273, when the opening at 0 and the degree bound gave way to the
+running-sum argument (see *What each arm actually guarantees on-chain*); it is now 303 bytes under
+EIP-170, slightly tighter than the ZK verifier. The two verifiers and the
 single-asset registry are byte-for-byte unchanged, because arm 4 does not use the
 shared base; that is what keeps it usable as a control (see *The control group*).
 
@@ -133,10 +136,10 @@ we described; whether a fourth asset fits has to be measured, not assumed.
 Fusaka repriced MODEXP), not the
 ~200–250k first written in `REPORT.md` and `NOTES.md`. And the "KZG is 18× cheaper"
 headline compared a single pairing check (~154k) with the full SNARK verification
-while leaving the range check off-chain. With the degree bound and the range
-argument verified on-chain — both needed for the total to mean anything — the
-snarkless registry costs **1.56M against 4.37M, about 2.8× cheaper** (2.7× in Sepolia-fork
-receipts; 1.8× under the pre-Fusaka rules and the older probe) — on one asset
+while leaving the range check off-chain. With the total and the range argument
+verified on-chain — both needed for the total to mean anything — the snarkless
+registry costs **1.32M against 4.37M, about 3.3× cheaper** (the registry deployed on
+Sepolia, before the 2026-10-11 redesign, was 2.7× cheaper in receipts) — on one asset
 against three, which *Like for like* below corrects.
 
 ## Like for like: one asset, the same customers
@@ -150,23 +153,28 @@ the single-asset `test_GasForPrepared*` and `test_GasForTheSameSubmissionWithout
 |---|---:|---:|---:|---|
 | Published ledger, 1 part per customer | 15,420 | 304,806 | 484 B | every amount |
 | Published ledger, 2 parts per customer | 25,637 | 317,526 | 676 B | every part |
-| Snarkless (KZG) | ≈1,343,234 | 1,556,777 | 6,788 B | the total |
+| Snarkless (KZG) | ≈1,107,266 | 1,320,838 | 6,852 B | the total |
 | ZK, single-asset control | 3,915,741 | 4,023,440 | 7,716 B | nothing but the root |
 
 - **The ledger check** is `computeRoot` called on its own, a keccak merkle-sum tree.
   It grows with the number of parts, up to 256 per asset.
-- **The KZG check** is 1,556,777 minus 213,543, the same `submitEpoch` with every KZG
+- **The KZG check** is 1,320,838 minus 213,572, the same `submitEpoch` with every KZG
   check removed (`KzgBookkeepingOnly`). It is a difference of two probes, not one probe.
 - **The ZK row is not on the shared registry.** The control arm has no sampling, windows
   or context binding, so its bookkeeping (about 108k) is lighter. On the shared registry
   it would cost roughly 3.92M plus KZG's 214k, about 4.13M. That is an estimate.
 
-On one asset and the same data, KZG costs 2.6× less than ZK, and publishing the ledger
-costs another 5× less than KZG. Each step up buys privacy: the ledger hides only who
-owns which part, KZG hides every balance but publishes the total, and ZK hides the
-total too.
+On one asset and the same data, ZK costs 3.0× as much as KZG, and KZG costs 4.3× as much
+as publishing the ledger. Each step up buys privacy: the ledger hides only who owns which
+part, KZG hides every balance but publishes the total, and ZK hides the total too. Before
+the 2026-10-11 redesign the KZG figure was 1,556,777, and KZG did not in fact hide the
+balances (see *Privacy*).
 
 ## Sepolia rehearsal versus fixture probes
+
+This section and *Public Sepolia receipts* measure the KZG registry **as deployed on
+2026-09-25**, before the 2026-10-11 redesign; its KZG figures are historical and are not
+what `make compare` prints today. The ZK and ledger figures are unaffected.
 
 The `submitEpoch` figures above are execution gas from a probe. A Sepolia receipt differs
 from the original probe (`test_GasForASuccessfulSubmission`) in four ways. Each can be
@@ -183,7 +191,7 @@ first four rows add `--evm-version cancun`, the rules before Fusaka.
 | Step | ZK `submitEpoch` | KZG `submitEpoch` |
 |---|---:|---:|
 | Original probe | 3,766,705 | 2,074,669 |
-| Payload encoded before the timer starts (`test_GasForPreparedSubmission`) | 3,237,774 | 1,556,777 |
+| Payload encoded before the timer starts (`test_GasForPreparedSubmission`) | 3,237,774 | 1,556,777 (pre-redesign) |
 | The same call as its own transaction (`--isolate`) | 3,389,790 | 1,683,829 |
 | The same under Fusaka rules (`--isolate`, now the default rules) | 4,518,272 | 1,683,829 |
 | First-epoch receipt on the Sepolia fork | 4,536,873 | 1,679,265 |
@@ -224,7 +232,9 @@ The public deployment ran on Sepolia itself on 2026-09-25 (blocks 11,779,141 to
 11,779,264). The table lists the receipt `gasUsed` from `deployments/sepolia.json`; all
 twelve were re-read from the chain with `cast receipt` and match, all with status 1.
 These are the only receipt figures in this document. Every other figure is a Foundry
-measurement.
+measurement. The KZG registry these receipts come from predates the 2026-10-11 redesign and
+accepts the degree-bound forgery described in *What each arm actually guarantees on-chain*;
+it needs to be redeployed.
 
 | Arm | Epoch | `sampleReserves` | Submission | Submission tx | Fork rehearsal | Difference |
 |---|---:|---:|---:|---|---:|---:|
@@ -369,19 +379,27 @@ check allowed (3 BTC + 2 ETH + 1000 USDC passed against 10 ETH owed). The oracle
 now only values reserves in USD, at round ids pinned from the prover's snapshot.
 
 **Arm 3 (snarkless KZG)** guarantees on-chain, for one epoch of one deployment — both its
-Fiat–Shamir transcripts absorb `keccak(chain id, registry, epoch)` first, so neither a range
-proof nor an inclusion opening carries to another epoch, registry or chain: the total, via
-an opening at 0
-**and a degree bound**; non-negativity of every balance, via the range argument
-(64 bit polynomials plus a quotient, folded into one batched opening); and a
-gasless inclusion check per customer. The degree bound is not a detail: `n·p(0)` is
-the sum of the balances only if `deg p < n`. Without it, committing to
-`p + c·Z_H` keeps every balance on the domain — so the range proof still verifies —
-while the total drops by `n·c`. We reproduced this: a published total of 9,550
-instead of 49,550, accepted by the old check (`KzgSolvencyRegistry.t.sol`
-replays it and the fixture includes a valid range proof for the forged commitment).
-The earlier version of this section claimed the range argument was too expensive
-to verify on-chain; measured, it is not.
+Fiat–Shamir transcripts absorb `keccak(chain id, registry, epoch)` first, so neither a liability
+proof nor an inclusion opening carries to another epoch, registry or chain: the total, via a
+running sum `A` with `A(ω⁰) = 0`, `A(ωⁱ⁺¹) = A(ωⁱ) + B(ωⁱ)` and `A(ω⁷) + B(ω⁷) = total`;
+non-negativity of every balance, via the range argument (64 bit polynomials); all of it one
+identity checked at a random point, with two openings batched into one pairing; and a gasless
+inclusion check per customer. Every constraint holds on the eight domain points, so it does
+not matter what degree the committed polynomial has.
+
+That last point is the reason for the design. Until 2026-10-11 the total was `n·p(0)`, which
+is the sum of the balances only if `deg p < n`; committing to `p + c·Z_H` keeps every balance
+on the domain while the total drops by `n·c`. A degree bound (a shifted commitment checked
+against `[τ^25]₂`) was meant to stop this, and `KzgSolvencyRegistry.t.sol` replayed the
+forgery: a published total of 9,550 instead of 49,550. The bound was not enough. It is sound
+only if nobody knows a power of `τ` above the SRS's 32, and the pinned ceremony file publishes
+`τ⁰…τ⁵¹⁰` in G1. With `τ³³` from that file the shifted commitment can be forged, and the
+unchanged contract accepted 9,550 on-chain (reproduced 2026-10-11). The running sum needs no
+degree bound, so the forgery has nothing to attack: `test_APaddedBalancePolynomialCannotUnderstateTheTotal`
+submits the same padded commitment and is refused, and
+`test_APaddedBalancePolynomialStillProvesOnlyItsTrueTotal` shows it can only ever prove 49,550.
+The earlier version of this section claimed the range argument was too expensive to verify
+on-chain; measured, it is not.
 
 ## Privacy
 
@@ -399,12 +417,19 @@ random parts — arm 1's mitigation for the sum leak — is therefore unnecessar
 What arm 2 does publish is one reserve floor per asset: set to the reserves it reveals
 nothing already public; set to the liabilities it publishes the totals, as Summa does.
 
-**Arm 3 reveals the total** (the opening at 0 is the published figure) and each
-customer's opening reveals only their own slot. Its remaining leak: the range
-argument opens the balance polynomial at the public challenge, which discloses one
-linear combination of all balances. Blinding that away is not a small change — the obvious
-blinding adds a multiple of `Z_H`, which shifts `p(0)` and so collides with the degree bound
-the total depends on — so it stays a stated limitation rather than a fix.
+**Arm 3 reveals the total** and each customer's opening reveals only their own slot. Until
+2026-10-11 it revealed much more. The range argument opened the unblinded balance polynomial
+at a public challenge `ζ`, giving `B(ζ) = Σ bᵢ·Lᵢ(ζ)` with known coefficients. Because the
+balances are small integers, that one equation and the total are a low-dimensional knapsack
+problem: lattice reduction (LLL, dimension 10) recovered all eight fixture balances,
+`[12550, 5000, 32000, 0, …]`, from public data alone. The fix is the usual one, which the
+old design could not use because it moved `p(0)`: every polynomial is blinded with a random
+multiple of `Z_H` (two coefficients for `B` and the bits, four for `A`, which is opened at
+two points and also enters the quotient at `ωτ`, and one for the identity polynomial).
+`Z_H` vanishes on the domain, so customer openings and every constraint are unchanged, and
+every opened value except the quotient's, which the identity fixes, is uniformly random. The
+quotient commitment itself is not blinded. The same lattice attack against the current
+fixture finds nothing.
 
 **One leaf can still serve customers who reuse a secret.** In arms 2 and 3 the leaf
 identity includes a commitment to a high-entropy secret chosen by the customer; the
@@ -449,11 +474,12 @@ chain at all; real reserves span chains, custodians and cold storage.
 the measurements say about the choice*, each would carry its own range argument, which is
 what makes the cost linear in assets.
 
-**Operational.** One oracle feed per asset with no fallback; no public testnet
-deployment. The KZG SRS now comes from the Perpetual Powers of Tau ceremony (80
+**Operational.** One oracle feed per asset with no fallback. The Sepolia deployment's KZG
+registry predates the 2026-10-11 redesign and has to be redeployed. The KZG SRS now comes from the Perpetual Powers of Tau ceremony (80
 contributions and a beacon), pinned by hash and checked with pairings in
-`make kzg-setup`, so the degree bound and the openings rest on that ceremony rather than
-on a `tau` generated on one machine. The single-asset arm passes live reserves as a public input, so a
+`make kzg-setup`, so the openings rest on that ceremony rather than on a `tau` generated on
+one machine. That ceremony publishes far more powers than the SRS uses, so nothing in arm 3
+may rely on a degree bound (see *What each arm actually guarantees on-chain*). The single-asset arm passes live reserves as a public input, so a
 1 wei deposit to a reserve between proving and submission invalidates its proof (arm 2
 uses a floor for exactly this reason).
 
@@ -478,11 +504,11 @@ The evidence points toward **polynomial-commitment first, with the Merkle tree
 removed entirely** — which arm 3 largely is. Stated carefully, because arm 3 is
 single-asset and arm 2 is not, so the headline ratio is not like-for-like:
 
-1. Commit to balances as a polynomial, one commitment per asset, with a degree bound.
+1. Commit to balances as a blinded polynomial, one commitment per asset.
 2. Customer inclusion is an opening at that customer's index — private, constant
    size, free of the sibling leak — batched with an identity polynomial.
-3. The total per asset is an opening at 0 (total = n · p(0)).
-4. Non-negativity is the range argument, verified on-chain at ~2M gas, constant in N.
+3. The total per asset is a running sum over the domain, checked as a polynomial identity.
+4. Non-negativity is the range argument, verified with the total at ~1.32M gas, constant in N.
 5. Solvency is decided per asset, so no conversion table is needed at all. Arm 2 now
    does the same: the requirement to prove which table was used dissolves rather
    than being met.
@@ -492,7 +518,7 @@ more cheaply than the SNARK. The circuit buys *private totals* — arm 2 proves
 "liabilities ≤ floor" without publishing liabilities, whereas a KZG grand sum is a
 published opening — and it keeps customer-side verification to a hash path.
 
-**Cost against asset count, measured.** Arm 3's 1.56M covers one asset and arm 2's
+**Cost against asset count, measured.** Arm 3's 1.32M covers one asset and arm 2's
 4.37M covers three, so the two had to be measured across asset counts.
 
 *The SNARK verifier* (`arms/zk-circuit/bench/assets.ts`, results in `assets.md`) at
@@ -518,28 +544,28 @@ fixed at three assets.
 
 | Assets | 1 | 2 | 3 | 4 |
 |---|---:|---:|---:|---:|
-| Checks per asset | 1,323,489 | 2,628,946 | 3,944,414 | 5,269,896 |
-| Checks per asset, one batched pairing | 1,170,739 | 2,164,950 | 3,168,999 | 4,182,887 |
-| One registry per asset (separate `submitEpoch` calls) | 1,555,921 | 3,109,342 | 4,662,763 | 6,216,184 |
+| Checks per asset | 1,084,140 | 2,174,525 | 3,275,199 | 4,386,162 |
+| Checks per asset, one batched pairing | 1,100,059 | 2,092,136 | 3,094,528 | 4,107,235 |
+| One registry per asset (separate `submitEpoch` calls) | 1,319,971 | 2,637,442 | 3,954,913 | 5,272,384 |
 
-Each asset adds 1.0–1.3M gas: its own degree bound, opening at 0 and 64-bit range
-argument, with the 64 elliptic-curve multiplications of the range argument alone about
-0.4M, since the EVM has no multi-scalar-multiplication precompile. A multi-asset
-registry pays its bookkeeping (232,432 at one asset) once, so it lies between the first
-and third rows plus that amount.
+Each asset adds 1.0–1.3M gas: its own running sum and 64-bit range argument, with the 66
+elliptic-curve multiplications that fold its commitments alone about 0.4M, since the EVM
+has no multi-scalar-multiplication precompile. A multi-asset registry pays its bookkeeping
+(235,831 at one asset) once, so it lies between the first and third rows plus that amount.
 
 *Where they cross* (arm 2 at three assets: 4,366,256):
 
 | KZG design | Two assets | Three assets | Four assets | Cheaper than ZK up to |
 |---|---:|---:|---:|---|
-| One registry per asset | 3,109,342 | 4,662,763 | 6,216,184 | 2 assets |
-| One registry, checks per asset (+232,432) | 2,861,378 | 4,176,846 | 5,502,328 | 3 assets |
-| One registry, batched pairing (+232,432) | 2,397,382 | 3,401,431 | 4,415,319 | about 4 assets |
+| One registry per asset | 2,637,442 | 3,954,913 | 5,272,384 | 3 assets |
+| One registry, checks per asset (+235,831) | 2,410,356 | 3,511,030 | 4,621,993 | 3 assets |
+| One registry, batched pairing (+235,831) | 2,327,967 | 3,330,359 | 4,343,066 | about 4 assets |
 
 The last two rows are sums of measured probes. Against them, arm 2 at four assets is
-about 4.46M by the per-asset estimate above. **The ordering reverses between two and
+about 4.46M by the per-asset estimate above. **The ordering reverses between three and
 five assets, depending on how the KZG side is engineered;** for every design measured
-here, ZK is cheaper from five assets on. The KZG figures leave out the price feeds arm 2
+here, ZK is cheaper from five assets on. Before the 2026-10-11 redesign the KZG side was
+about 0.2M dearer per asset and the reversal came between two and five. The KZG figures leave out the price feeds arm 2
 reads, so if anything they flatter KZG.
 
 **Why the obvious hybrid does not work cleanly.** Using KZG for inclusion and a
@@ -548,15 +574,14 @@ KZG commitment, which means elliptic-curve MSM inside the circuit over a non-nat
 field. Commit-and-prove and linked-proof schemes solve this in principle; Noir and
 UltraHonk do not expose it. This is why arm 2 needs a Merkle root at all: **the tree
 is the link between what customers verify against and what the SNARK proves about.**
-Summa v2 avoids the problem by building the polynomial inside a Halo2 circuit, which
-also gives it the degree bound for free.
+Summa v2 avoids the problem by building the polynomial inside a Halo2 circuit.
 
 ## Where this came from
 
 `feat/snarkless-solvency` prototyped a `KzgSolvencyRegistry.sol` with a gasless
 `verifyInclusion`, an identity commitment and a `TotalOutOfField` guard. The arm-3
-registry on this branch now has all three, plus the degree bound and on-chain range
-verification that prototype lacked.
+registry on this branch now has all three, plus the on-chain total and range verification
+that prototype lacked.
 
 ## Conclusion
 
@@ -565,12 +590,12 @@ three, the answer is not a single ratio but a crossover.
 
 For **one asset**, less ZK is needed than it first appears: a polynomial commitment
 delivers a sound public total, per-customer inclusion and on-chain non-negativity for
-1.56M gas against 4.02M for a single-asset SNARK on the same customers — 2.6× cheaper,
+1.32M gas against 4.02M for a single-asset SNARK on the same customers — 3.0× cheaper,
 not the 18× we first reported. Each further asset costs the SNARK about 2,100 gas at the
 verifier and costs the polynomial path 1.0–1.3M, both measured, so **which construction
 is cheaper is a question about the deployment, not about the cryptography** — and from
-five assets on the circuit wins in every design measured (from three, if each asset gets
-its own registry).
+five assets on the circuit wins in every design measured (from four, unless the KZG
+pairings are batched).
 
 Put the other way: ZK's value here is not that it proves range cheaply, because measured,
 it does not. It is that **verification cost grows only logarithmically in what is proved** —
@@ -580,7 +605,9 @@ degenerate case.
 
 Two lessons generalise beyond the gas. The constructions were only as sound as their
 least obvious check — the degree bound in the snarkless arm, the path-bit check in a
-customer's verifier — neither of which a passing demo would ever exercise. And the
+customer's verifier — neither of which a passing demo would ever exercise. The degree
+bound shows it twice: it fixed one forgery and was itself forgeable, because the public
+ceremony publishes the very powers of `τ` it assumed were secret. And the
 engineering, not the cryptography, held the disqualifying faults: an unbounded loop in
 the reserve sum, roles that could not be rotated after a lost key, and no way for a
 customer to tell a solvent exchange from one that had stopped publishing.
@@ -626,3 +653,12 @@ customer to tell a solvent exchange from one that had stopped publishing.
   unchanged. The `submitEpoch` probes now encode the call first, which removes about
   0.52M of test-storage reads from both arms. KZG is now 2.8× cheaper than ZK by probe
   and 2.7× by Sepolia-fork receipt. The previous figure was 1.8×.
+- 2026-10-11: arm 3 redesigned after two attacks were reproduced against the deployed
+  construction. The degree bound could be forged with `τ³³` from the public ceremony file,
+  so an understated total (9,550 for 49,550) was accepted on-chain; and the unblinded opening
+  `B(ζ)` let lattice reduction recover every balance. The total is now a running-sum identity
+  that needs no degree bound, every polynomial is blinded with a multiple of `Z_H`, and the
+  two openings share one pairing. The two G2 points are now contract constants instead of a
+  constructor argument the deployer could choose. KZG `submitEpoch` falls from 1,556,777 to 1,320,838; the
+  KZG-to-ZK crossover moves from "between two and five assets" to "between three and five".
+  The Sepolia KZG receipts are kept as historical figures for the pre-fix registry.

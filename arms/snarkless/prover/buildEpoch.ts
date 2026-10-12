@@ -1,17 +1,8 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { loadSrs, g2ForPrecompile, type G1Point, type G2Point } from "./srs.ts";
-import {
-  buildGrandSumEpoch,
-  epochContext,
-  identityOf,
-  proveInclusion,
-  verifyGrandSum,
-  verifyInclusion,
-  type Account,
-} from "./grandSum.ts";
-import { proveRange, verifyRange } from "./range.ts";
-import { commit, open } from "./commit.ts";
-import { Fr } from "./field.ts";
+import { buildGrandSumEpoch, epochContext, identityOf, proveInclusion, type Account } from "./grandSum.ts";
+import { proveLiabilities, vanishingPoly, verifyLiabilities, type LiabilityProof } from "./liabilities.ts";
+import { commit } from "./commit.ts";
 import { add, mul } from "./poly.ts";
 
 function parseCustomersCsv(path: string): Account[] {
@@ -43,14 +34,21 @@ const snapshot = JSON.parse(readFileSync(snapshotPath, "utf8"));
 const context = epochContext(BigInt(snapshot.chainId), snapshot.registry, BigInt(snapshot.epochId));
 
 const epoch = buildGrandSumEpoch(srs, accounts);
-if (!verifyGrandSum(srs, epoch.balanceCommitment, epoch.shiftedCommitment, epoch.opening, epoch.totalLiabilities)) {
-  throw new Error("grand sum failed to verify");
+const n = epoch.balances.length;
+const liabilityProof = proveLiabilities(srs, epoch.balancePoly, epoch.balances, epoch.totalLiabilities, context);
+if (!verifyLiabilities(srs, epoch.balanceCommitment, epoch.totalLiabilities, n, liabilityProof, context)) {
+  throw new Error("liability proof failed to verify");
 }
 
-const rangeProof = proveRange(srs, epoch.balancePoly, epoch.balances, context);
-if (!verifyRange(srs, epoch.balanceCommitment, epoch.balances.length, rangeProof, context)) {
-  throw new Error("range proof failed to verify");
-}
+const proofJson = (proof: LiabilityProof) => ({
+  bitCommitments: proof.bitCommitments.map(point),
+  accumulatorCommitment: point(proof.accumulatorCommitment),
+  quotientCommitment: point(proof.quotientCommitment),
+  values: proof.values.map((v) => v.toString()),
+  shiftedAccumulator: proof.shiftedAccumulator.toString(),
+  proofAtZeta: point(proof.proofAtZeta),
+  proofAtShiftedZeta: point(proof.proofAtShiftedZeta),
+});
 
 const inclusions = accounts.map((account, index) => {
   const inclusion = proveInclusion(srs, epoch, index, context);
@@ -68,48 +66,33 @@ const write = (name: string, value: unknown) =>
   writeFileSync(`${outDir}/${name}`, JSON.stringify(value, null, 2) + "\n");
 
 write("epoch.json", {
-  domainSize: epoch.balances.length,
+  domainSize: n,
   registry: snapshot.registry,
   chainId: snapshot.chainId,
   epochId: snapshot.epochId,
   context: context.toString(),
   totalLiabilities: epoch.totalLiabilities.toString(),
   balanceCommitment: point(epoch.balanceCommitment),
-  shiftedCommitment: point(epoch.shiftedCommitment),
   identityCommitment: point(epoch.identityCommitment),
-  sumProof: point(epoch.opening.proof),
-  constantTerm: epoch.opening.value.toString(),
   g2: g2Json(srs.g2),
   tauG2: g2Json(srs.tauG2),
-  boundG2: g2Json(srs.boundG2),
 });
-write("range-proof.json", {
-  bits: rangeProof.bits,
-  bitCommitments: rangeProof.bitCommitments.map(point),
-  quotientCommitment: point(rangeProof.quotientCommitment),
-  values: rangeProof.values.map((v) => v.toString()),
-  batchProof: point(rangeProof.batchProof),
-});
+write("liability-proof.json", { bits: liabilityProof.bits, ...proofJson(liabilityProof) });
 write("inclusion.json", inclusions);
 
-const vanishing = [Fr.neg(Fr.ONE), ...new Array(epoch.balances.length - 1).fill(0n), Fr.ONE];
-const cheat = add(epoch.balancePoly, mul(vanishing, [5000n]));
-const cheatOpening = open(srs, cheat, 0n);
-const cheatRange = proveRange(srs, cheat, epoch.balances, context);
+const cheat = add(epoch.balancePoly, mul(vanishingPoly(n), [5000n]));
+const cheatProof = proveLiabilities(srs, cheat, epoch.balances, epoch.totalLiabilities, context);
+if (!verifyLiabilities(srs, commit(srs, cheat), epoch.totalLiabilities, n, cheatProof, context)) {
+  throw new Error("the high-degree commitment should still prove its true total");
+}
 write("attack.json", {
   balanceCommitment: point(commit(srs, cheat)),
-  sumProof: point(cheatOpening.proof),
-  constantTerm: cheatOpening.value.toString(),
-  totalLiabilities: Fr.mul(BigInt(epoch.balances.length), cheatOpening.value).toString(),
-  range: {
-    bitCommitments: cheatRange.bitCommitments.map(point),
-    quotientCommitment: point(cheatRange.quotientCommitment),
-    values: cheatRange.values.map((v) => v.toString()),
-    batchProof: point(cheatRange.batchProof),
-  },
+  totalLiabilities: epoch.totalLiabilities.toString(),
+  understatedTotal: "9550",
+  proof: proofJson(cheatProof),
 });
 
-console.log(`Wrote ${outDir}/epoch.json (total ${epoch.totalLiabilities}, domain ${epoch.balances.length})`);
-console.log(`Wrote ${outDir}/range-proof.json (${rangeProof.bits} bit polynomials)`);
+console.log(`Wrote ${outDir}/epoch.json (total ${epoch.totalLiabilities}, domain ${n})`);
+console.log(`Wrote ${outDir}/liability-proof.json (${liabilityProof.bits} bit polynomials and a running-sum accumulator)`);
 console.log(`Wrote ${outDir}/inclusion.json (${inclusions.length} customers)`);
-console.log(`Wrote ${outDir}/attack.json (degree-bound forgery the tests must reject)`);
+console.log(`Wrote ${outDir}/attack.json (a padded balance polynomial that still proves only the true total)`);

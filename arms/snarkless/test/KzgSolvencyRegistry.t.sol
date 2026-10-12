@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {KzgVerifier} from "../contracts/KzgVerifier.sol";
 import {KzgSolvencyRegistry} from "../contracts/KzgSolvencyRegistry.sol";
+import {KzgLiabilityArgument} from "../contracts/KzgLiabilityArgument.sol";
 import {ReserveRegistry} from "../../../shared/contracts/ReserveRegistry.sol";
 import {ReserveDirectory} from "../../../shared/contracts/ReserveDirectory.sol";
 
@@ -33,7 +34,7 @@ contract KzgBookkeepingOnly is ReserveRegistry {
         tokens[0] = token;
     }
 
-    function submitEpoch(KzgSolvencyRegistry.GrandSum calldata sum, KzgSolvencyRegistry.RangeProof calldata)
+    function submitEpoch(KzgSolvencyRegistry.GrandSum calldata sum, KzgLiabilityArgument.Proof calldata)
         external
         onlyCompany
     {
@@ -59,10 +60,9 @@ contract KzgSolvencyRegistryTest is Test {
     address reserve;
     uint256 reserveKey;
     ReserveDirectory directory;
-    KzgSolvencyRegistry.Srs srs;
 
     KzgSolvencyRegistry.GrandSum sum;
-    KzgSolvencyRegistry.RangeProof range;
+    KzgLiabilityArgument.Proof proof;
     string inclusion;
 
     uint64 constant MAX_EPOCH_AGE = 1 days;
@@ -75,12 +75,11 @@ contract KzgSolvencyRegistryTest is Test {
         (reserve, reserveKey) = makeAddrAndKey("reserve");
 
         string memory epoch = vm.readFile("arms/snarkless/fixtures/epoch.json");
-        srs = KzgSolvencyRegistry.Srs(g2(epoch, ".g2"), g2(epoch, ".tauG2"), g2(epoch, ".boundG2"));
         token = new UnitToken();
         directory = new ReserveDirectory();
         deployCodeTo(
             "KzgSolvencyRegistry.sol:KzgSolvencyRegistry",
-            abi.encode(company, auditor, address(token), uint8(0), srs, MAX_EPOCH_AGE, MIN_EPOCH_INTERVAL, directory),
+            abi.encode(company, auditor, address(token), uint8(0), MAX_EPOCH_AGE, MIN_EPOCH_INTERVAL, directory),
             FIXTURE_REGISTRY
         );
         registry = KzgSolvencyRegistry(FIXTURE_REGISTRY);
@@ -94,27 +93,28 @@ contract KzgSolvencyRegistryTest is Test {
         sample();
 
         sum.balanceCommitment = g1(epoch, ".balanceCommitment");
-        sum.shiftedCommitment = g1(epoch, ".shiftedCommitment");
         sum.identityCommitment = g1(epoch, ".identityCommitment");
         sum.totalLiabilities = vm.parseJsonUint(epoch, ".totalLiabilities");
-        sum.sumProof = g1(epoch, ".sumProof");
 
-        loadRange(vm.readFile("arms/snarkless/fixtures/range-proof.json"), "");
+        loadProof(vm.readFile("arms/snarkless/fixtures/liability-proof.json"), "");
 
         inclusion = vm.readFile("arms/snarkless/fixtures/inclusion.json");
     }
 
-    function loadRange(string memory json, string memory prefix) internal {
-        delete range;
+    function loadProof(string memory json, string memory prefix) internal {
+        delete proof;
         for (uint256 k = 0; k < 64; k++) {
-            range.bitCommitments.push(g1(json, string.concat(prefix, ".bitCommitments[", vm.toString(k), "]")));
+            proof.bitCommitments.push(g1(json, string.concat(prefix, ".bitCommitments[", vm.toString(k), "]")));
         }
-        range.quotientCommitment = g1(json, string.concat(prefix, ".quotientCommitment"));
+        proof.accumulatorCommitment = g1(json, string.concat(prefix, ".accumulatorCommitment"));
+        proof.quotientCommitment = g1(json, string.concat(prefix, ".quotientCommitment"));
         uint256[] memory values = vm.parseJsonUintArray(json, string.concat(prefix, ".values"));
         for (uint256 i = 0; i < values.length; i++) {
-            range.values.push(values[i]);
+            proof.values.push(values[i]);
         }
-        range.batchProof = g1(json, string.concat(prefix, ".batchProof"));
+        proof.shiftedAccumulator = vm.parseJsonUint(json, string.concat(prefix, ".shiftedAccumulator"));
+        proof.proofAtZeta = g1(json, string.concat(prefix, ".proofAtZeta"));
+        proof.proofAtShiftedZeta = g1(json, string.concat(prefix, ".proofAtShiftedZeta"));
     }
 
     function g1(string memory json, string memory key) internal pure returns (KzgVerifier.G1Point memory) {
@@ -150,7 +150,7 @@ contract KzgSolvencyRegistryTest is Test {
 
     function submit() internal {
         vm.prank(company);
-        registry.submitEpoch(sum, range);
+        registry.submitEpoch(sum, proof);
     }
 
     function test_PublishesTheSetupItVerifiesAgainst() public view {
@@ -159,7 +159,6 @@ contract KzgSolvencyRegistryTest is Test {
         string memory why = "a verifier has to be able to compare the deployed points with the public ceremony";
         assertEq(abi.encode(published.g2), abi.encode(ceremonyG2(ceremony, ".g2")), why);
         assertEq(abi.encode(published.tauG2), abi.encode(ceremonyG2(ceremony, ".tauG2")), why);
-        assertEq(abi.encode(published.boundG2), abi.encode(ceremonyG2(ceremony, ".boundG2")), why);
     }
 
     function test_SubmitEpoch() public {
@@ -174,14 +173,14 @@ contract KzgSolvencyRegistryTest is Test {
     function test_GasForASuccessfulSubmission() public {
         vm.prank(company);
         uint256 before = gasleft();
-        registry.submitEpoch(sum, range);
+        registry.submitEpoch(sum, proof);
         uint256 used = before - gasleft();
         emit log_named_uint("kzg submitEpoch gas", used);
         assertLt(used, 2_500_000, "a regression beyond the figure the comparison quotes");
     }
 
     function test_GasForPreparedSubmission() public {
-        bytes memory payload = abi.encodeCall(registry.submitEpoch, (sum, range));
+        bytes memory payload = abi.encodeCall(registry.submitEpoch, (sum, proof));
         address target = address(registry);
         vm.prank(company);
         uint256 before = gasleft();
@@ -204,7 +203,7 @@ contract KzgSolvencyRegistryTest is Test {
         bookkeeping.sampleReserves();
         vm.roll(block.number + 1);
 
-        bytes memory payload = abi.encodeCall(bookkeeping.submitEpoch, (sum, range));
+        bytes memory payload = abi.encodeCall(bookkeeping.submitEpoch, (sum, proof));
         address target = address(bookkeeping);
         vm.prank(company);
         uint256 before = gasleft();
@@ -219,18 +218,18 @@ contract KzgSolvencyRegistryTest is Test {
     function test_GasForDeployment() public {
         uint256 before = gasleft();
         new KzgSolvencyRegistry(
-            company, auditor, address(token), uint8(0), srs, MAX_EPOCH_AGE, MIN_EPOCH_INTERVAL, directory
+            company, auditor, address(token), uint8(0), MAX_EPOCH_AGE, MIN_EPOCH_INTERVAL, directory
         );
         uint256 used = before - gasleft();
         emit log_named_uint("kzg registry deployment gas, excluding the 21000 intrinsic and calldata", used);
-        assertLt(used, 5_500_000, "a regression beyond the figure the comparison quotes");
+        assertLt(used, 6_000_000, "a regression beyond the figure the comparison quotes");
     }
 
     function test_GasForVerifyInclusion() public {
         submit();
-        (uint256 index, uint256 identity, uint256 balance, KzgVerifier.G1Point memory proof) = customerAt(0);
+        (uint256 index, uint256 identity, uint256 balance, KzgVerifier.G1Point memory opening) = customerAt(0);
         uint256 before = gasleft();
-        bool included = registry.verifyInclusion(0, index, identity, balance, proof);
+        bool included = registry.verifyInclusion(0, index, identity, balance, opening);
         uint256 used = before - gasleft();
         assertTrue(included);
         emit log_named_uint("kzg verifyInclusion gas", used);
@@ -245,14 +244,14 @@ contract KzgSolvencyRegistryTest is Test {
         sample();
 
         vm.prank(company);
-        vm.expectRevert(KzgSolvencyRegistry.InvalidRangeProof.selector);
-        registry.submitEpoch(sum, range);
+        vm.expectRevert(KzgSolvencyRegistry.InvalidLiabilityProof.selector);
+        registry.submitEpoch(sum, proof);
     }
 
     function test_OnlyTheCompanySubmits() public {
         vm.prank(auditor);
         vm.expectRevert(ReserveRegistry.NotCompany.selector);
-        registry.submitEpoch(sum, range);
+        registry.submitEpoch(sum, proof);
     }
 
     function test_RevertsIfInsolvent() public {
@@ -260,7 +259,7 @@ contract KzgSolvencyRegistryTest is Test {
         sample();
         vm.prank(company);
         vm.expectRevert(abi.encodeWithSelector(KzgSolvencyRegistry.Insolvent.selector, 49_549, 49_550));
-        registry.submitEpoch(sum, range);
+        registry.submitEpoch(sum, proof);
     }
 
     function test_FundsBorrowedForTheSubmissionDoNotCount() public {
@@ -269,7 +268,7 @@ contract KzgSolvencyRegistryTest is Test {
         token.set(reserve, 1_000_000);
         vm.prank(company);
         vm.expectRevert(abi.encodeWithSelector(KzgSolvencyRegistry.Insolvent.selector, 49_549, 49_550));
-        registry.submitEpoch(sum, range);
+        registry.submitEpoch(sum, proof);
     }
 
     function test_NoEpochBeforeTheFirstSubmission() public {
@@ -280,80 +279,138 @@ contract KzgSolvencyRegistryTest is Test {
     function test_RejectsAnUnderstatedTotal() public {
         sum.totalLiabilities = 49_549;
         vm.prank(company);
-        vm.expectRevert(KzgSolvencyRegistry.InvalidOpening.selector);
-        registry.submitEpoch(sum, range);
+        vm.expectRevert(KzgSolvencyRegistry.InvalidLiabilityProof.selector);
+        registry.submitEpoch(sum, proof);
     }
 
-    function test_RefusesTheVanishingPolynomialAttack() public {
+    function loadAttack() internal returns (uint256 understated) {
         string memory attack = vm.readFile("arms/snarkless/fixtures/attack.json");
-        KzgVerifier.G1Point memory cheat = g1(attack, ".balanceCommitment");
-        KzgVerifier.G1Point memory cheatProof = g1(attack, ".sumProof");
-        string memory epoch = vm.readFile("arms/snarkless/fixtures/epoch.json");
-
-        assertTrue(
-            KzgVerifier.verifyOpening(
-                cheat, 0, vm.parseJsonUint(attack, ".constantTerm"), cheatProof, g2(epoch, ".g2"), g2(epoch, ".tauG2")
-            )
-        );
-
-        loadRange(attack, ".range");
-        sum.balanceCommitment = cheat;
-        sum.sumProof = cheatProof;
+        loadProof(attack, ".proof");
+        sum.balanceCommitment = g1(attack, ".balanceCommitment");
         sum.totalLiabilities = vm.parseJsonUint(attack, ".totalLiabilities");
-        assertEq(sum.totalLiabilities, 9550);
-        vm.prank(company);
-        vm.expectRevert(KzgSolvencyRegistry.DegreeTooHigh.selector);
-        registry.submitEpoch(sum, range);
+        understated = vm.parseJsonUint(attack, ".understatedTotal");
     }
 
-    function test_RejectsATamperedRangeValue() public {
-        range.values[5] = addmod(range.values[5], 1, KzgVerifier.FR);
+    function test_APaddedBalancePolynomialCannotUnderstateTheTotal() public {
+        uint256 understated = loadAttack();
+        assertEq(understated, 9550);
+        sum.totalLiabilities = understated;
         vm.prank(company);
-        vm.expectRevert(KzgSolvencyRegistry.InvalidRangeProof.selector);
-        registry.submitEpoch(sum, range);
+        vm.expectRevert(KzgSolvencyRegistry.InvalidLiabilityProof.selector);
+        registry.submitEpoch(sum, proof);
+    }
+
+    function test_APaddedBalancePolynomialStillProvesOnlyItsTrueTotal() public {
+        loadAttack();
+        submit();
+        assertEq(
+            registry.getEpoch(0).totalLiabilities,
+            49_550,
+            "the running sum covers the domain points, whatever the degree of the committed polynomial"
+        );
+    }
+
+    function test_RejectsATamperedOpenedValue() public {
+        proof.values[5] = addmod(proof.values[5], 1, KzgVerifier.FR);
+        vm.prank(company);
+        vm.expectRevert(KzgSolvencyRegistry.InvalidLiabilityProof.selector);
+        registry.submitEpoch(sum, proof);
     }
 
     function test_RejectsATamperedBitCommitment() public {
-        range.bitCommitments[3] = range.bitCommitments[4];
+        proof.bitCommitments[3] = proof.bitCommitments[4];
         vm.prank(company);
-        vm.expectRevert(KzgSolvencyRegistry.InvalidRangeProof.selector);
-        registry.submitEpoch(sum, range);
+        vm.expectRevert(KzgSolvencyRegistry.InvalidLiabilityProof.selector);
+        registry.submitEpoch(sum, proof);
     }
 
-    function test_RejectsARangeProofWithTooFewBits() public {
-        range.bitCommitments.pop();
+    function test_RejectsAProofWithTooFewBits() public {
+        proof.bitCommitments.pop();
         vm.prank(company);
-        vm.expectRevert(KzgSolvencyRegistry.InvalidRangeProof.selector);
-        registry.submitEpoch(sum, range);
+        vm.expectRevert(KzgSolvencyRegistry.InvalidLiabilityProof.selector);
+        registry.submitEpoch(sum, proof);
+    }
+
+    function test_RejectsATamperedRunningSum() public {
+        proof.shiftedAccumulator = addmod(proof.shiftedAccumulator, 1, KzgVerifier.FR);
+        vm.prank(company);
+        vm.expectRevert(KzgSolvencyRegistry.InvalidLiabilityProof.selector);
+        registry.submitEpoch(sum, proof);
+    }
+
+    function test_RejectsASwappedAccumulatorCommitment() public {
+        proof.accumulatorCommitment = proof.quotientCommitment;
+        vm.prank(company);
+        vm.expectRevert(KzgSolvencyRegistry.InvalidLiabilityProof.selector);
+        registry.submitEpoch(sum, proof);
+    }
+
+    function test_RejectsAnOpenedValueOutsideTheField() public {
+        proof.values[0] = KzgVerifier.FR;
+        vm.prank(company);
+        vm.expectRevert(KzgSolvencyRegistry.InvalidLiabilityProof.selector);
+        registry.submitEpoch(sum, proof);
+    }
+
+    function test_RejectsARunningSumOutsideTheField() public {
+        proof.shiftedAccumulator += KzgVerifier.FR;
+        vm.prank(company);
+        vm.expectRevert(KzgSolvencyRegistry.InvalidLiabilityProof.selector);
+        registry.submitEpoch(sum, proof);
+    }
+
+    function test_RejectsATotalWrappedAroundTheField() public {
+        token.set(reserve, type(uint256).max);
+        vm.prank(auditor);
+        registry.discardSample();
+        sample();
+        sum.totalLiabilities += KzgVerifier.FR;
+        vm.prank(company);
+        vm.expectRevert(KzgSolvencyRegistry.InvalidLiabilityProof.selector);
+        registry.submitEpoch(sum, proof);
+    }
+
+    function test_RejectsACommitmentOffTheCurve() public {
+        proof.accumulatorCommitment = KzgVerifier.G1Point(1, 3);
+        vm.prank(company);
+        vm.expectRevert();
+        registry.submitEpoch(sum, proof);
+    }
+
+    function test_RejectsAnOpeningProofAtInfinity() public {
+        proof.proofAtShiftedZeta = KzgVerifier.G1Point(0, 0);
+        vm.prank(company);
+        vm.expectRevert(KzgSolvencyRegistry.InvalidLiabilityProof.selector);
+        registry.submitEpoch(sum, proof);
     }
 
     function customerAt(uint256 i)
         internal
         view
-        returns (uint256 index, uint256 identity, uint256 balance, KzgVerifier.G1Point memory proof)
+        returns (uint256 index, uint256 identity, uint256 balance, KzgVerifier.G1Point memory opening)
     {
         string memory key = string.concat("[", vm.toString(i), "]");
         index = vm.parseJsonUint(inclusion, string.concat(key, ".index"));
         identity = vm.parseJsonUint(inclusion, string.concat(key, ".identity"));
         balance = vm.parseJsonUint(inclusion, string.concat(key, ".balance"));
-        proof = g1(inclusion, string.concat(key, ".proof"));
+        opening = g1(inclusion, string.concat(key, ".proof"));
     }
 
     function test_EveryCustomerVerifiesTheirSlot() public {
         submit();
         for (uint256 i = 0; i < 3; i++) {
-            (uint256 index, uint256 identity, uint256 balance, KzgVerifier.G1Point memory proof) = customerAt(i);
-            assertTrue(registry.verifyInclusion(0, index, identity, balance, proof));
+            (uint256 index, uint256 identity, uint256 balance, KzgVerifier.G1Point memory opening) = customerAt(i);
+            assertTrue(registry.verifyInclusion(0, index, identity, balance, opening));
         }
     }
 
     function test_AWrongBalanceIdentityOrSlotFails() public {
         submit();
-        (uint256 index, uint256 identity, uint256 balance, KzgVerifier.G1Point memory proof) = customerAt(1);
-        assertFalse(registry.verifyInclusion(0, index, identity, balance + 1, proof));
-        assertFalse(registry.verifyInclusion(0, index, identity + 1, balance, proof));
-        assertFalse(registry.verifyInclusion(0, index + 1, identity, balance, proof));
-        assertFalse(registry.verifyInclusion(0, 8, identity, balance, proof));
-        assertFalse(registry.verifyInclusion(1, index, identity, balance, proof));
+        (uint256 index, uint256 identity, uint256 balance, KzgVerifier.G1Point memory opening) = customerAt(1);
+        assertFalse(registry.verifyInclusion(0, index, identity, balance + 1, opening));
+        assertFalse(registry.verifyInclusion(0, index, identity + 1, balance, opening));
+        assertFalse(registry.verifyInclusion(0, index + 1, identity, balance, opening));
+        assertFalse(registry.verifyInclusion(0, 8, identity, balance, opening));
+        assertFalse(registry.verifyInclusion(1, index, identity, balance, opening));
     }
 }

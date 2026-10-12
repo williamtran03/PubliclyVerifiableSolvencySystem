@@ -28,7 +28,7 @@ function sections(file: Uint8Array): Map<number, Uint8Array> {
   return found;
 }
 
-export function srsFromPtau(file: Uint8Array, maxDegree: number, boundedDegree: number): Srs {
+export function srsFromPtau(file: Uint8Array, maxDegree: number): Srs {
   const parts = sections(file);
   const header = parts.get(1);
   const tauG1 = parts.get(2);
@@ -38,8 +38,7 @@ export function srsFromPtau(file: Uint8Array, maxDegree: number, boundedDegree: 
   if (view.getUint32(0, true) !== 32 || little(header.subarray(4, 36)) !== Fp.ORDER) {
     throw new Error("the ceremony is not over BN254");
   }
-  const shift = maxDegree - boundedDegree;
-  if (tauG1.length < (maxDegree + 1) * G1_BYTES || tauG2.length < (shift + 1) * G2_BYTES) {
+  if (tauG1.length < (maxDegree + 1) * G1_BYTES || tauG2.length < 2 * G2_BYTES) {
     throw new Error("the ceremony has fewer powers than the SRS needs");
   }
 
@@ -64,8 +63,6 @@ export function srsFromPtau(file: Uint8Array, maxDegree: number, boundedDegree: 
     g1: Array.from({ length: maxDegree + 1 }, (_, i) => g1At(i)),
     g2: g2At(0),
     tauG2: g2At(1),
-    boundedDegree,
-    boundG2: g2At(shift),
   };
   if (!isPowersOfTau(srs)) throw new Error("the ceremony points are not successive powers of one tau");
   return srs;

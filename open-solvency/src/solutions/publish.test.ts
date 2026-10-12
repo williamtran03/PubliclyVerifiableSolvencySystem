@@ -58,10 +58,10 @@ test("publication waits for the minimum interval and the auditor's sample", asyn
 
 test("KZG submission encodes the generated fixture for the next epoch", async () => {
   const epoch = readFileSync("arms/snarkless/fixtures/epoch.json", "utf8");
-  const range = readFileSync("arms/snarkless/fixtures/range-proof.json", "utf8");
+  const range = readFileSync("arms/snarkless/fixtures/liability-proof.json", "utf8");
   const parsed = JSON.parse(epoch);
   await withRpc({ calls: { epochCount: 0n, "epochContext(uint256)": BigInt(parsed.context) } }, async () => {
-    const proof = new File([range], "range-proof.json", { type: "application/json" });
+    const proof = new File([range], "liability-proof.json", { type: "application/json" });
     const calldata = await publicationCall("snarkless", { rpc, registry }, epoch, proof, "");
     assert.ok(calldata.startsWith("0x"));
     assert.ok(calldata.length > 3000);

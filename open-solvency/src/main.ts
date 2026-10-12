@@ -55,7 +55,7 @@ function renderSolutions() {
   el<HTMLElement>("supplementLabel").hidden = selected.id === "published-ledger";
   el<HTMLElement>("roundsLabel").hidden = selected.id !== "zk-circuit";
   el<HTMLElement>("nextLabel").firstChild!.textContent = selected.id === "published-ledger" ? "Merkle-sum ledger (ledger.json)" : "New epoch artifact (epoch.json)";
-  el<HTMLElement>("supplementLabel").firstChild!.textContent = selected.id === "snarkless" ? "Range proof (range-proof.json)" : "ZK proof (proof.bin)";
+  el<HTMLElement>("supplementLabel").firstChild!.textContent = selected.id === "snarkless" ? "Liability proof (liability-proof.json)" : "ZK proof (proof.bin)";
   renderBalances();
   document.querySelectorAll<HTMLButtonElement>(".solution").forEach((button) => button.addEventListener("click", () => {
     save();

@@ -10,7 +10,7 @@ import { createBundle, parseHoldingsCsv, type Holding } from "../../arms/zk-circ
 import { prove } from "../../arms/zk-circuit/prover/prove.ts";
 import { loadSrs, type G1Point } from "../../arms/snarkless/prover/srs.ts";
 import { buildGrandSumEpoch, epochContext, identityOf, proveInclusion, type Account } from "../../arms/snarkless/prover/grandSum.ts";
-import { proveRange } from "../../arms/snarkless/prover/range.ts";
+import { proveLiabilities } from "../../arms/snarkless/prover/liabilities.ts";
 import { ledger } from "../../open-solvency/src/solutions/ledger.ts";
 import { zk } from "../../open-solvency/src/solutions/zk.ts";
 import { kzg } from "../../open-solvency/src/solutions/kzg.ts";
@@ -103,18 +103,18 @@ async function prepareKzg(network: Network, epochId: bigint): Promise<Prepared> 
   });
   const context = epochContext(network.chainId, registry, epochId);
   const epoch = buildGrandSumEpoch(srs, accounts);
-  const range = proveRange(srs, epoch.balancePoly, epoch.balances, context);
-  const sum = { balanceCommitment: point(epoch.balanceCommitment), shiftedCommitment: point(epoch.shiftedCommitment), identityCommitment: point(epoch.identityCommitment), totalLiabilities: epoch.totalLiabilities, sumProof: point(epoch.opening.proof) };
-  const rangeArtifact = { bitCommitments: range.bitCommitments.map(point), quotientCommitment: point(range.quotientCommitment), values: range.values, batchProof: point(range.batchProof) };
+  const proof = proveLiabilities(srs, epoch.balancePoly, epoch.balances, epoch.totalLiabilities, context);
+  const sum = { balanceCommitment: point(epoch.balanceCommitment), identityCommitment: point(epoch.identityCommitment), totalLiabilities: epoch.totalLiabilities };
+  const proofArtifact = ({ bitCommitments: proof.bitCommitments.map(point), accumulatorCommitment: point(proof.accumulatorCommitment), quotientCommitment: point(proof.quotientCommitment), values: proof.values, shiftedAccumulator: proof.shiftedAccumulator, proofAtZeta: point(proof.proofAtZeta), proofAtShiftedZeta: point(proof.proofAtShiftedZeta) });
   const files: [string, unknown][] = [
     ["epoch.json", { ...sum, registry, chainId: network.chainId, epochId, context }],
-    ["range-proof.json", rangeArtifact],
+    ["liability-proof.json", proofArtifact],
   ];
   const checks = accounts.map((account, index) => {
     files.push([`${account.username}.json`, { username: account.username, index, identity: identityOf(account.username, account.secretCommitment), balance: account.balance, proof: point(proveInclusion(srs, epoch, index, context).proof) }]);
     return { file: `${account.username}.json`, account: account.username, expected: new Map([[0, account.balance]]), secret: SAMPLE_CUSTOMER_SECRETS[account.username as keyof typeof SAMPLE_CUSTOMER_SECRETS] };
   });
-  return { functionName: "submitEpoch", args: [sum, rangeArtifact], files, checks };
+  return { functionName: "submitEpoch", args: [sum, proofArtifact], files, checks };
 }
 
 const preparers: Record<Arm, (network: Network, epochId: bigint) => Promise<Prepared>> = {

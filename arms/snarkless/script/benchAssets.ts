@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { loadSrs, type G1Point } from "../prover/srs.ts";
-import { buildGrandSumEpoch, epochContext, verifyGrandSum, type Account } from "../prover/grandSum.ts";
-import { proveRange, verifyRange } from "../prover/range.ts";
+import { buildGrandSumEpoch, epochContext, type Account } from "../prover/grandSum.ts";
+import { proveLiabilities, verifyLiabilities } from "../prover/liabilities.ts";
 
 const CHAIN_ID = 31337n;
 const ASSETS = 4;
@@ -35,27 +35,25 @@ const balanceSets: bigint[][] = [
 
 function artifactsFor(accounts: Account[], context: bigint) {
   const epoch = buildGrandSumEpoch(srs, accounts);
-  if (!verifyGrandSum(srs, epoch.balanceCommitment, epoch.shiftedCommitment, epoch.opening, epoch.totalLiabilities)) {
-    throw new Error("grand sum failed to verify");
-  }
-  const range = proveRange(srs, epoch.balancePoly, epoch.balances, context);
-  if (!verifyRange(srs, epoch.balanceCommitment, epoch.balances.length, range, context)) {
-    throw new Error("range proof failed to verify");
+  const proof = proveLiabilities(srs, epoch.balancePoly, epoch.balances, epoch.totalLiabilities, context);
+  if (!verifyLiabilities(srs, epoch.balanceCommitment, epoch.totalLiabilities, epoch.balances.length, proof, context)) {
+    throw new Error("liability proof failed to verify");
   }
   return {
     context: context.toString(),
     sum: {
       balanceCommitment: point(epoch.balanceCommitment),
-      shiftedCommitment: point(epoch.shiftedCommitment),
       identityCommitment: point(epoch.identityCommitment),
       totalLiabilities: epoch.totalLiabilities.toString(),
-      sumProof: point(epoch.opening.proof),
     },
-    range: {
-      bitCommitments: range.bitCommitments.map(point),
-      quotientCommitment: point(range.quotientCommitment),
-      values: range.values.map((v) => v.toString()),
-      batchProof: point(range.batchProof),
+    proof: {
+      bitCommitments: proof.bitCommitments.map(point),
+      accumulatorCommitment: point(proof.accumulatorCommitment),
+      quotientCommitment: point(proof.quotientCommitment),
+      values: proof.values.map((v) => v.toString()),
+      shiftedAccumulator: proof.shiftedAccumulator.toString(),
+      proofAtZeta: point(proof.proofAtZeta),
+      proofAtShiftedZeta: point(proof.proofAtShiftedZeta),
     },
   };
 }

@@ -1,18 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { generateSrs } from "./srs.ts";
-import { commit, commitShifted, open, verifyDegreeBound } from "./commit.ts";
-import { Fr } from "./field.ts";
+import { commit } from "./commit.ts";
 import { customerSecretCommitment } from "../../../shared/merkleSumTree.ts";
 import { add, mul } from "./poly.ts";
-import { proveRange, verifyRange } from "./range.ts";
-import {
-  buildGrandSumEpoch,
-  proveInclusion,
-  verifyGrandSum,
-  verifyInclusion,
-  type Account,
-} from "./grandSum.ts";
+import { proveLiabilities, vanishingPoly, verifyLiabilities } from "./liabilities.ts";
+import { buildGrandSumEpoch, proveInclusion, verifyInclusion, type Account } from "./grandSum.ts";
 
 const CTX = 7n;
 
@@ -23,41 +16,40 @@ const accounts: Account[] = [
   { username: "customer-789", secretCommitment: customerSecretCommitment((1n << 202n) + 333n), balance: 32000n },
 ];
 const customerAt = (index: number) => ({ username: accounts[index].username, secret: (1n << BigInt(200 + index)) + BigInt((index + 1) * 111), balance: accounts[index].balance });
-const vanishing = [Fr.neg(Fr.ONE), 0n, 0n, 0n, 0n, 0n, 0n, 0n, Fr.ONE];
 
 test("total liabilities matches the plain sum of balances", () => {
   const epoch = buildGrandSumEpoch(srs, accounts);
   assert.equal(epoch.totalLiabilities, 49550n);
 });
 
-test("the published total verifies: degree bound, opening at 0, n·p(0)", () => {
+test("the published total verifies through the running sum", () => {
   const epoch = buildGrandSumEpoch(srs, accounts);
-  assert.ok(
-    verifyGrandSum(srs, epoch.balanceCommitment, epoch.shiftedCommitment, epoch.opening, epoch.totalLiabilities),
+  const proof = proveLiabilities(srs, epoch.balancePoly, epoch.balances, epoch.totalLiabilities, CTX);
+  assert.ok(verifyLiabilities(srs, epoch.balanceCommitment, epoch.totalLiabilities, 8, proof, CTX));
+  assert.equal(verifyLiabilities(srs, epoch.balanceCommitment, 49549n, 8, proof, CTX), false);
+});
+
+test("a padded balance polynomial keeps every slot and still proves only the true total", () => {
+  const honest = buildGrandSumEpoch(srs, accounts);
+  const cheat = add(honest.balancePoly, mul(vanishingPoly(8), [5000n]));
+  const cheatCommitment = commit(srs, cheat);
+  const proof = proveLiabilities(srs, cheat, honest.balances, 49550n, CTX);
+  assert.ok(verifyLiabilities(srs, cheatCommitment, 49550n, 8, proof, CTX));
+  assert.equal(verifyLiabilities(srs, cheatCommitment, 9550n, 8, proof, CTX), false);
+  assert.throws(
+    () => proveLiabilities(srs, cheat, [12550n, 5000n, 0n, 0n, 0n, 0n, 0n, 0n], 17550n, CTX),
+    /not divisible/,
+    "bits and running sums for an understated ledger do not fit the committed balances",
   );
 });
 
-test("a wrong total or tampered opening fails", () => {
-  const epoch = buildGrandSumEpoch(srs, accounts);
-  const { balanceCommitment, shiftedCommitment, opening } = epoch;
-  assert.equal(verifyGrandSum(srs, balanceCommitment, shiftedCommitment, opening, 49549n), false);
-  const tampered = { ...opening, value: Fr.add(opening.value, 1n) };
-  assert.equal(verifyGrandSum(srs, balanceCommitment, shiftedCommitment, tampered, Fr.mul(8n, tampered.value)), false);
-});
-
-test("adding a multiple of the vanishing polynomial can no longer understate the total", () => {
-  const honest = buildGrandSumEpoch(srs, accounts);
-  const cheat = add(honest.balancePoly, mul(vanishing, [5000n]));
-  const cheatCommitment = commit(srs, cheat);
-  const cheatOpening = open(srs, cheat, 0n);
-  const understated = Fr.mul(8n, cheatOpening.value);
-  assert.equal(understated, 9550n);
-
-  assert.ok(verifyRange(srs, cheatCommitment, 8, proveRange(srs, cheat, honest.balances, CTX), CTX));
-
-  assert.throws(() => commitShifted(srs, cheat), /exceeds the bound/);
-  assert.equal(verifyDegreeBound(srs, cheatCommitment, honest.shiftedCommitment), false);
-  assert.equal(verifyGrandSum(srs, cheatCommitment, honest.shiftedCommitment, cheatOpening, understated), false);
+test("the balance commitment is blinded, so equal ledgers never commit the same way", () => {
+  const first = buildGrandSumEpoch(srs, accounts);
+  const second = buildGrandSumEpoch(srs, accounts);
+  assert.equal(first.balanceCommitment.equals(second.balanceCommitment), false);
+  accounts.forEach((_, index) => {
+    assert.ok(verifyInclusion(srs, second, customerAt(index), proveInclusion(srs, second, index, CTX), CTX));
+  });
 });
 
 test("fewer real customers than capacity are padded with zero balances", () => {
@@ -98,8 +90,4 @@ test("two customers cannot be pointed at one slot", () => {
   const proof = proveInclusion(srs, epoch, 0, CTX);
   const second = { username: "customer-123", secret: (1n << 200n) + 444n, balance: 12550n };
   assert.equal(verifyInclusion(srs, epoch, second, proof, CTX), false);
-});
-
-test("an SRS bounding a different degree is refused", () => {
-  assert.throws(() => buildGrandSumEpoch(generateSrs(32, 8), accounts), /must bound degree 7/);
 });

@@ -18,5 +18,5 @@ if (digest !== CEREMONY.sha256) {
 }
 
 mkdirSync("./arms/snarkless/fixtures", { recursive: true });
-saveSrs(srsFromPtau(file, MAX_DEGREE, LEAF_CAPACITY - 1), "./arms/snarkless/fixtures/srs.json", CEREMONY.url);
+saveSrs(srsFromPtau(file, MAX_DEGREE),"./arms/snarkless/fixtures/srs.json", CEREMONY.url);
 console.log(`Wrote arms/snarkless/fixtures/srs.json (max degree ${MAX_DEGREE}) from ${CEREMONY.url}`);

@@ -11,11 +11,11 @@ const zkAbi = parseAbi([
 ]);
 const kzgAbi = parseAbi([
   "struct G1Point { uint256 x; uint256 y; }",
-  "struct GrandSum { G1Point balanceCommitment; G1Point shiftedCommitment; G1Point identityCommitment; uint256 totalLiabilities; G1Point sumProof; }",
-  "struct RangeProof { G1Point[] bitCommitments; G1Point quotientCommitment; uint256[] values; G1Point batchProof; }",
+  "struct GrandSum { G1Point balanceCommitment; G1Point identityCommitment; uint256 totalLiabilities; }",
+  "struct Proof { G1Point[] bitCommitments; G1Point accumulatorCommitment; G1Point quotientCommitment; uint256[] values; uint256 shiftedAccumulator; G1Point proofAtZeta; G1Point proofAtShiftedZeta; }",
   "function epochCount() view returns (uint256)",
   "function epochContext(uint256) view returns (uint256)",
-  "function submitEpoch(GrandSum sum, RangeProof range)",
+  "function submitEpoch(GrandSum sum, Proof proof)",
 ]);
 
 const scheduleAbi = parseAbi([
@@ -73,15 +73,15 @@ export async function publicationCall(solution: SolutionId, connection: Connecti
     if (bytes === "0x") throw new Error("The proof file is empty.");
     return encodeFunctionData({ abi: zkAbi, functionName: "submitEpoch", args: [bytes, amount(raw.rootHash), raw.floors.map(amount) as [bigint, bigint, bigint], parsedRounds.map(amount) as [bigint, bigint, bigint]] });
   }
-  if (!supplement) throw new Error("Select range-proof.json.");
-  const range = JSON.parse(await supplement.text());
+  if (!supplement) throw new Error("Select liability-proof.json.");
+  const proof = JSON.parse(await supplement.text());
   const next = await c.readContract({ address: connection.registry, abi: kzgAbi, functionName: "epochCount" });
   const context = await c.readContract({ address: connection.registry, abi: kzgAbi, functionName: "epochContext", args: [next] });
   if (raw.registry?.toLowerCase() !== connection.registry.toLowerCase() || amount(raw.epochId) !== next || amount(raw.chainId) !== BigInt(await c.getChainId()) || amount(raw.context) !== context) throw new Error("The KZG artifact does not belong to this registry's next epoch.");
-  if (!Array.isArray(range.bitCommitments) || !Array.isArray(range.values)) throw new Error("Invalid KZG range proof.");
+  if (!Array.isArray(proof.bitCommitments) || !Array.isArray(proof.values)) throw new Error("Invalid KZG liability proof.");
   return encodeFunctionData({ abi: kzgAbi, functionName: "submitEpoch", args: [
-    { balanceCommitment: point(raw.balanceCommitment), shiftedCommitment: point(raw.shiftedCommitment), identityCommitment: point(raw.identityCommitment), totalLiabilities: amount(raw.totalLiabilities), sumProof: point(raw.sumProof) },
-    { bitCommitments: range.bitCommitments.map(point), quotientCommitment: point(range.quotientCommitment), values: range.values.map(amount), batchProof: point(range.batchProof) },
+    { balanceCommitment: point(raw.balanceCommitment), identityCommitment: point(raw.identityCommitment), totalLiabilities: amount(raw.totalLiabilities) },
+    { bitCommitments: proof.bitCommitments.map(point), accumulatorCommitment: point(proof.accumulatorCommitment), quotientCommitment: point(proof.quotientCommitment), values: proof.values.map(amount), shiftedAccumulator: amount(proof.shiftedAccumulator), proofAtZeta: point(proof.proofAtZeta), proofAtShiftedZeta: point(proof.proofAtShiftedZeta) },
   ] });
 }
 

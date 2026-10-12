@@ -84,7 +84,7 @@ kzg-setup:
 	npx tsx arms/snarkless/script/setup.ts
 
 # per-epoch prover, the counterpart to zk-prove; same shared/customers.csv
-# writes epoch.json, range-proof.json, inclusion.json and attack.json, all bound
+# writes epoch.json, liability-proof.json, inclusion.json and attack.json, all bound
 # to the registry in the snapshot; srs.json comes from kzg-setup and is left alone.
 # Both default to the committed fixtures, which the Foundry tests read:
 #   make kzg-epoch SNAPSHOT=path/to/snapshot.json OUT=path/to/directory

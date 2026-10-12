@@ -1,20 +1,21 @@
 import { encodeAbiParameters, keccak256 } from "viem";
-import { interpolate, nthRootOfUnity, Fr } from "./field.ts";
-import { batchOpen, batchVerify, commit, commitShifted, open, verify, verifyDegreeBound, type Opening } from "./commit.ts";
+import { nthRootOfUnity, Fr } from "./field.ts";
+import { batchOpen, batchVerify, commit } from "./commit.ts";
+import { blind } from "./liabilities.ts";
 import type { G1Point, Srs } from "./srs.ts";
 import type { Poly } from "./poly.ts";
 import { Transcript } from "./transcript.ts";
 import { customerSecretCommitment, LEAF_CAPACITY, poseidon2Hash, usernameToBigInt } from "../../../shared/merkleSumTree.ts";
 
 const GRAND_SUM_CAPACITY = LEAF_CAPACITY;
+const BALANCE_BLINDING = 2;
+const IDENTITY_BLINDING = 1;
 
 export type Account = { username: string; secretCommitment: bigint; balance: bigint };
 
 export type GrandSumEpoch = {
   balanceCommitment: G1Point;
-  shiftedCommitment: G1Point;
   identityCommitment: G1Point;
-  opening: Opening;
   totalLiabilities: bigint;
   balancePoly: Poly;
   identityPoly: Poly;
@@ -41,7 +42,6 @@ export function buildGrandSumEpoch(srs: Srs, accounts: Account[]): GrandSumEpoch
   if (accounts.length > n) {
     throw new Error(`too many balances (${accounts.length}) for domain size ${n}`);
   }
-  if (srs.boundedDegree !== n - 1) throw new Error(`the SRS must bound degree ${n - 1}`);
 
   const balances = [...accounts.map((a) => a.balance), ...new Array(n - accounts.length).fill(0n)];
   const identities = [
@@ -49,41 +49,22 @@ export function buildGrandSumEpoch(srs: Srs, accounts: Account[]): GrandSumEpoch
     ...new Array(n - accounts.length).fill(0n),
   ];
 
-  const balancePoly = interpolate(balances);
-  const identityPoly = interpolate(identities);
-  const opening = open(srs, balancePoly, 0n);
-  const totalLiabilities = Fr.mul(BigInt(n), opening.value);
-
-  const plainSum = balances.reduce((a, b) => a + b, 0n);
-  if (totalLiabilities !== plainSum) throw new Error("the balances do not fit the field");
+  const totalLiabilities = balances.reduce((a, b) => a + b, 0n);
+  if (balances.some((balance) => balance < 0n) || totalLiabilities >= Fr.ORDER) {
+    throw new Error("the balances do not fit the field");
+  }
+  const balancePoly = blind(balances, BALANCE_BLINDING);
+  const identityPoly = blind(identities, IDENTITY_BLINDING);
 
   return {
     balanceCommitment: commit(srs, balancePoly),
-    shiftedCommitment: commitShifted(srs, balancePoly),
     identityCommitment: commit(srs, identityPoly),
-    opening,
     totalLiabilities,
     balancePoly,
     identityPoly,
     balances,
     identities,
   };
-}
-
-export function verifyGrandSum(
-  srs: Srs,
-  balanceCommitment: G1Point,
-  shiftedCommitment: G1Point,
-  opening: Opening,
-  totalLiabilities: bigint,
-): boolean {
-  return (
-    opening.z === 0n &&
-    totalLiabilities < Fr.ORDER &&
-    Fr.eql(Fr.mul(BigInt(GRAND_SUM_CAPACITY), opening.value), totalLiabilities) &&
-    verifyDegreeBound(srs, balanceCommitment, shiftedCommitment) &&
-    verify(srs, balanceCommitment, opening)
-  );
 }
 
 function inclusionChallenge(

@@ -23,7 +23,6 @@ test("a saved SRS loads back as the same points", () => {
   const loaded = loadSrs(path);
   assert.ok(loaded.g1.every((point, i) => point.equals(srs.g1[i])));
   assert.ok(loaded.tauG2.equals(srs.tauG2));
-  assert.ok(loaded.boundG2.equals(srs.boundG2));
 });
 
 test("a point that is not on the curve is refused", () => {
@@ -36,12 +35,7 @@ test("points that do not share one tau are refused", () => {
   assert.throws(() => loadSrs(path), /not successive powers of one tau/);
 });
 
-test("a degree bound outside the SRS is refused", () => {
-  const path = write("bad-bound.json", (json) => (json.boundedDegree = json.maxDegree + 1));
-  assert.throws(() => loadSrs(path), /bounds degree/);
-});
-
 test("a truncated SRS is refused", () => {
   const path = write("short.json", (json) => (json.g1 = json.g1.slice(0, 5)));
-  assert.throws(() => loadSrs(path), /needs 9/, "a short SRS would silently cap the degree the verifier believes it bounds");
+  assert.throws(() => loadSrs(path), /needs 9/, "a short SRS must not load as if it were complete");
 });

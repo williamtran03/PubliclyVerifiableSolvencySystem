@@ -39,7 +39,7 @@ test("three demo deployments support the site's verification and publication ada
     for (const solution of [ledger, kzg]) {
       const connection = demo.connections[solution.id];
       const { client, wallet, advance } = await demoChain(connection.rpc);
-      const extra = solution === kzg ? new File([file("kzg-next-range-proof.json")], "range-proof.json") : undefined;
+      const extra = solution === kzg ? new File([file("kzg-next-liability-proof.json")], "liability-proof.json") : undefined;
       const next = file(solution === ledger ? "ledger-next.json" : "kzg-next-epoch.json");
       await assert.rejects(publicationCall(solution.id, connection, next, extra, ""), /accepts the next epoch from/, `${solution.id} republished before the minimum interval`);
       await advance(minEpochInterval);

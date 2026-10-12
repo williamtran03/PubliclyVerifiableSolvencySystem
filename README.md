@@ -60,7 +60,7 @@ Each directory under `arms/` is self-contained (`contracts/`, `prover/`, `test/`
 |---|---|---|---|
 | [`arms/published-ledger`](arms/published-ledger/README.md) | The contract rebuilds a merkle-sum tree per asset from calldata | Every anonymised part and every total | Only who owns which part |
 | [`arms/zk-circuit`](arms/zk-circuit/README.md) | A Noir/UltraHonk proof that each asset's liabilities stay under a public floor | A root, the epoch context, one floor per asset | Every balance and the total |
-| [`arms/snarkless`](arms/snarkless/README.md) | KZG commitments: the total is an opening at 0, non-negativity a range argument, no circuit | The total and the commitments | Every individual balance |
+| [`arms/snarkless`](arms/snarkless/README.md) | KZG commitments: the total is a running sum over the committed balances, non-negativity a range argument, no circuit | The total and the commitments | Every individual balance |
 | `arms/single-asset` | Measurement control, superseded by the ZK arm | | |
 
 The control arm is kept off the shared registry on purpose: its figures do not move
@@ -104,16 +104,17 @@ Full figures and the reasoning are in [`docs/comparison.md`](docs/comparison.md)
 |---|---:|---|
 | Published ledger | 408,350 | grows with the number of parts |
 | ZK circuit | 4,366,256 | constant on-chain; proving is the limit |
-| Snarkless (KZG) | 1,556,777 | constant on-chain |
+| Snarkless (KZG) | 1,320,838 | constant on-chain |
 
 Execution gas under the Osaka rules Ethereum runs today, without the 21,000 base cost
 and calldata. The public Sepolia submissions cost 4,536,813 (ZK), 1,679,265 (KZG) and
-410,209 (ledger) in their first epoch; the comparison explains the difference.
+410,209 (ledger) in their first epoch; the comparison explains the difference. The
+Sepolia KZG registry predates the 2026-10-11 redesign of arm 3 and must be redeployed.
 
 These rows differ in assets and customers. On the same three customers and one asset,
-the ledger costs 304,806, KZG 1,556,777 and a single-asset SNARK 4,023,440. Each extra
+the ledger costs 304,806, KZG 1,320,838 and a single-asset SNARK 4,023,440. Each extra
 asset costs the SNARK verifier about 2,100 gas and KZG 1.0–1.3M, so ZK becomes the
-cheaper one somewhere between two and five assets, depending on how the KZG side is
+cheaper one somewhere between three and five assets, depending on how the KZG side is
 built. Both are measured; see *Like for like* and *Cost against asset count* in the
 comparison.
 
