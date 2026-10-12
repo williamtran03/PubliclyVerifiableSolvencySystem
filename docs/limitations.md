@@ -8,7 +8,7 @@ and each arm makes them differently.
 | Claim | Question it answers | How it is established |
 |---|---|---|
 | **Proof of assets** | Which funds does the company control right now? | Shared by all arms (`shared/contracts/`). A wallet counts only if the auditor approved it, it proved control in the current window with a signature over the challenge that window opened with, and the shared `ReserveDirectory` records it for this registry alone. Its balance counts at the lower of the auditor's sample in an earlier block and the live balance at submission. |
-| **Proof of liabilities** | What does the company owe, and is each customer in it? | Arm 1: every anonymised part is published and the contract recomputes one merkle-sum root and total per asset. Arm 2: a Poseidon2 Merkle commitment to every `(customer, secret commitment, asset, amount)` leaf, bound to the epoch; totals stay private. Arm 3: a KZG commitment whose total is an opening at 0 under a degree bound, with a 64-bit range argument. In every arm, each customer checks their own inclusion using a customer-chosen secret. |
+| **Proof of liabilities** | What does the company owe, and is each customer in it? | Arm 1: every anonymised part is published and the contract recomputes one merkle-sum root and total per asset. Arm 2: a Poseidon2 Merkle commitment to every `(customer, secret commitment, asset, amount)` leaf, bound to the epoch; totals stay private. Arm 3: a blinded KZG commitment whose total is a running sum over the committed balances, with a 64-bit range argument. In every arm, each customer checks their own inclusion using a customer-chosen secret. |
 | **Proof of solvency** | Do assets cover liabilities? | Enforced inside the submission transaction, per asset: arm 1 and arm 3 compare the exact total, arm 2 compares a public floor that the ZK proof shows every per-asset total stays under. An insolvent epoch cannot be recorded. A surplus in one asset never covers a shortfall in another, and prices play no part in the check. |
 
 Each claim is only as strong as its weakest input. A perfect liability proof over an
@@ -135,10 +135,14 @@ still not built.
   and a beacon from Ethereum's RANDAO, in the file PSE publishes as
   `ppot_0080_08.ptau`. `make kzg-setup` downloads it, checks the pinned SHA-256, checks
   that the G1 and G2 points are valid powers of one `τ` with pairings, and writes
-  `srs.json`. The setup is sound if any one contributor destroyed their secret. The degree
-  bound depends on this: whoever knows `τ` can forge openings and escape the bound. The
-  registry publishes the three G2 points it verifies against through `getSrs()`, so anyone
-  can compare a deployment with the ceremony instead of trusting the deployer
+  `srs.json`. The setup is sound if any one contributor destroyed their secret: whoever
+  knows `τ` can forge openings. The ceremony publishes powers of `τ` far above the 32 the
+  SRS uses (511 in G1 in this file alone), so arm 3 must not rely on a degree bound; until
+  2026-10-11 it did, and the bound could be forged with `τ³³` (`comparison.md`, *What each
+  arm actually guarantees on-chain*). The two G2 points the registry verifies against are
+  compiled into the contract, so the deployer cannot substitute a `τ` of its own; until
+  2026-10-11 they were a constructor argument, which let a company that deployed its own
+  registry choose them. `getSrs()` returns them for comparison with the ceremony
   (`test_PublishesTheSetupItVerifiesAgainst`); `loadSrs` refuses a file whose points are
   off the curve or are not successive powers of one `τ`.
 - The unit tests still use locally generated SRSs, which is fine for tests and never
@@ -155,9 +159,11 @@ The full privacy analysis is in `comparison.md`. The short version:
   the reserves, which are public anyway, so the proof adds no information about
   liabilities beyond "at most the reserves". A customer's path reveals only salted
   hashes.
-- **Arm 3** publishes the exact total. Its range argument opens the balance polynomial at
-  a public challenge, which leaks one linear combination of all balances; blinding it
-  would collide with the degree bound.
+- **Arm 3** publishes the exact total and nothing else about the balances: every
+  polynomial is blinded with a random multiple of `Z_H`, so the values opened at the
+  public challenge are uniformly random. Until 2026-10-11 the balance polynomial was
+  unblinded, and lattice reduction recovered every fixture balance from the one opened
+  value and the total (`comparison.md`, *Privacy*).
 - **All arms** publish every reserve wallet address, in the `reserves` array and in the
   events, so the asset side has no privacy at all. Publishing treasury addresses is a
   commercial cost, and Provisions (`related-work.md`) hides which addresses in an

@@ -87,10 +87,17 @@ must retain an auditable signup receipt and check their own inclusion.
 same, so inclusion and range proofs verify, but `p(0)` moves and the published total drops
 (49,550 → 9,550 in the fixture).
 
-**Stopped by.** A degree bound: the registry checks a shifted commitment against
-`[τ^(D−7)]₂` with one pairing (`test_RefusesTheVanishingPolynomialAttack`). The bound is
-only as good as the setup, which is why the SRS now comes from a public ceremony (see
-`limitations.md`, *Trusted setup*).
+**Stopped by.** The total no longer depends on `p(0)`. A committed running sum `A` must
+satisfy `A(ω⁰) = 0`, `A(ωⁱ⁺¹) = A(ωⁱ) + p(ωⁱ)` and `A(ω⁷) + p(ω⁷) = total` on the domain,
+where adding `c·Z_H` changes nothing, so the padded commitment can only prove the true
+total (`test_APaddedBalancePolynomialCannotUnderstateTheTotal`,
+`test_APaddedBalancePolynomialStillProvesOnlyItsTrueTotal`).
+
+**History.** Until 2026-10-11 a degree bound stopped this: the registry checked a shifted
+commitment against `[τ^25]₂`. That is sound only if no power of `τ` above 32 is known, and
+the public ceremony file publishes up to `τ⁵¹⁰`. With `τ³³` the shifted commitment can be
+forged, and the deployed contract accepted 9,550 on-chain. The Sepolia KZG registry from
+2026-09-25 still has this flaw and must be redeployed.
 
 ## 6. Replaying proofs
 

@@ -56,9 +56,10 @@ Automatic decoding of arbitrary multisig transactions is not implemented.
   `arms/snarkless/script/setup.ts` pins its SHA-256 to
   `5c411c13838e8e3ff80b6f87b81a0a92a66d2e64e82dd6af88ffc8ea89a548f6`;
   `arms/snarkless/prover/ceremony.ts` validates the curve, points and successive
-  powers with pairing checks before writing the SRS. The Sepolia deployer loads
-  the committed `arms/snarkless/fixtures/srs.json`; it does not generate a new tau.
-  Compare deployed `getSrs()` points with that artifact and independently review
+  powers with pairing checks before writing the SRS. The prover loads the
+  committed `arms/snarkless/fixtures/srs.json`; nothing generates a new tau.
+  The registry's two G2 points are compiled-in constants that
+  `test_PublishesTheSetupItVerifiesAgainst` compares with that artifact; independently review
   the ceremony provenance and importer before real customer use. The hash and
   pairing checks do not themselves prove that contributors destroyed their secrets.
   Ethereum's blob KZG setup is for a different curve and cannot simply replace
