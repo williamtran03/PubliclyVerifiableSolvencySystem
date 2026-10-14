@@ -20,12 +20,12 @@
     "HonkVerifier": "0x3CddcA38A7d40F6892d00EA5A0E55073EACb2FDe",
     "published-ledger": "0x7e176FABa50B4928DEB90533e0c6eBB546F944f9",
     "zk-circuit": "0xbdECC34e173009cc44FDFf12886cCF7c9038452B",
-    "snarkless": "0x773413C774d07f9aE949d930d8aA6643674315Ce"
+    "snarkless": "0x754f955746B95bDA358e275Bc376CF549e160f86"
   },
   "reserves": {
     "published-ledger": "0xF20ABEe11a57D1c6685cD0A59916E1D23bB70B15",
     "zk-circuit": "0x63F5943935552B3165F4B8Cf1270b86791a2f820",
-    "snarkless": "0x3972dd314097e2d8aC4128717dC46AEb33AbaB21"
+    "snarkless": "0xFf899d40522F5EF8f6372c4ea4Bb99e5dfD777Ae"
   },
   "deployBlocks": {
     "ReserveDirectory": "11779141",
@@ -38,7 +38,7 @@
     "HonkVerifier": "11779151",
     "published-ledger": "11779152",
     "zk-circuit": "11779159",
-    "snarkless": "11779166"
+    "snarkless": "11913017"
   },
   "epochs": [
     {
@@ -58,14 +58,6 @@
       "timestamp": "1790338872"
     },
     {
-      "arm": "snarkless",
-      "epochId": "0",
-      "hash": "0x9869f95b4617debd1124dbdc545722f6f3a31716ccfafb5dd6ddc4ce1a7bd8f0",
-      "block": "11779186",
-      "gasUsed": "1679265",
-      "timestamp": "1790338908"
-    },
-    {
       "arm": "published-ledger",
       "epochId": "1",
       "hash": "0x8bac951d59681ce2b5464b1d30bb0fd4007610758700332839236f61d09e86eb",
@@ -80,14 +72,6 @@
       "block": "11779260",
       "gasUsed": "4503029",
       "timestamp": "1790339796"
-    },
-    {
-      "arm": "snarkless",
-      "epochId": "1",
-      "hash": "0x1a4fdb9cc08b8961c1b1cd60686c938d921a70ec36c50f4f5fe7057c3df9fa09",
-      "block": "11779264",
-      "gasUsed": "1645541",
-      "timestamp": "1790339844"
     },
     {
       "arm": "published-ledger",
@@ -107,11 +91,11 @@
     },
     {
       "arm": "snarkless",
-      "epochId": "2",
-      "hash": "0xd70a353a8576a252e96d5e33adf0f38aeb618f5981cd5e8e65bc7fa4256c46b9",
-      "block": "11815001",
-      "gasUsed": "1645649",
-      "timestamp": "1790775432"
+      "epochId": "0",
+      "hash": "0x0c97a6e5a68cb97c696f394a7cc9ece19f4c3b9fb19e72e11cc5ff277e86bd01",
+      "block": "11913028",
+      "gasUsed": "2244589",
+      "timestamp": "1791978216"
     }
   ],
   "transactions": [
@@ -242,36 +226,6 @@
       "gasUsed": "76021"
     },
     {
-      "step": "snarkless deploy KzgSolvencyRegistry",
-      "hash": "0x1d98f4910ae53ba2341f596dde7967cf4c23d4506fcf3498319d931ea1b2acd2",
-      "block": "11779166",
-      "gasUsed": "5274655"
-    },
-    {
-      "step": "snarkless mint",
-      "hash": "0x1c5dac1856910b887872de8dc0d6d3e432bd987bdbd420ab1189620e65ef4d45",
-      "block": "11779168",
-      "gasUsed": "44602"
-    },
-    {
-      "step": "snarkless proposeReserve",
-      "hash": "0x944cf09a54e78308d0b5f53d6439c66d946c74a4d337688d4841ea21f69d6ffe",
-      "block": "11779169",
-      "gasUsed": "47916"
-    },
-    {
-      "step": "snarkless proveReserve",
-      "hash": "0x90a8a7cb58e82e7e7145d0a2e6fabda0058bdad26947658d1109f61d869e694d",
-      "block": "11779171",
-      "gasUsed": "119212"
-    },
-    {
-      "step": "snarkless reviewReserve",
-      "hash": "0x3b86bfa6ca3a7e7ad41751aa765fb9fde7611509d9e0f0a009d6689c8b9038f1",
-      "block": "11779172",
-      "gasUsed": "76021"
-    },
-    {
       "step": "published-ledger sampleReserves",
       "hash": "0x12a527ada7e8492d70feb6edd057a1036f1ada74be299f83d489b56152218c65",
       "block": "11779177",
@@ -294,18 +248,6 @@
       "hash": "0xdaffc5b5b40dff9c825a6622fc115c42080d9a757b89cfb6b5cf67ff326637da",
       "block": "11779183",
       "gasUsed": "4536813"
-    },
-    {
-      "step": "snarkless sampleReserves",
-      "hash": "0x8848de6e6ffe714ee4697a547e86a46bfe63b29a984ea3f82d085a05e1ffaaa2",
-      "block": "11779184",
-      "gasUsed": "67387"
-    },
-    {
-      "step": "snarkless submitEpoch",
-      "hash": "0x9869f95b4617debd1124dbdc545722f6f3a31716ccfafb5dd6ddc4ce1a7bd8f0",
-      "block": "11779186",
-      "gasUsed": "1679265"
     },
     {
       "step": "published-ledger operations funding transfer",
@@ -476,84 +418,6 @@
       "gasUsed": "76021"
     },
     {
-      "step": "snarkless operations funding transfer",
-      "hash": "0xabea50a21b0086caa96875adff6881bc36ed90dd06f8351fb05b3b33b3681f1f",
-      "block": "11779237",
-      "gasUsed": "21000"
-    },
-    {
-      "step": "snarkless operations 0 transferCompany",
-      "hash": "0x4d8c80332ac38e696c9186d038dfd17cc7f78dc8ac14c4636ce8ba20680173e2",
-      "block": "11779238",
-      "gasUsed": "48404"
-    },
-    {
-      "step": "snarkless operations 1 acceptCompany",
-      "hash": "0x6c2317e1a2e3256bfd27ca3979c88f78b649167e3d72c855825f8458ebf3531d",
-      "block": "11779239",
-      "gasUsed": "31019"
-    },
-    {
-      "step": "snarkless operations 2 transferCompany",
-      "hash": "0x2cf33ee0c53193800cbe3184b6ad9c89e6f5cf954e24206ed1c66a26cea5255b",
-      "block": "11779240",
-      "gasUsed": "48404"
-    },
-    {
-      "step": "snarkless operations 3 acceptCompany",
-      "hash": "0xb6589df67fa95ff15c10f247aed378c42c7ae2376b35912dcfc1dad3941028e7",
-      "block": "11779241",
-      "gasUsed": "31019"
-    },
-    {
-      "step": "snarkless operations 4 transferAuditor",
-      "hash": "0x5038daffd36b17a1dc1fbdb38a802b911e74a5fc5e120e0b5a0a281023fa6f06",
-      "block": "11779243",
-      "gasUsed": "31220"
-    },
-    {
-      "step": "snarkless operations 5 acceptAuditor",
-      "hash": "0xc285f04f7a65a1ecda2d5e06d393cf6e23016a39917521dae499f5fa3bbf74ca",
-      "block": "11779244",
-      "gasUsed": "35910"
-    },
-    {
-      "step": "snarkless operations 6 transferAuditor",
-      "hash": "0x4921f5ddfaef1bbc6a09a16425b222bd7c125a472bb583dac359aa937bb4c680",
-      "block": "11779245",
-      "gasUsed": "31220"
-    },
-    {
-      "step": "snarkless operations 7 acceptAuditor",
-      "hash": "0x6fec35c0742eae249976b044e8c27372f00ff85d8de59353d9b0249cd5ecead8",
-      "block": "11779246",
-      "gasUsed": "35910"
-    },
-    {
-      "step": "snarkless operations 8 removeReserve",
-      "hash": "0x343a2cbd7609305be36281f39d65b45ebcc0cf15cc633292096b56499004f244",
-      "block": "11779247",
-      "gasUsed": "47000"
-    },
-    {
-      "step": "snarkless operations 9 proposeReserve",
-      "hash": "0xb3f47659f47e5d0fb5f45bd742e51d77aed992d8474c5a0bc2e88ee4cf1fdb74",
-      "block": "11779248",
-      "gasUsed": "47916"
-    },
-    {
-      "step": "snarkless operations 10 proveReserve",
-      "hash": "0xa5f75fd63362c269bfcdf627816b2be4e06995baadd85476e59ae76f5f3f9cd9",
-      "block": "11779250",
-      "gasUsed": "85012"
-    },
-    {
-      "step": "snarkless operations 11 reviewReserve",
-      "hash": "0x0bf387db63f8653a79a5987407a50bddf97c825658120b8a3d04b3996da72c22",
-      "block": "11779251",
-      "gasUsed": "76021"
-    },
-    {
       "step": "published-ledger sampleReserves",
       "hash": "0x62c9df6cef9120f2d93469852e12403c31493b50a354e797cf967a7d7ce4fb1f",
       "block": "11779254",
@@ -576,18 +440,6 @@
       "hash": "0x5efd64a1c1213eefe6f1e12dd501770e96d9cf691f599034d22477d7ef0302aa",
       "block": "11779260",
       "gasUsed": "4503029"
-    },
-    {
-      "step": "snarkless sampleReserves",
-      "hash": "0xf370683b8ab35513f4caf44ad1ad7bbebcd8b16d121c9ff6857865b96b2309cb",
-      "block": "11779261",
-      "gasUsed": "47487"
-    },
-    {
-      "step": "snarkless submitEpoch",
-      "hash": "0x1a4fdb9cc08b8961c1b1cd60686c938d921a70ec36c50f4f5fe7057c3df9fa09",
-      "block": "11779264",
-      "gasUsed": "1645541"
     },
     {
       "step": "published-ledger proveReserve",
@@ -644,27 +496,50 @@
       "gasUsed": "4503101"
     },
     {
+      "step": "snarkless deploy KzgSolvencyRegistry",
+      "hash": "0x8594ac35deaff5e2b0da5aac1b654ad069e4efc815caa713bdcca2747e595fa1",
+      "block": "11913017",
+      "gasUsed": "38198924"
+    },
+    {
+      "step": "snarkless mint",
+      "hash": "0x9b65281e0bf64b0fc5961d5561685910a327ce3861e2aafc563805914f4d77c9",
+      "block": "11913018",
+      "gasUsed": "126622"
+    },
+    {
+      "step": "snarkless proposeReserve",
+      "hash": "0xd84c4eba25fa3967b895bee55603dbbfefd801725f35798d654e5310ec4fd63a",
+      "block": "11913019",
+      "gasUsed": "129980"
+    },
+    {
       "step": "snarkless proveReserve",
-      "hash": "0x6885e2ad275801d11ba7a1b27cd162aaa1d51e2c1a5ada223b511c3835fd37bf",
-      "block": "11814998",
-      "gasUsed": "61951"
+      "hash": "0x2d6cc16e57c15624ea4353b32a6f5362a18f2b9e9fb3a99f4c6108224e800b0a",
+      "block": "11913022",
+      "gasUsed": "385372"
+    },
+    {
+      "step": "snarkless reviewReserve",
+      "hash": "0x40550a5c3b4a553d20ed77247e1febbe5396d9df6294513f89924fa25231b805",
+      "block": "11913023",
+      "gasUsed": "253261"
     },
     {
       "step": "snarkless sampleReserves",
-      "hash": "0x9f71f45bedfefd2fd5e767cd3bc09933d6cd501732a0c2a9b01dfdf3bc79adc2",
-      "block": "11814999",
-      "gasUsed": "47487"
+      "hash": "0xf0b65448c7c85cce8d87be10e6c44404bb010636667b82c2db3090ec1e9c345d",
+      "block": "11913026",
+      "gasUsed": "156907"
     },
     {
       "step": "snarkless submitEpoch",
-      "hash": "0xd70a353a8576a252e96d5e33adf0f38aeb618f5981cd5e8e65bc7fa4256c46b9",
-      "block": "11815001",
-      "gasUsed": "1645649"
+      "hash": "0x0c97a6e5a68cb97c696f394a7cc9ece19f4c3b9fb19e72e11cc5ff277e86bd01",
+      "block": "11913028",
+      "gasUsed": "2244589"
     }
   ],
   "operations": {
     "published-ledger": 14,
-    "zk-circuit": 14,
-    "snarkless": 14
+    "zk-circuit": 14
   }
 }
